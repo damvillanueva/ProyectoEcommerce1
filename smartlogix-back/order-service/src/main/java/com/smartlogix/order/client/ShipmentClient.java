@@ -85,6 +85,27 @@ public class ShipmentClient {
         );
     }
 
+    public boolean deleteShipment(String trackingCode) {
+        return circuitBreakerFactory.create("shipmentService").run(
+                () -> {
+                    restTemplate.exchange(
+                            "http://shipment-service/api/shipments/{trackingCode}",
+                            HttpMethod.DELETE,
+                            authorizedEntity(null),
+                            Void.class,
+                            trackingCode
+                    );
+
+                    return true;
+                },
+                (Throwable throwable) -> {
+                    System.err.println("Error al eliminar el envio asociado:");
+                    throwable.printStackTrace();
+                    return false;
+                }
+        );
+    }
+
     private <T> HttpEntity<T> authorizedEntity(T body) {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);

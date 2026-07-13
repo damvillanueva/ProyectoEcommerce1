@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, lazy, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
 getInventoryItemsWithAvailable,
@@ -11,7 +11,6 @@ fetchInventoryAuditLogs,
 import Navbar from "../components/Navbar";
 import PageContainer from "../layout/PageContainer";
 import ToastStack from "../components/ToastStack";
-import Warehouse3DExplorer from "../components/Warehouse3DExplorer";
 import { useToasts } from "../hooks/useToasts";
 import {
 getAvailableUnits,
@@ -30,6 +29,7 @@ const CATEGORY_OPTIONS = [
 ];
 
 const WAREHOUSE_OPTIONS = WAREHOUSE_LOCATION_OPTIONS;
+const Warehouse3DExplorer = lazy(() => import("../components/Warehouse3DExplorer"));
 
 const MAX_IMAGE_UPLOAD_BYTES = 900 * 1024;
 const SKU_CODE_GRID_SIZE = 11;
@@ -817,6 +817,15 @@ summary={warehouseSummary}
 onSelectWarehouse={setWarehouseFilter}
 />
 
+<Suspense
+fallback={
+<section className="mb-8 rounded-2xl border border-white/10 bg-slate-900/80 p-6 text-white">
+<p className="text-sm font-black uppercase text-sky-300">Vista 3D de Bodega</p>
+<p className="mt-2 text-lg font-black">Cargando mapa 3D...</p>
+<div className="mt-5 h-[360px] rounded-2xl bg-slate-950/80" />
+</section>
+}
+>
 <Warehouse3DExplorer
 items={items}
 onOpenDetail={handleOpenDetail}
@@ -824,6 +833,7 @@ onSelectWarehouse={setWarehouseFilter}
 selectedWarehouse={warehouseFilter}
 warehouseOptions={warehouseOptions}
 />
+</Suspense>
 
 <WarehouseOperationsBoard
 focusedSku={focusedWarehouseSku}

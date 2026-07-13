@@ -40,6 +40,8 @@ Base copiada desde la entrega grupal y separada para seguir iterando sin tocar l
 - [x] Ubicacion fisica real en backend de inventario: zona, pasillo, rack, nivel y posicion.
 - [x] Crear pedido mas logico: catalogo de inventario con buscador, imagen, stock disponible, bodega, ubicacion y boton para elegir producto sin escribir SKU manualmente.
 - [x] Vista 3D completa de bodega con Three.js: pasillos, racks, cajas, etiquetas, seleccion por clic, buscador global por SKU/nombre/ubicacion, filtros y panel de detalle.
+- [x] Optimizacion frontend: la vista 3D se carga de forma diferida para separar Three.js del bundle inicial.
+- [x] Correccion de flujo pedido-envio: al eliminar un pedido aprobado se libera la reserva de inventario y se elimina el envio asociado.
 
 ## Siguientes mejoras recomendadas
 
@@ -137,10 +139,22 @@ Base copiada desde la entrega grupal y separada para seguir iterando sin tocar l
     - Mostrar panel lateral con codigo de ubicacion, zona, pasillo, rack, nivel, posicion, imagen, categoria y stock disponible.
     - Estado: implementado en inventario con validacion visual desktop/movil.
 
+16.1. Optimizacion de carga del 3D
+    - Cargar `Warehouse3DExplorer` con `React.lazy` y `Suspense`.
+    - Separar el codigo de Three.js en un chunk propio para no cargarlo junto al inicio de la app.
+    - Estado: implementado. La build ahora genera un chunk independiente para `Warehouse3DExplorer`.
+
+17. Limpieza correcta de pedidos
+    - Al eliminar una orden con stock reservado, liberar las unidades reservadas en inventario.
+    - Si la orden tenia tracking, eliminar tambien el envio asociado para evitar registros huerfanos.
+    - Estado: implementado en `order-service` y validado por API local.
+
 ## Validacion actual
 
 - Backend: `.\mvnw.cmd -pl inventory-service -am test` OK.
 - Backend: `.\mvnw.cmd -pl order-service -am test` OK.
 - Frontend: `npm.cmd run build` OK.
 - Frontend 3D: Playwright con Edge OK en desktop y movil; busqueda `SKU-3001` encontro `WH-VAP-02-MC-R1-N2-P3`; capturas con pixeles no vacios.
+- Flujo pedido-envio: pedido creado desde catalogo con `SKU-3001`, comuna `Providencia`, estado legible y envio generado con tracking.
+- Flujo borrar pedido: `ORD-5D401FAB` creo reserva/envio temporal, al eliminarlo el monitor volvio de disponible 44/reservado 1 a disponible 45/reservado 0 y el tracking desaparecio.
 - Nota: Vite mantiene advertencia de bundle mayor a 500 KB; no bloquea.

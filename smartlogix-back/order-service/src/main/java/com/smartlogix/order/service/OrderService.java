@@ -245,7 +245,27 @@ public class OrderService {
                 .orElseThrow(() ->
                         new OrderNotFoundException("No existe la orden " + orderNumber));
 
+        if (hasReservedInventory(order)) {
+            releaseReservedLinesOrThrow(order.getLines());
+        }
+
+        if (order.getTrackingCode() != null && !order.getTrackingCode().isBlank()) {
+            shipmentClient.deleteShipment(order.getTrackingCode());
+        }
+
         repository.delete(order);
+    }
+
+    private boolean hasReservedInventory(PurchaseOrder order) {
+        return order.getStatus() == OrderStatus.APPROVED
+                || order.getStatus() == OrderStatus.SHIPMENT_REQUESTED
+                || order.getStatus() == OrderStatus.FAILED;
+    }
+
+    private void releaseReservedLinesOrThrow(List<OrderLine> reservedLines) {
+        for (OrderLine line : reservedLines) {
+            inventoryClient.release(line.getSku(), line.getQuantity());
+        }
     }
 
     private void syncShipmentDestination(PurchaseOrder order) {
