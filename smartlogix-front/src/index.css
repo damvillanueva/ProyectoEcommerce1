@@ -1,0 +1,40 @@
+@import "tailwindcss";
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: system-ui, 'Segoe UI', Roboto, sans-serif;
+  background: #f8fafc;
+  color: #0f172a;
+}
+
+.field-control {
+  width: 100%;
+  min-height: 44px;
+  border-radius: 6px;
+  border: 1px solid rgb(255 255 255 / 0.1);
+  background: rgb(15 23 42 / 0.62);
+  padding: 0.75rem 1rem;
+  color: #fff;
+  font-size: 0.875rem;
+  font-weight: 700;
+  outline: none;
+}
+
+.field-control::placeholder {
+  color: #94a3b8;
+}
+
+.field-control:focus {
+  border-color: rgb(56 189 248 / 0.7);
+  box-shadow: 0 0 0 2px rgb(56 189 248 / 0.18);
+}
