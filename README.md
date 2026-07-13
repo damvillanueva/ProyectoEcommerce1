@@ -10,6 +10,8 @@ ProyectoSmartlogix/
   smartlogix-back/       Microservicios Spring Boot
   smartlogix-front/      Frontend React + Vite
   MEJORAS_PERSONALES.md  Checklist de mejoras implementadas y pendientes
+  EXPLICACION_GRUPO.md   Resumen tecnico simple para explicar al equipo
+  GUIA_DEMO_PROFESOR.md  Guion de demo paso a paso
 ```
 
 ## Funcionalidades destacadas
@@ -24,6 +26,10 @@ ProyectoSmartlogix/
 - Miniaturas en inventario e historial.
 - Alerta de stock bajo.
 - Detalle completo de producto con imagen, stock e historial asociado.
+- Vista 3D de bodega con busqueda por nombre, SKU o ubicacion.
+- Pedidos desde catalogo de inventario.
+- Envios conectados al pedido y limpieza de reservas al eliminar.
+- Traslado visual de productos entre bodegas.
 
 ## Backend
 
@@ -88,7 +94,7 @@ npm run build
 URL local:
 
 ```txt
-http://localhost:5173
+http://localhost:5174
 ```
 
 ## Seguridad y limpieza del repositorio
@@ -108,4 +114,6 @@ El avance personal esta documentado en:
 
 ```txt
 MEJORAS_PERSONALES.md
+EXPLICACION_GRUPO.md
+GUIA_DEMO_PROFESOR.md
 ```

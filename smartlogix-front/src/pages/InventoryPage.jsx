@@ -101,13 +101,14 @@ return (hash >>> 0) % 4 !== 0;
 function InventoryPage() {
 const [items, setItems] = useState([]);
 const [loading, setLoading] = useState(true);
-const [error, setError] = useState("");
+const [, setError] = useState("");
 const [saving, setSaving] = useState(false);
 const [editingSku, setEditingSku] = useState(null);
 const [detailItem, setDetailItem] = useState(null);
 const [detailMovements, setDetailMovements] = useState([]);
 const [detailLoading, setDetailLoading] = useState(false);
 const [detailError, setDetailError] = useState("");
+const [transferringSku, setTransferringSku] = useState("");
 const [auditLogs, setAuditLogs] = useState([]);
 const [auditLoading, setAuditLoading] = useState(false);
 const [auditError, setAuditError] = useState("");
@@ -592,6 +593,78 @@ setDetailMovements([]);
 setDetailError("");
 }
 
+async function handleTransferProduct(item, transferData) {
+if (!canManageInventory) {
+showPageError("No tienes permisos para trasladar inventario.");
+return;
+}
+
+const destinationWarehouse = transferData.warehouseCode.trim();
+const destinationZone = transferData.locationZone.trim();
+const destinationAisle = transferData.locationAisle.trim();
+const destinationRack = Number(transferData.locationRack);
+const destinationLevel = Number(transferData.locationLevel);
+const destinationPosition = Number(transferData.locationPosition);
+
+if (!destinationWarehouse) {
+showPageError("Selecciona una bodega destino.");
+return;
+}
+
+if (!destinationZone || !destinationAisle) {
+showPageError("Ingresa zona y pasillo de destino.");
+return;
+}
+
+if (
+!Number.isInteger(destinationRack) ||
+destinationRack <= 0 ||
+!Number.isInteger(destinationLevel) ||
+destinationLevel <= 0 ||
+!Number.isInteger(destinationPosition) ||
+destinationPosition <= 0
+) {
+showPageError("Rack, nivel y posicion deben ser numeros enteros mayores a 0.");
+return;
+}
+
+try {
+setTransferringSku(item.sku);
+await editInventoryItem(item.sku, {
+productName: item.productName,
+imageUrl: item.imageUrl || "",
+category: item.category || "General",
+warehouseCode: destinationWarehouse,
+locationZone: destinationZone.toUpperCase(),
+locationAisle: destinationAisle.toUpperCase(),
+locationRack: destinationRack,
+locationLevel: destinationLevel,
+locationPosition: destinationPosition,
+availableQuantity: item.availableQuantity,
+reservedQuantity: item.reservedQuantity,
+reorderLevel: item.reorderLevel,
+});
+
+const data = await getInventoryItemsWithAvailable();
+setItems(data);
+const updatedItem = data.find((candidate) => candidate.sku === item.sku);
+if (updatedItem) {
+setDetailItem(updatedItem);
+setWarehouseFilter(destinationWarehouse);
+setFocusedWarehouseSku(updatedItem.sku);
+}
+if (canViewAudit) {
+await loadAuditLogs();
+}
+showPageSuccess(`${item.productName} trasladado a ${destinationWarehouse}.`);
+} catch (err) {
+console.error(err);
+showPageError("No se pudo trasladar el producto.");
+} finally {
+setTransferringSku("");
+}
+}
+
 return (
 <div className="min-h-screen bg-slate-950 p-6 text-white">
 <ToastStack onDismiss={dismissToast} toasts={toasts} />
@@ -628,7 +701,7 @@ Cargando inventario...
 {!loading && criticalItems.length > 0 && (
 <div className="bg-amber-500/10 border border-amber-300/30 rounded-2xl p-5 mb-6">
 <p className="text-amber-100 font-bold">
-Alerta de stock bajo: {criticalItems.length} producto(s) alcanzaron o quedaron bajo su nivel de reposiciÃ³n.
+Alerta de stock bajo: {criticalItems.length} producto(s) alcanzaron o quedaron bajo su nivel de reposicion.
 </p>
 </div>
 )}
@@ -1051,7 +1124,11 @@ item={detailItem}
 movements={detailMovements}
 loading={detailLoading}
 error={detailError}
+canManageInventory={canManageInventory}
 canViewMovements={canViewMovements}
+onTransfer={handleTransferProduct}
+transferring={transferringSku === detailItem.sku}
+warehouseOptions={warehouseOptions}
 onClose={handleCloseDetail}
 />
 )}
@@ -1827,7 +1904,18 @@ Imprimir etiqueta
 );
 }
 
-function ProductDetailModal({ canViewMovements, item, movements, loading, error, onClose }) {
+function ProductDetailModal({
+canManageInventory,
+canViewMovements,
+item,
+movements,
+loading,
+error,
+onClose,
+onTransfer,
+transferring,
+warehouseOptions,
+}) {
 const available = item.availableQuantity - item.reservedQuantity;
 const isLowStock = available <= item.reorderLevel;
 const location = getProductStorageLocation(item);
@@ -1896,6 +1984,16 @@ Sin imagen
 <DetailMetric label="Disponible" value={available} tone={isLowStock ? "warning" : "success"} />
 <DetailMetric label="Nivel reposicion" value={item.reorderLevel} />
 </div>
+
+{canManageInventory && (
+<TransferProductPanel
+item={item}
+location={location}
+onTransfer={onTransfer}
+transferring={transferring}
+warehouseOptions={warehouseOptions}
+/>
+)}
 
 {canViewMovements && (
 <div className="rounded-2xl border border-white/10 bg-slate-950/45 p-5">
@@ -1973,6 +2071,124 @@ className="grid gap-3 rounded-2xl border border-white/10 bg-slate-900/80 p-4 sm:
 </div>
 </section>
 </div>
+);
+}
+
+function TransferProductPanel({ item, location, onTransfer, transferring, warehouseOptions }) {
+const defaultWarehouseCode = warehouseOptions[0]?.code || "";
+const [transferData, setTransferData] = useState(() => ({
+warehouseCode: item.warehouseCode || warehouseOptions[0]?.code || "",
+locationZone: item.locationZone || location.zone,
+locationAisle: item.locationAisle || location.aisle,
+locationRack: String(item.locationRack || location.rack),
+locationLevel: String(item.locationLevel || location.level),
+locationPosition: String(item.locationPosition || location.position),
+}));
+
+useEffect(() => {
+setTransferData({
+warehouseCode: item.warehouseCode || warehouseOptions[0]?.code || "",
+locationZone: item.locationZone || location.zone,
+locationAisle: item.locationAisle || location.aisle,
+locationRack: String(item.locationRack || location.rack),
+locationLevel: String(item.locationLevel || location.level),
+locationPosition: String(item.locationPosition || location.position),
+});
+}, [
+defaultWarehouseCode,
+item.locationAisle,
+item.locationLevel,
+item.locationPosition,
+item.locationRack,
+item.locationZone,
+item.sku,
+item.warehouseCode,
+location.aisle,
+location.level,
+location.position,
+location.rack,
+location.zone,
+]);
+
+function handleChange(event) {
+const { name, value } = event.target;
+setTransferData((current) => ({
+...current,
+[name]: value,
+}));
+}
+
+function handleSubmit(event) {
+event.preventDefault();
+onTransfer(item, transferData);
+}
+
+const selectedWarehouse = warehouseOptions.find(
+(warehouse) => warehouse.code === transferData.warehouseCode
+);
+
+return (
+<form
+onSubmit={handleSubmit}
+className="rounded-2xl border border-sky-300/20 bg-sky-500/10 p-5"
+>
+<div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+<div>
+<h3 className="text-xl font-black">Traslado entre bodegas</h3>
+<p className="mt-1 text-sm font-semibold text-slate-400">
+Actualiza la bodega y posicion fisica sin modificar stock ni reservas.
+</p>
+</div>
+<span className="rounded-full bg-slate-950/70 px-3 py-1 text-xs font-black text-sky-200">
+{selectedWarehouse?.city || "Destino"}
+</span>
+</div>
+
+<div className="grid gap-3 md:grid-cols-3">
+<select
+name="warehouseCode"
+value={transferData.warehouseCode}
+onChange={handleChange}
+className="rounded-xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm font-black text-white outline-none focus:ring-2 focus:ring-sky-400 md:col-span-3"
+>
+{warehouseOptions.map((warehouse) => (
+<option key={warehouse.code} value={warehouse.code}>
+{warehouse.code} - {warehouse.name}
+</option>
+))}
+</select>
+
+<TransferInput label="Zona" name="locationZone" value={transferData.locationZone} onChange={handleChange} />
+<TransferInput label="Pasillo" name="locationAisle" value={transferData.locationAisle} onChange={handleChange} />
+<TransferInput label="Rack" name="locationRack" value={transferData.locationRack} onChange={handleChange} type="number" />
+<TransferInput label="Nivel" name="locationLevel" value={transferData.locationLevel} onChange={handleChange} type="number" />
+<TransferInput label="Posicion" name="locationPosition" value={transferData.locationPosition} onChange={handleChange} type="number" />
+
+<button
+type="submit"
+disabled={transferring}
+className="rounded-xl bg-sky-500 px-4 py-3 text-sm font-black text-white transition hover:bg-sky-400 disabled:cursor-not-allowed disabled:opacity-60"
+>
+{transferring ? "Trasladando..." : "Trasladar producto"}
+</button>
+</div>
+</form>
+);
+}
+
+function TransferInput({ label, name, onChange, type = "text", value }) {
+return (
+<label className="block">
+<span className="mb-1 block text-xs font-black uppercase text-slate-500">{label}</span>
+<input
+type={type}
+name={name}
+value={value}
+onChange={onChange}
+min={type === "number" ? "1" : undefined}
+className="w-full rounded-xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm font-black text-white outline-none focus:ring-2 focus:ring-sky-400"
+/>
+</label>
 );
 }
 

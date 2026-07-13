@@ -342,7 +342,7 @@ function InventoryMovementsPage() {
   const [savingHistory, setSavingHistory] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [exportingExcel, setExportingExcel] = useState(false);
-  const [error, setError] = useState("");
+  const [, setError] = useState("");
   const [selectedMovement, setSelectedMovement] = useState(null);
   const [manualForm, setManualForm] = useState(EMPTY_MANUAL_FORM);
   const [isRegisterOpen, setIsRegisterOpen] = useState(false);
