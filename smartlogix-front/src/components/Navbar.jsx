@@ -65,7 +65,7 @@ function Navbar({
         <nav className="hidden md:flex items-center gap-4 text-white font-semibold">
           <NavItem to="/dashboard">Dashboard</NavItem>
 
-          {role !== "ROLE_USER" && <NavItem to="/inventory">Inventario</NavItem>}
+          <NavItem to="/inventory">Inventario</NavItem>
 
           {role !== "ROLE_USER" && <NavItem to="/inventory/movements">Movimientos</NavItem>}
 

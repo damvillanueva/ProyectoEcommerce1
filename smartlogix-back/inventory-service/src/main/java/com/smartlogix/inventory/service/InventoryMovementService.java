@@ -1,13 +1,17 @@
 package com.smartlogix.inventory.service;
 
 import com.smartlogix.inventory.domain.ActionType;
+import com.smartlogix.inventory.domain.InventoryHistoryReport;
 import com.smartlogix.inventory.domain.InventoryItem;
 import com.smartlogix.inventory.domain.InventoryMovement;
 import com.smartlogix.inventory.domain.MovementType;
+import com.smartlogix.inventory.dto.InventoryHistoryReportResponse;
 import com.smartlogix.inventory.dto.InventoryMovementResponse;
 import com.smartlogix.inventory.dto.ManualInventoryMovementRequest;
+import com.smartlogix.inventory.dto.SaveInventoryHistoryRequest;
 import com.smartlogix.inventory.exception.InventoryNotFoundException;
 import com.smartlogix.inventory.exception.InventoryOperationException;
+import com.smartlogix.inventory.repository.InventoryHistoryReportRepository;
 import com.smartlogix.inventory.repository.InventoryItemRepository;
 import com.smartlogix.inventory.repository.InventoryMovementRepository;
 import jakarta.persistence.criteria.Predicate;
@@ -33,13 +37,16 @@ public class InventoryMovementService {
 
     private final InventoryMovementRepository movementRepository;
     private final InventoryItemRepository itemRepository;
+    private final InventoryHistoryReportRepository historyReportRepository;
 
     public InventoryMovementService(
             InventoryMovementRepository movementRepository,
-            InventoryItemRepository itemRepository
+            InventoryItemRepository itemRepository,
+            InventoryHistoryReportRepository historyReportRepository
     ) {
         this.movementRepository = movementRepository;
         this.itemRepository = itemRepository;
+        this.historyReportRepository = historyReportRepository;
     }
 
     public InventoryMovementResponse recordMovement(
@@ -162,6 +169,42 @@ public class InventoryMovementService {
         return new ByteArrayResource(csv.toString().getBytes(StandardCharsets.UTF_8));
     }
 
+    public InventoryHistoryReportResponse saveHistoryReport(SaveInventoryHistoryRequest request) {
+        Specification<InventoryMovement> specification = buildSpecification(
+                request.product(),
+                request.type(),
+                request.action(),
+                request.user(),
+                request.startDate(),
+                request.endDate(),
+                request.minQuantity(),
+                request.maxQuantity()
+        );
+
+        long totalMovements = movementRepository.count(specification);
+
+        InventoryHistoryReport report = new InventoryHistoryReport();
+        report.setUsername(resolveUsername());
+        report.setProductFilter(normalizeOptionalText(request.product()));
+        report.setMovementTypeFilter(request.type() == null ? null : request.type().name());
+        report.setActionFilter(request.action() == null ? null : request.action().name());
+        report.setUserFilter(normalizeOptionalText(request.user()));
+        report.setStartDate(request.startDate());
+        report.setEndDate(request.endDate());
+        report.setMinQuantity(request.minQuantity());
+        report.setMaxQuantity(request.maxQuantity());
+        report.setTotalMovements(totalMovements);
+
+        return toReportResponse(historyReportRepository.save(report));
+    }
+
+    @Transactional(readOnly = true)
+    public InventoryHistoryReportResponse findLatestHistoryReport() {
+        return historyReportRepository.findTopByOrderByCreatedAtDesc()
+                .map(this::toReportResponse)
+                .orElse(null);
+    }
+
     private Specification<InventoryMovement> buildSpecification(
             String product,
             MovementType type,
@@ -280,6 +323,14 @@ public class InventoryMovementService {
         return reason.trim();
     }
 
+    private String normalizeOptionalText(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+
+        return value.trim();
+    }
+
     private String csvValue(Object value) {
         if (value == null) {
             return "";
@@ -307,6 +358,23 @@ public class InventoryMovementService {
                 movement.getUsername(),
                 movement.getReason(),
                 movement.getCreatedAt()
+        );
+    }
+
+    private InventoryHistoryReportResponse toReportResponse(InventoryHistoryReport report) {
+        return new InventoryHistoryReportResponse(
+                report.getId(),
+                report.getUsername(),
+                report.getProductFilter(),
+                report.getMovementTypeFilter(),
+                report.getActionFilter(),
+                report.getUserFilter(),
+                report.getStartDate(),
+                report.getEndDate(),
+                report.getMinQuantity(),
+                report.getMaxQuantity(),
+                report.getTotalMovements(),
+                report.getCreatedAt()
         );
     }
 }

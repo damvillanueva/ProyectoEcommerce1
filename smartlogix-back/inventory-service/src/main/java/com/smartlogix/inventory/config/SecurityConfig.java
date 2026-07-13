@@ -31,6 +31,9 @@ public class SecurityConfig {
                         .requestMatchers("/api/inventory/movements", "/api/inventory/movements/**")
                         .hasAnyAuthority("ROLE_ADMIN", "ROLE_WAREHOUSE_MANAGER")
 
+                        .requestMatchers(HttpMethod.GET, "/api/inventory/audit", "/api/inventory/audit/**")
+                        .hasAuthority("ROLE_ADMIN")
+
                         .requestMatchers(HttpMethod.GET, "/api/inventory/**")
                         .hasAnyAuthority("ROLE_ADMIN", "ROLE_WAREHOUSE_MANAGER", "ROLE_USER")
 

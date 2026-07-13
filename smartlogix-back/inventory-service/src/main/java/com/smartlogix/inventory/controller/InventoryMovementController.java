@@ -2,8 +2,10 @@ package com.smartlogix.inventory.controller;
 
 import com.smartlogix.inventory.domain.ActionType;
 import com.smartlogix.inventory.domain.MovementType;
+import com.smartlogix.inventory.dto.InventoryHistoryReportResponse;
 import com.smartlogix.inventory.dto.InventoryMovementResponse;
 import com.smartlogix.inventory.dto.ManualInventoryMovementRequest;
+import com.smartlogix.inventory.dto.SaveInventoryHistoryRequest;
 import com.smartlogix.inventory.service.InventoryMovementService;
 import jakarta.validation.Valid;
 import java.time.LocalDate;
@@ -63,6 +65,16 @@ public class InventoryMovementController {
     @PostMapping("/manual")
     public InventoryMovementResponse registerManual(@Valid @RequestBody ManualInventoryMovementRequest request) {
         return movementService.registerManualMovement(request);
+    }
+
+    @PostMapping("/reports")
+    public InventoryHistoryReportResponse saveReport(@RequestBody SaveInventoryHistoryRequest request) {
+        return movementService.saveHistoryReport(request);
+    }
+
+    @GetMapping("/reports/latest")
+    public InventoryHistoryReportResponse latestReport() {
+        return movementService.findLatestHistoryReport();
     }
 
     @GetMapping(value = "/export", produces = "text/csv")

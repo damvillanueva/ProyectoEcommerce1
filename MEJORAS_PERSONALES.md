@@ -17,6 +17,12 @@ Base copiada desde la entrega grupal y separada para seguir iterando sin tocar l
 - [x] Apertura de historial filtrado automaticamente por SKU desde inventario.
 - [x] Filtros reales de cantidad en backend para historial y exportacion CSV.
 - [x] Modal de detalle completo por producto con stock, imagen e historial asociado.
+- [x] Exportacion mejorada con CSV nombrado por filtros y archivo Excel del historial filtrado.
+- [x] Guardar historial real en backend con usuario, filtros, fecha y total de movimientos.
+- [x] Auditoria de inventario con usuario, rol, IP, accion, producto y fecha.
+- [x] Permisos mas finos: usuario ve inventario en modo lectura, admin/bodega gestionan y admin audita/elimina.
+- [x] Toasts visuales de exito/error en inventario e historial.
+- [x] Modal propio de confirmacion para eliminar productos.
 
 ## Siguientes mejoras recomendadas
 
@@ -49,9 +55,11 @@ Base copiada desde la entrega grupal y separada para seguir iterando sin tocar l
 6. Modal de confirmacion propio
    - Reemplazar `window.confirm`.
    - Mantener estilo visual de SmartLogix.
+   - Estado: implementado para eliminar productos desde inventario.
 
 7. Toasts de exito/error
    - Mostrar mensajes temporales al crear, editar, eliminar o registrar movimientos.
+   - Estado: implementado con `ToastStack` y `useToasts`.
 
 8. Categorias de productos
    - Agregar campo `category`.
@@ -64,8 +72,25 @@ Base copiada desde la entrega grupal y separada para seguir iterando sin tocar l
 10. Exportacion mejorada
    - Agregar Excel o PDF.
    - Incluir filtros aplicados en el nombre del archivo.
+   - Estado: implementado con descarga CSV y Excel usando fecha y filtros activos.
 
-11. Tests
+11. Guardar historial real
+   - Registrar en backend el reporte guardado desde la pantalla.
+   - Guardar usuario, filtros aplicados, fecha y total de movimientos.
+   - Estado: implementado con endpoint `/api/inventory/movements/reports`.
+
+12. Auditoria de usuarios
+   - Registrar quien crea, edita o elimina productos.
+   - Mostrar usuario, rol, IP, fecha, accion, SKU y detalle.
+   - Estado: implementado con endpoint `/api/inventory/audit` visible para admin.
+
+13. Permisos mas finos
+   - Admin: puede gestionar inventario, eliminar, ver auditoria y movimientos.
+   - Bodeguero: puede crear/editar inventario y registrar movimientos, sin eliminar ni auditar.
+   - Usuario: puede entrar al inventario en modo lectura y usar pedidos.
+   - Estado: implementado en rutas, menu y acciones visibles del frontend; backend mantiene bloqueo por rol.
+
+14. Tests
     - Tests backend para `imageUrl`.
     - Tests de seguridad de movimientos.
     - Tests de reglas de stock bajo.

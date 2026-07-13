@@ -20,13 +20,16 @@ public class InventoryService {
 
     private final InventoryItemRepository repository;
     private final InventoryMovementService movementService;
+    private final InventoryAuditLogService auditLogService;
 
     public InventoryService(
             InventoryItemRepository repository,
-            InventoryMovementService movementService
+            InventoryMovementService movementService,
+            InventoryAuditLogService auditLogService
     ) {
         this.repository = repository;
         this.movementService = movementService;
+        this.auditLogService = auditLogService;
     }
 
     public InventoryItemResponse createItem(CreateInventoryItemRequest request) {
@@ -52,6 +55,12 @@ public class InventoryService {
                 0,
                 savedItem.getAvailableQuantity(),
                 "Producto creado"
+        );
+        auditLogService.record(
+                "CREATE_PRODUCT",
+                savedItem.getSku(),
+                savedItem.getProductName(),
+                "Producto creado con stock inicial " + savedItem.getAvailableQuantity()
         );
 
         return toResponse(savedItem);
@@ -193,6 +202,13 @@ public class InventoryService {
                     "Actualizacion manual de stock"
             );
         }
+        auditLogService.record(
+                "UPDATE_PRODUCT",
+                savedItem.getSku(),
+                savedItem.getProductName(),
+                "Producto actualizado. Stock anterior: " + previousStock
+                        + ", stock nuevo: " + savedItem.getAvailableQuantity()
+        );
 
         return toResponse(savedItem);
     }
@@ -211,6 +227,12 @@ public class InventoryService {
                 item.getAvailableQuantity(),
                 0,
                 "Producto eliminado"
+        );
+        auditLogService.record(
+                "DELETE_PRODUCT",
+                item.getSku(),
+                item.getProductName(),
+                "Producto eliminado del inventario"
         );
 
         repository.delete(item);

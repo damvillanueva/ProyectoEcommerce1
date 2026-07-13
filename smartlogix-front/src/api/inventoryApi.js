@@ -78,3 +78,32 @@ export async function exportInventoryMovements(params = {}) {
 
   return response.data;
 }
+
+export async function saveInventoryHistoryReport(reportData = {}) {
+  const response = await axios.post(
+    `${API_URL}/api/inventory/movements/reports`,
+    compactParams(reportData),
+    {
+      headers: getAuthHeaders(),
+    }
+  );
+
+  return response.data;
+}
+
+export async function getLatestInventoryHistoryReport() {
+  const response = await axios.get(`${API_URL}/api/inventory/movements/reports/latest`, {
+    headers: getAuthHeaders(),
+  });
+
+  return response.data;
+}
+
+export async function getInventoryAuditLogs(params = {}) {
+  const response = await axios.get(`${API_URL}/api/inventory/audit`, {
+    headers: getAuthHeaders(),
+    params: compactParams(params),
+  });
+
+  return response.data;
+}

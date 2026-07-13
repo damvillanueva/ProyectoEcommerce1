@@ -9,6 +9,7 @@ import {
   FiChevronRight,
   FiClipboard,
   FiDownload,
+  FiFileText,
   FiHash,
   FiPackage,
   FiPlus,
@@ -23,15 +24,20 @@ import {
 } from "react-icons/fi";
 import Navbar from "../components/Navbar";
 import PageContainer from "../layout/PageContainer";
+import ToastStack from "../components/ToastStack";
 import {
   exportInventoryMovementsCsv,
+  fetchLatestInventoryHistory,
   fetchInventoryMovements,
   getInventoryItemsWithAvailable,
   registerManualInventoryMovement,
+  saveInventoryHistory,
 } from "../services/inventoryService";
+import { useToasts } from "../hooks/useToasts";
 import { useSearchParams } from "react-router-dom";
 
 const PAGE_SIZE = 7;
+const EXPORT_PAGE_SIZE = 200;
 const SAVED_AT_KEY = "smartlogix.inventoryHistorySavedAt";
 
 const EMPTY_FILTERS = {
@@ -108,6 +114,52 @@ function getApiFilters(filters) {
   return filters;
 }
 
+function getTodayStamp() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function normalizeFilePart(value) {
+  return String(value)
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function getFilterFileSuffix(filters) {
+  const parts = [];
+
+  if (filters.product) parts.push(`producto-${normalizeFilePart(filters.product)}`);
+  if (filters.type) parts.push(`tipo-${normalizeFilePart(filters.type)}`);
+  if (filters.user) parts.push(`usuario-${normalizeFilePart(filters.user)}`);
+  if (filters.startDate) parts.push(`desde-${filters.startDate}`);
+  if (filters.endDate) parts.push(`hasta-${filters.endDate}`);
+  if (filters.minQuantity) parts.push(`min-${filters.minQuantity}`);
+  if (filters.maxQuantity) parts.push(`max-${filters.maxQuantity}`);
+
+  return parts.length > 0 ? `-${parts.join("-")}` : "";
+}
+
+function buildExportFilename(filters, extension) {
+  return `historial-inventario-${getTodayStamp()}${getFilterFileSuffix(filters)}.${extension}`;
+}
+
+function getFilterSummary(filters) {
+  const summary = [];
+
+  if (filters.product) summary.push(`Producto/SKU: ${filters.product}`);
+  if (filters.type) summary.push(`Tipo: ${getMovementMeta(filters.type).shortLabel}`);
+  if (filters.user) summary.push(`Usuario: ${filters.user}`);
+  if (filters.startDate) summary.push(`Desde: ${filters.startDate}`);
+  if (filters.endDate) summary.push(`Hasta: ${filters.endDate}`);
+  if (filters.minQuantity) summary.push(`Cantidad minima: ${filters.minQuantity}`);
+  if (filters.maxQuantity) summary.push(`Cantidad maxima: ${filters.maxQuantity}`);
+
+  return summary.length > 0 ? summary.join(" | ") : "Sin filtros aplicados";
+}
+
 function formatDate(value) {
   if (!value) return "-";
 
@@ -146,6 +198,89 @@ function getInitialSavedAt() {
   }
 }
 
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function excelCell(value) {
+  return `<td>${escapeHtml(value)}</td>`;
+}
+
+function buildExcelHtml(exportMovements, filters) {
+  const rows = exportMovements
+    .map((movement) => {
+      const meta = getMovementMeta(movement.movementType);
+
+      return `<tr>
+        ${excelCell(formatDate(movement.createdAt))}
+        ${excelCell(movement.productName || "Producto")}
+        ${excelCell(movement.sku || "-")}
+        ${excelCell(meta.shortLabel)}
+        ${excelCell(getActionLabel(movement.actionType))}
+        ${excelCell(getQuantityLabel(movement))}
+        ${excelCell(movement.previousStock ?? "-")}
+        ${excelCell(movement.newStock ?? "-")}
+        ${excelCell(movement.username || "system")}
+        ${excelCell(movement.reason || getActionLabel(movement.actionType))}
+      </tr>`;
+    })
+    .join("");
+
+  return `<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      table { border-collapse: collapse; font-family: Arial, sans-serif; font-size: 12px; }
+      th { background: #1f2937; color: #ffffff; font-weight: 700; }
+      th, td { border: 1px solid #cbd5e1; padding: 8px; }
+      .title { font-size: 18px; font-weight: 700; margin-bottom: 8px; }
+      .meta { color: #475569; margin-bottom: 14px; }
+    </style>
+  </head>
+  <body>
+    <div class="title">Historial de movimientos de inventario</div>
+    <div class="meta">Generado: ${escapeHtml(formatDate(new Date().toISOString()))}</div>
+    <div class="meta">Filtros: ${escapeHtml(getFilterSummary(filters))}</div>
+    <table>
+      <thead>
+        <tr>
+          <th>Fecha</th>
+          <th>Producto</th>
+          <th>SKU</th>
+          <th>Tipo</th>
+          <th>Accion</th>
+          <th>Cantidad</th>
+          <th>Stock anterior</th>
+          <th>Stock nuevo</th>
+          <th>Usuario</th>
+          <th>Motivo</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${rows || `<tr><td colspan="10">No hay movimientos para exportar.</td></tr>`}
+      </tbody>
+    </table>
+  </body>
+</html>`;
+}
+
+function downloadBlob(blob, filename) {
+  const url = window.URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.URL.revokeObjectURL(url);
+}
+
 function InventoryMovementsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const searchFilterKey = searchParams.toString();
@@ -159,13 +294,16 @@ function InventoryMovementsPage() {
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [savingHistory, setSavingHistory] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [exportingExcel, setExportingExcel] = useState(false);
   const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
   const [selectedMovement, setSelectedMovement] = useState(null);
   const [manualForm, setManualForm] = useState(EMPTY_MANUAL_FORM);
   const [isRegisterOpen, setIsRegisterOpen] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState(getInitialSavedAt);
+  const [lastSavedReport, setLastSavedReport] = useState(null);
+  const { dismissToast, showToast, toasts } = useToasts();
 
   const stats = useMemo(() => {
     return movements.reduce(
@@ -252,6 +390,7 @@ function InventoryMovementsPage() {
 
   useEffect(() => {
     loadInventoryItems();
+    loadLatestHistoryReport();
   }, []);
 
   useEffect(() => {
@@ -286,6 +425,7 @@ function InventoryMovementsPage() {
     } catch (loadError) {
       console.error(loadError);
       setError("No se pudo cargar el inventario para registrar movimientos.");
+      showToast("No se pudo cargar el inventario para registrar movimientos.", "error");
     }
   }
 
@@ -310,6 +450,7 @@ function InventoryMovementsPage() {
     } catch (loadError) {
       console.error(loadError);
       setError("No se pudo cargar el historial de movimientos.");
+      showToast("No se pudo cargar el historial de movimientos.", "error");
     } finally {
       setLoading(false);
     }
@@ -342,6 +483,18 @@ function InventoryMovementsPage() {
     await loadMovements(0, EMPTY_FILTERS);
   }
 
+  async function loadLatestHistoryReport() {
+    try {
+      const report = await fetchLatestInventoryHistory();
+      if (report?.createdAt) {
+        setLastSavedReport(report);
+        setLastSavedAt(report.createdAt);
+      }
+    } catch (loadError) {
+      console.error(loadError);
+    }
+  }
+
   async function handleManualSubmit(event) {
     event.preventDefault();
 
@@ -349,23 +502,25 @@ function InventoryMovementsPage() {
 
     if (!manualForm.sku) {
       setError("Selecciona un SKU para registrar el movimiento.");
+      showToast("Selecciona un SKU para registrar el movimiento.", "error");
       return;
     }
 
     if (!Number.isInteger(parsedQuantity) || parsedQuantity < 0) {
       setError("Ingresa una cantidad valida.");
+      showToast("Ingresa una cantidad valida.", "error");
       return;
     }
 
     if (manualForm.movementType !== "ADJUSTMENT" && parsedQuantity <= 0) {
       setError("La cantidad debe ser mayor a 0.");
+      showToast("La cantidad debe ser mayor a 0.", "error");
       return;
     }
 
     try {
       setSaving(true);
       setError("");
-      setNotice("");
       await registerManualInventoryMovement({
         sku: manualForm.sku,
         movementType: manualForm.movementType,
@@ -378,12 +533,13 @@ function InventoryMovementsPage() {
         sku: previousForm.sku,
       }));
       setIsRegisterOpen(false);
-      setNotice("Movimiento registrado correctamente.");
+      showToast("Movimiento registrado correctamente.", "success");
       await loadInventoryItems();
       await loadMovements(0, filters);
     } catch (saveError) {
       console.error(saveError);
       setError("No se pudo registrar el movimiento manual.");
+      showToast("No se pudo registrar el movimiento manual.", "error");
     } finally {
       setSaving(false);
     }
@@ -393,33 +549,92 @@ function InventoryMovementsPage() {
     try {
       setExporting(true);
       setError("");
-      setNotice("");
       const blob = await exportInventoryMovementsCsv(getApiFilters(filters));
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `historial-inventario-${new Date().toISOString().slice(0, 10)}.csv`;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
+      downloadBlob(blob, buildExportFilename(filters, "csv"));
+      showToast("CSV exportado con los filtros aplicados.", "success");
     } catch (exportError) {
       console.error(exportError);
       setError("No se pudo exportar el historial.");
+      showToast("No se pudo exportar el historial.", "error");
     } finally {
       setExporting(false);
     }
   }
 
-  function handleSaveHistory() {
-    const savedAt = new Date().toISOString();
+  async function fetchAllMovementsForExport(activeFilters = filters) {
+    const firstPage = await fetchInventoryMovements({
+      ...getApiFilters(activeFilters),
+      page: 0,
+      size: EXPORT_PAGE_SIZE,
+      sort: "createdAt,desc",
+    });
+    const firstContent = Array.isArray(firstPage.content) ? firstPage.content : firstPage;
+    const totalPages = firstPage.totalPages || 1;
+
+    if (totalPages <= 1) {
+      return firstContent;
+    }
+
+    const remainingContent = [];
+
+    for (let page = 1; page < totalPages; page += 1) {
+      const data = await fetchInventoryMovements({
+        ...getApiFilters(activeFilters),
+        page,
+        size: EXPORT_PAGE_SIZE,
+        sort: "createdAt,desc",
+      });
+      const content = Array.isArray(data.content) ? data.content : data;
+      remainingContent.push(...content);
+    }
+
+    return [...firstContent, ...remainingContent];
+  }
+
+  async function handleExportExcel() {
     try {
-      localStorage.setItem(SAVED_AT_KEY, savedAt);
+      setExportingExcel(true);
+      setError("");
+      const exportMovements = await fetchAllMovementsForExport(filters);
+      const excelHtml = buildExcelHtml(exportMovements, filters);
+      const blob = new Blob(["\ufeff", excelHtml], {
+        type: "application/vnd.ms-excel;charset=utf-8",
+      });
+      downloadBlob(blob, buildExportFilename(filters, "xls"));
+      showToast(`Excel exportado con ${exportMovements.length} movimientos.`, "success");
+    } catch (exportError) {
+      console.error(exportError);
+      setError("No se pudo exportar el historial a Excel.");
+      showToast("No se pudo exportar el historial a Excel.", "error");
+    } finally {
+      setExportingExcel(false);
+    }
+  }
+
+  async function handleSaveHistory() {
+    try {
+      setSavingHistory(true);
+      setError("");
+      const report = await saveInventoryHistory(getApiFilters(filters));
+      const savedAt = report.createdAt || new Date().toISOString();
+
+      setLastSavedReport(report);
+      setLastSavedAt(savedAt);
+
+      try {
+        localStorage.setItem(SAVED_AT_KEY, savedAt);
+      } catch (saveError) {
+        console.error(saveError);
+      }
+
+      showToast(`Historial guardado en backend: ${report.totalMovements} movimientos en el reporte #${report.id}.`, "success");
     } catch (saveError) {
       console.error(saveError);
+      setError("No se pudo guardar el historial en backend.");
+      showToast("No se pudo guardar el historial en backend.", "error");
+    } finally {
+      setSavingHistory(false);
     }
-    setLastSavedAt(savedAt);
-    setNotice("Historial guardado para esta revision.");
   }
 
   async function goToPage(page) {
@@ -429,6 +644,7 @@ function InventoryMovementsPage() {
 
   return (
     <div className="min-h-screen bg-[#0b1220] p-4 text-white sm:p-6">
+      <ToastStack onDismiss={dismissToast} toasts={toasts} />
       <PageContainer>
         <div className="overflow-hidden rounded-lg border border-white/10 bg-[#111a2b] shadow-2xl">
           <Navbar />
@@ -448,8 +664,15 @@ function InventoryMovementsPage() {
                 <ActionButton onClick={handleExport} disabled={exporting} icon={FiDownload}>
                   {exporting ? "Exportando" : "Exportar CSV"}
                 </ActionButton>
-                <ActionButton onClick={handleSaveHistory} icon={FiSave}>
-                  Guardar historial
+                <ActionButton
+                  onClick={handleExportExcel}
+                  disabled={exportingExcel}
+                  icon={FiFileText}
+                >
+                  {exportingExcel ? "Exportando" : "Exportar Excel"}
+                </ActionButton>
+                <ActionButton onClick={handleSaveHistory} disabled={savingHistory} icon={FiSave}>
+                  {savingHistory ? "Guardando" : "Guardar historial"}
                 </ActionButton>
                 <button
                   type="button"
@@ -461,9 +684,6 @@ function InventoryMovementsPage() {
                 </button>
               </div>
             </section>
-
-            {error && <StatusBanner tone="error" message={error} />}
-            {notice && <StatusBanner tone="success" message={notice} />}
 
             <FilterPanel
               filters={filters}
@@ -497,7 +717,11 @@ function InventoryMovementsPage() {
             <section className="grid gap-4 xl:grid-cols-[1.4fr_0.7fr_0.9fr]">
               <PeriodSummary stats={stats} />
               <MovementChart stats={stats} chartStyle={chartStyle} />
-              <InfoPanel lastSavedAt={lastSavedAt} totalElements={pagination.totalElements} />
+              <InfoPanel
+                lastSavedAt={lastSavedAt}
+                lastSavedReport={lastSavedReport}
+                totalElements={pagination.totalElements}
+              />
             </section>
           </main>
         </div>
@@ -529,19 +753,6 @@ function ActionButton({ children, disabled = false, icon: Icon, onClick }) {
       <Icon />
       {children}
     </button>
-  );
-}
-
-function StatusBanner({ tone, message }) {
-  const styles =
-    tone === "success"
-      ? "border-emerald-300/30 bg-emerald-400/10 text-emerald-100"
-      : "border-rose-300/30 bg-rose-400/10 text-rose-100";
-
-  return (
-    <div className={`rounded-md border px-4 py-3 text-sm font-bold ${styles}`}>
-      {message}
-    </div>
   );
 }
 
@@ -1019,7 +1230,7 @@ function ChartLegend({ color, label, total, value }) {
   );
 }
 
-function InfoPanel({ lastSavedAt, totalElements }) {
+function InfoPanel({ lastSavedAt, lastSavedReport, totalElements }) {
   return (
     <section className="rounded-lg border border-white/10 bg-white/[0.07] p-4 shadow-xl shadow-slate-950/20">
       <div className="mb-4 flex items-center gap-2 text-white">
@@ -1034,6 +1245,13 @@ function InfoPanel({ lastSavedAt, totalElements }) {
         <p>
           Ultimo guardado: <span className="text-emerald-300">{formatSavedDate(lastSavedAt)}</span>
         </p>
+        {lastSavedReport && (
+          <>
+            <p>Reporte guardado: #{lastSavedReport.id}</p>
+            <p>Usuario: {lastSavedReport.username || "system"}</p>
+            <p>Movimientos guardados: {lastSavedReport.totalMovements}</p>
+          </>
+        )}
       </div>
     </section>
   );
