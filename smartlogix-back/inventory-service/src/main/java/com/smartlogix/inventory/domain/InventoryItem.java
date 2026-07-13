@@ -34,6 +34,21 @@ public class InventoryItem {
     @Column(nullable = false, length = 40)
     private String warehouseCode;
 
+    @Column(length = 20)
+    private String locationZone;
+
+    @Column(length = 20)
+    private String locationAisle;
+
+    @Column(nullable = false)
+    private int locationRack;
+
+    @Column(nullable = false)
+    private int locationLevel;
+
+    @Column(nullable = false)
+    private int locationPosition;
+
     @Column(nullable = false)
     private int availableQuantity;
 
@@ -93,6 +108,46 @@ public class InventoryItem {
     }
 
     public void setWarehouseCode(String warehouseCode) {this.warehouseCode = warehouseCode;}
+
+    public String getLocationZone() {
+        return locationZone;
+    }
+
+    public void setLocationZone(String locationZone) {
+        this.locationZone = locationZone;
+    }
+
+    public String getLocationAisle() {
+        return locationAisle;
+    }
+
+    public void setLocationAisle(String locationAisle) {
+        this.locationAisle = locationAisle;
+    }
+
+    public int getLocationRack() {
+        return locationRack;
+    }
+
+    public void setLocationRack(int locationRack) {
+        this.locationRack = locationRack;
+    }
+
+    public int getLocationLevel() {
+        return locationLevel;
+    }
+
+    public void setLocationLevel(int locationLevel) {
+        this.locationLevel = locationLevel;
+    }
+
+    public int getLocationPosition() {
+        return locationPosition;
+    }
+
+    public void setLocationPosition(int locationPosition) {
+        this.locationPosition = locationPosition;
+    }
 
     public int getAvailableQuantity() {return availableQuantity;}
 

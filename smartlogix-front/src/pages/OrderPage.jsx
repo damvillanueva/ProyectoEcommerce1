@@ -1,8 +1,14 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { loadOrderService, saveOrder, editOrder, removeOrder } from "../services/orderService";
+import { getInventoryItemsWithAvailable } from "../services/inventoryService";
 import Navbar from "../components/Navbar";
 import PageContainer from "../layout/PageContainer";
+import {
+  getAvailableUnits,
+  getProductStorageLocation,
+  productMatchesSearch,
+} from "../utils/inventoryLocationUtils";
 
 const DEFAULT_CUSTOMER_NAME = "Cliente Demo";
 const DEFAULT_CUSTOMER_EMAIL = "cliente@smartlogix.com";
@@ -90,11 +96,15 @@ function OrdersPage() {
   const [orders, setOrders] = useState([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
+  const [inventoryItems, setInventoryItems] = useState([]);
+  const [inventoryLoading, setInventoryLoading] = useState(true);
+  const [inventoryError, setInventoryError] = useState("");
 
   const [customerName, setCustomerName] = useState(DEFAULT_CUSTOMER_NAME);
   const [customerEmail, setCustomerEmail] = useState(DEFAULT_CUSTOMER_EMAIL);
   const [shippingStreet, setShippingStreet] = useState(DEFAULT_SHIPPING_STREET);
   const [shippingCommune, setShippingCommune] = useState(DEFAULT_SHIPPING_COMMUNE);
+  const [productSearch, setProductSearch] = useState("");
   const [sku, setSku] = useState(DEFAULT_SKU);
   const [quantity, setQuantity] = useState(DEFAULT_QUANTITY);
   const [unitPrice, setUnitPrice] = useState(DEFAULT_UNIT_PRICE);
@@ -102,6 +112,28 @@ function OrdersPage() {
 
   const role = getRoleFromStorage();
   const canOpenShipments = role === "ROLE_ADMIN" || role === "ROLE_WAREHOUSE_MANAGER";
+  const selectedProduct = useMemo(
+    () => inventoryItems.find((item) => item.sku === sku.trim().toUpperCase()) || null,
+    [inventoryItems, sku]
+  );
+  const productResults = useMemo(() => {
+    const cleanSearch = productSearch.trim();
+    const source = cleanSearch
+      ? inventoryItems.filter((item) => productMatchesSearch(item, cleanSearch))
+      : inventoryItems;
+
+    return source
+      .filter((item) => getAvailableUnits(item) > 0)
+      .sort((left, right) => {
+        const leftAvailable = getAvailableUnits(left);
+        const rightAvailable = getAvailableUnits(right);
+
+        if (leftAvailable !== rightAvailable) return rightAvailable - leftAvailable;
+
+        return left.productName.localeCompare(right.productName);
+      })
+      .slice(0, 8);
+  }, [inventoryItems, productSearch]);
 
   async function loadOrders() {
     try {
@@ -121,15 +153,43 @@ function OrdersPage() {
     loadOrders();
   }, []);
 
+  useEffect(() => {
+    async function loadInventoryCatalog() {
+      try {
+        setInventoryLoading(true);
+        const data = await getInventoryItemsWithAvailable();
+        setInventoryItems(Array.isArray(data) ? data : []);
+        setInventoryError("");
+      } catch (err) {
+        console.error(err);
+        setInventoryError("No se pudo cargar el catalogo de inventario.");
+      } finally {
+        setInventoryLoading(false);
+      }
+    }
+
+    loadInventoryCatalog();
+  }, []);
+
   function resetForm() {
     setEditingOrderNumber(null);
     setCustomerName(DEFAULT_CUSTOMER_NAME);
     setCustomerEmail(DEFAULT_CUSTOMER_EMAIL);
     setShippingStreet(DEFAULT_SHIPPING_STREET);
     setShippingCommune(DEFAULT_SHIPPING_COMMUNE);
+    setProductSearch("");
     setSku(DEFAULT_SKU);
     setQuantity(DEFAULT_QUANTITY);
     setUnitPrice(DEFAULT_UNIT_PRICE);
+  }
+
+  function handleSelectProduct(item) {
+    const available = getAvailableUnits(item);
+
+    setSku(item.sku);
+    setProductSearch(item.productName);
+    setQuantity(Math.max(1, Math.min(Number(quantity) || 1, available || 1)));
+    setError("");
   }
 
   async function handleCreateOrder(event) {
@@ -178,6 +238,21 @@ function OrdersPage() {
       return;
     }
 
+    const catalogProduct = inventoryItems.find(
+      (item) => item.sku === cleanSku.toUpperCase()
+    );
+
+    if (catalogProduct) {
+      const available = getAvailableUnits(catalogProduct);
+
+      if (parsedQuantity > available) {
+        setError(
+          `Solo hay ${available} unidad(es) disponibles de ${catalogProduct.productName}.`
+        );
+        return;
+      }
+    }
+
     const orderData = {
       customerName: cleanCustomerName,
       customerEmail: cleanCustomerEmail,
@@ -223,6 +298,7 @@ function OrdersPage() {
 
     if (firstLine) {
       setSku(firstLine.sku);
+      setProductSearch(firstLine.sku);
       setQuantity(firstLine.quantity);
       setUnitPrice(firstLine.unitPrice);
     }
@@ -276,8 +352,18 @@ function OrdersPage() {
                 {editingOrderNumber ? "Actualizar pedido" : "Crear pedido"}
               </h2>
               <p className="mb-6 text-slate-400">
-                Registra una orden, separa la comuna y genera automaticamente el despacho.
+                Registra una orden, separa la comuna y elige productos disponibles desde inventario.
               </p>
+
+              <OrderProductPicker
+                error={inventoryError}
+                loading={inventoryLoading}
+                onQueryChange={setProductSearch}
+                onSelectProduct={handleSelectProduct}
+                query={productSearch}
+                results={productResults}
+                selectedProduct={selectedProduct}
+              />
 
               <form onSubmit={handleCreateOrder} className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
                 <input
@@ -312,7 +398,7 @@ function OrdersPage() {
                   className="rounded-xl border border-white/10 bg-slate-950/80 px-4 py-3 text-white outline-none placeholder:text-slate-500 focus:ring-2 focus:ring-indigo-400"
                   value={sku}
                   onChange={(event) => setSku(event.target.value)}
-                  placeholder="SKU"
+                  placeholder="SKU seleccionado"
                 />
 
                 <input
@@ -472,6 +558,167 @@ function OrdersPage() {
           </section>
         </div>
       </PageContainer>
+    </div>
+  );
+}
+
+function OrderProductPicker({
+  error,
+  loading,
+  onQueryChange,
+  onSelectProduct,
+  query,
+  results,
+  selectedProduct,
+}) {
+  const selectedLocation = selectedProduct
+    ? getProductStorageLocation(selectedProduct)
+    : null;
+
+  return (
+    <section className="mb-6 rounded-2xl border border-sky-300/15 bg-slate-950/35 p-4">
+      <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
+        <div>
+          <label className="block">
+            <span className="mb-2 block text-xs font-black uppercase text-sky-300">
+              Catalogo de inventario
+            </span>
+            <input
+              value={query}
+              onChange={(event) => onQueryChange(event.target.value)}
+              placeholder="Buscar producto por nombre, SKU, categoria o bodega..."
+              className="w-full rounded-xl border border-white/10 bg-slate-950/80 px-4 py-3 font-bold text-white outline-none placeholder:text-slate-500 focus:ring-2 focus:ring-sky-400"
+            />
+          </label>
+
+          {loading && (
+            <p className="mt-3 text-sm font-semibold text-slate-400">
+              Cargando productos disponibles...
+            </p>
+          )}
+
+          {error && (
+            <p className="mt-3 text-sm font-semibold text-amber-200">{error}</p>
+          )}
+        </div>
+
+        <div className="rounded-2xl bg-white/5 p-4">
+          <p className="text-xs font-black uppercase text-slate-500">
+            Producto seleccionado
+          </p>
+          {selectedProduct ? (
+            <div className="mt-3 flex items-center gap-4">
+              <OrderProductThumbnail
+                imageUrl={selectedProduct.imageUrl}
+                productName={selectedProduct.productName}
+              />
+              <div className="min-w-0">
+                <p className="truncate font-black text-white">
+                  {selectedProduct.productName}
+                </p>
+                <p className="mt-1 text-xs font-bold text-slate-400">
+                  {selectedProduct.sku} | {selectedProduct.category || "General"}
+                </p>
+                <p className="mt-2 text-xs font-black uppercase text-sky-200">
+                  {selectedLocation.label}
+                </p>
+              </div>
+            </div>
+          ) : (
+            <p className="mt-3 text-sm font-bold text-slate-400">
+              Puedes escribir SKU manual o elegir un producto del catalogo.
+            </p>
+          )}
+        </div>
+      </div>
+
+      <div className="mt-4 grid gap-3 xl:grid-cols-2">
+        {!loading && results.length === 0 && (
+          <div className="rounded-xl border border-dashed border-white/15 bg-slate-900/60 p-4 text-center text-sm font-bold text-slate-400 xl:col-span-2">
+            No hay productos disponibles para esa busqueda.
+          </div>
+        )}
+
+        {results.map((item) => (
+          <OrderProductCard
+            key={`order-product-${item.sku}`}
+            item={item}
+            isSelected={selectedProduct?.sku === item.sku}
+            onSelectProduct={onSelectProduct}
+          />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function OrderProductCard({ isSelected, item, onSelectProduct }) {
+  const available = getAvailableUnits(item);
+  const location = getProductStorageLocation(item);
+
+  return (
+    <article className={`rounded-2xl border p-4 transition ${
+      isSelected
+        ? "border-sky-300/60 bg-sky-500/10"
+        : "border-white/10 bg-slate-900/70 hover:bg-slate-900"
+    }`}>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex min-w-0 items-center gap-4">
+          <OrderProductThumbnail imageUrl={item.imageUrl} productName={item.productName} />
+          <div className="min-w-0">
+            <p className="truncate font-black text-white">{item.productName}</p>
+            <p className="mt-1 text-xs font-bold text-slate-400">
+              {item.sku} | {item.category || "General"}
+            </p>
+            <p className="mt-2 text-xs font-black uppercase text-sky-200">
+              {location.warehouse.name} | {location.shortLabel}
+            </p>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => onSelectProduct(item)}
+          className={`rounded-xl px-4 py-2 text-sm font-black text-white transition ${
+            isSelected ? "bg-emerald-500 hover:bg-emerald-400" : "bg-sky-500 hover:bg-sky-400"
+          }`}
+        >
+          {isSelected ? "Seleccionado" : "Elegir"}
+        </button>
+      </div>
+
+      <div className="mt-4 grid grid-cols-3 gap-2 text-center text-xs">
+        <div className="rounded-xl bg-white/5 p-2">
+          <p className="text-[10px] font-black uppercase text-slate-500">Disponible</p>
+          <p className="mt-1 text-sm font-black text-emerald-300">{available}</p>
+        </div>
+        <div className="rounded-xl bg-white/5 p-2">
+          <p className="text-[10px] font-black uppercase text-slate-500">Reservado</p>
+          <p className="mt-1 text-sm font-black text-amber-200">{item.reservedQuantity}</p>
+        </div>
+        <div className="rounded-xl bg-white/5 p-2">
+          <p className="text-[10px] font-black uppercase text-slate-500">Ubicacion</p>
+          <p className="mt-1 text-sm font-black text-sky-200">{location.shortLabel}</p>
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function OrderProductThumbnail({ imageUrl, productName }) {
+  if (imageUrl) {
+    return (
+      <img
+        src={imageUrl}
+        alt={productName}
+        className="h-14 w-14 shrink-0 rounded-xl border border-white/10 object-cover"
+      />
+    );
+  }
+
+  return (
+    <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-slate-800 text-lg font-black text-slate-300">
+      {String(productName || "P").charAt(0).toUpperCase()}
     </div>
   );
 }

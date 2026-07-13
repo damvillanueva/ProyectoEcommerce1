@@ -50,6 +50,11 @@ class InventoryServiceTest {
                 null,
                 "Perifericos",
                 "WH-SCL-01",
+                null,
+                null,
+                null,
+                null,
+                null,
                 3,
                 5,
                 2
@@ -72,6 +77,11 @@ class InventoryServiceTest {
                 null,
                 "Perifericos",
                 "WH-SCL-01",
+                null,
+                null,
+                null,
+                null,
+                null,
                 12,
                 3
         );

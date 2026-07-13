@@ -44,6 +44,14 @@ public class InventoryService {
         item.setImageUrl(normalizeImageUrl(request.imageUrl()));
         item.setCategory(normalizeCategory(request.category()));
         item.setWarehouseCode(request.warehouseCode().trim().toUpperCase());
+        applyLocation(
+                item,
+                request.locationZone(),
+                request.locationAisle(),
+                request.locationRack(),
+                request.locationLevel(),
+                request.locationPosition()
+        );
         item.setAvailableQuantity(request.initialQuantity());
         item.setReservedQuantity(0);
         item.setReorderLevel(request.reorderLevel());
@@ -175,6 +183,11 @@ public class InventoryService {
                 item.getImageUrl(),
                 item.getCategory(),
                 item.getWarehouseCode(),
+                item.getLocationZone(),
+                item.getLocationAisle(),
+                item.getLocationRack(),
+                item.getLocationLevel(),
+                item.getLocationPosition(),
                 item.getAvailableQuantity(),
                 item.getReservedQuantity(),
                 item.getReorderLevel(),
@@ -192,6 +205,14 @@ public class InventoryService {
         item.setImageUrl(normalizeImageUrl(request.imageUrl()));
         item.setCategory(normalizeCategory(request.category()));
         item.setWarehouseCode(request.warehouseCode().trim().toUpperCase());
+        applyLocation(
+                item,
+                request.locationZone(),
+                request.locationAisle(),
+                request.locationRack(),
+                request.locationLevel(),
+                request.locationPosition()
+        );
         item.setAvailableQuantity(request.availableQuantity());
         item.setReservedQuantity(request.reservedQuantity());
         item.setReorderLevel(request.reorderLevel());
@@ -260,11 +281,76 @@ public class InventoryService {
         return category.trim();
     }
 
+    private void applyLocation(
+            InventoryItem item,
+            String zone,
+            String aisle,
+            Integer rack,
+            Integer level,
+            Integer position
+    ) {
+        LocationParts fallback = buildFallbackLocation(item);
+
+        item.setLocationZone(normalizeLocationText(zone, fallback.zone()));
+        item.setLocationAisle(normalizeLocationText(aisle, fallback.aisle()));
+        item.setLocationRack(normalizeLocationNumber(rack, fallback.rack()));
+        item.setLocationLevel(normalizeLocationNumber(level, fallback.level()));
+        item.setLocationPosition(normalizeLocationNumber(position, fallback.position()));
+    }
+
+    private LocationParts buildFallbackLocation(InventoryItem item) {
+        int hash = hashText(item.getWarehouseCode() + "-" + item.getSku() + "-" + item.getCategory());
+        String zone = switch (item.getCategory()) {
+            case "Accesorios" -> "A";
+            case "Componentes" -> "C";
+            case "Monitores" -> "M";
+            case "Notebooks" -> "N";
+            case "Perifericos" -> "P";
+            default -> "G";
+        };
+        String aisle = String.valueOf((char) ('A' + (hash % 5)));
+        int rack = ((hash / 5) % 8) + 1;
+        int level = ((hash / 41) % 4) + 1;
+        int position = ((hash / 163) % 12) + 1;
+
+        return new LocationParts(zone, aisle, rack, level, position);
+    }
+
+    private int hashText(String value) {
+        int hash = 0x811c9dc5;
+
+        for (int index = 0; index < value.length(); index++) {
+            hash ^= Character.toUpperCase(value.charAt(index));
+            hash *= 0x01000193;
+        }
+
+        return hash & 0x7fffffff;
+    }
+
+    private String normalizeLocationText(String value, String fallback) {
+        if (value == null || value.isBlank()) {
+            return fallback;
+        }
+
+        return value.trim().toUpperCase();
+    }
+
+    private int normalizeLocationNumber(Integer value, int fallback) {
+        if (value == null || value <= 0) {
+            return fallback;
+        }
+
+        return value;
+    }
+
     private void validateStockState(int availableQuantity, int reservedQuantity) {
         if (availableQuantity < reservedQuantity) {
             throw new InventoryOperationException(
                     "El stock disponible no puede ser menor al stock reservado."
             );
         }
+    }
+
+    private record LocationParts(String zone, String aisle, int rack, int level, int position) {
     }
 }

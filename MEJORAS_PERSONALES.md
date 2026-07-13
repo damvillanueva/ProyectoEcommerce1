@@ -36,6 +36,9 @@ Base copiada desde la entrega grupal y separada para seguir iterando sin tocar l
 - [x] Tests unitarios backend para reglas de SKU duplicado normalizado y stock reservado.
 - [x] `npm audit --omit=dev` sin vulnerabilidades de produccion conocidas.
 - [x] Flujo pedido-envio corregido: comuna separada en pedidos/envios, estado legible y sincronizacion segura del destino del envio al editar un pedido.
+- [x] Localizador de productos en bodegas: busqueda por nombre, SKU, bodega o ubicacion, con zona, pasillo, rack, nivel y producto resaltado.
+- [x] Ubicacion fisica real en backend de inventario: zona, pasillo, rack, nivel y posicion.
+- [x] Crear pedido mas logico: catalogo de inventario con buscador, imagen, stock disponible, bodega, ubicacion y boton para elegir producto sin escribir SKU manualmente.
 
 ## Siguientes mejoras recomendadas
 
@@ -118,6 +121,13 @@ Base copiada desde la entrega grupal y separada para seguir iterando sin tocar l
     - Tests de seguridad de movimientos.
     - Tests de reglas de stock bajo.
     - Estado: agregados tests unitarios para SKU duplicado normalizado y stock disponible menor al reservado.
+
+15. Localizador de bodega y pedidos por catalogo
+    - Buscar productos por nombre, SKU, bodega o ubicacion.
+    - Mostrar zona, pasillo, rack, nivel y posicion.
+    - Resaltar el producto dentro del mapa visual de bodegas.
+    - Crear pedidos desde productos disponibles del inventario sin depender de memorizar SKU.
+    - Estado: implementado en frontend y backend. La ubicacion fisica ahora se guarda como datos reales del producto y mantiene calculo de respaldo si faltan datos antiguos.
 
 ## Validacion actual
 

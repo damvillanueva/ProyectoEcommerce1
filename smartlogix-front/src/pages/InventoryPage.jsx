@@ -12,6 +12,12 @@ import Navbar from "../components/Navbar";
 import PageContainer from "../layout/PageContainer";
 import ToastStack from "../components/ToastStack";
 import { useToasts } from "../hooks/useToasts";
+import {
+getAvailableUnits,
+getProductStorageLocation,
+productMatchesSearch,
+WAREHOUSE_LOCATION_OPTIONS,
+} from "../utils/inventoryLocationUtils";
 
 const CATEGORY_OPTIONS = [
 "Accesorios",
@@ -22,12 +28,7 @@ const CATEGORY_OPTIONS = [
 "Otros",
 ];
 
-const WAREHOUSE_OPTIONS = [
-{ code: "WH-SCL-01", name: "Bodega Santiago", city: "Santiago" },
-{ code: "WH-VAP-02", name: "Bodega Valparaiso", city: "Valparaiso" },
-{ code: "WH-CON-03", name: "Bodega Concepcion", city: "Concepcion" },
-{ code: "WH-ANT-04", name: "Bodega Antofagasta", city: "Antofagasta" },
-];
+const WAREHOUSE_OPTIONS = WAREHOUSE_LOCATION_OPTIONS;
 
 const MAX_IMAGE_UPLOAD_BYTES = 900 * 1024;
 const SKU_CODE_GRID_SIZE = 11;
@@ -113,6 +114,8 @@ const [deleteTarget, setDeleteTarget] = useState(null);
 const [deleting, setDeleting] = useState(false);
 const [categoryFilter, setCategoryFilter] = useState("");
 const [warehouseFilter, setWarehouseFilter] = useState("");
+const [warehouseSearch, setWarehouseSearch] = useState("");
+const [focusedWarehouseSku, setFocusedWarehouseSku] = useState("");
 const [labelItem, setLabelItem] = useState(null);
 const { dismissToast, showToast, toasts } = useToasts();
 
@@ -207,6 +210,29 @@ return matchesCategory && matchesWarehouse;
 });
 }, [categoryFilter, items, warehouseFilter]);
 
+const locationSearchResults = useMemo(() => {
+const cleanSearch = warehouseSearch.trim();
+
+if (!cleanSearch) return [];
+
+return items
+.filter((item) => productMatchesSearch(item, cleanSearch))
+.map((item) => ({
+...item,
+availableVisual: getAvailableUnits(item),
+storageLocation: getProductStorageLocation(item),
+}))
+.sort((left, right) => {
+const leftAvailable = getAvailableUnits(left);
+const rightAvailable = getAvailableUnits(right);
+
+if (leftAvailable !== rightAvailable) return rightAvailable - leftAvailable;
+
+return left.productName.localeCompare(right.productName);
+})
+.slice(0, 8);
+}, [items, warehouseSearch]);
+
 function showPageError(message) {
 setError(message);
 showToast(message, "error");
@@ -217,12 +243,30 @@ setError("");
 showToast(message, "success");
 }
 
+function handleWarehouseSearchChange(value) {
+setWarehouseSearch(value);
+setFocusedWarehouseSku("");
+}
+
+function handleLocateProduct(item) {
+const location = getProductStorageLocation(item);
+
+setWarehouseFilter(item.warehouseCode || "");
+setFocusedWarehouseSku(item.sku);
+showPageSuccess(`${item.productName} ubicado en ${location.label}.`);
+}
+
 const [formData, setFormData] = useState({
 sku: `SKU-${Math.floor(Math.random() * 9000) + 1000}`,
 productName: "Auriculares Hyperx",
 imageUrl: "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=240&q=80",
 category: "Accesorios",
 warehouseCode: "WH-SCL-01",
+locationZone: "A",
+locationAisle: "A",
+locationRack: "1",
+locationLevel: "1",
+locationPosition: "1",
 initialQuantity: "25",
 reorderLevel: "5",
 });
@@ -317,6 +361,11 @@ const cleanProductName = formData.productName.trim();
 const cleanImageUrl = formData.imageUrl.trim();
 const cleanCategory = formData.category.trim();
 const cleanWarehouseCode = formData.warehouseCode.trim();
+const cleanLocationZone = formData.locationZone.trim();
+const cleanLocationAisle = formData.locationAisle.trim();
+const parsedLocationRack = Number(formData.locationRack);
+const parsedLocationLevel = Number(formData.locationLevel);
+const parsedLocationPosition = Number(formData.locationPosition);
 const parsedQuantity = Number(formData.initialQuantity);
 const parsedReorderLevel = Number(formData.reorderLevel);
 
@@ -332,6 +381,18 @@ return;
 
 if (!cleanWarehouseCode) {
 showPageError("Ingresa el código de bodega.");
+return;
+}
+
+if (
+!Number.isInteger(parsedLocationRack) ||
+parsedLocationRack <= 0 ||
+!Number.isInteger(parsedLocationLevel) ||
+parsedLocationLevel <= 0 ||
+!Number.isInteger(parsedLocationPosition) ||
+parsedLocationPosition <= 0
+) {
+showPageError("Rack, nivel y posicion deben ser numeros enteros mayores a 0.");
 return;
 }
 
@@ -375,6 +436,11 @@ productName: cleanProductName,
 imageUrl: cleanImageUrl,
 category: cleanCategory,
 warehouseCode: cleanWarehouseCode,
+locationZone: cleanLocationZone,
+locationAisle: cleanLocationAisle,
+locationRack: parsedLocationRack,
+locationLevel: parsedLocationLevel,
+locationPosition: parsedLocationPosition,
 availableQuantity: parsedQuantity,
 reservedQuantity,
 reorderLevel: parsedReorderLevel,
@@ -386,6 +452,11 @@ productName: cleanProductName,
 imageUrl: cleanImageUrl,
 category: cleanCategory,
 warehouseCode: cleanWarehouseCode,
+locationZone: cleanLocationZone,
+locationAisle: cleanLocationAisle,
+locationRack: parsedLocationRack,
+locationLevel: parsedLocationLevel,
+locationPosition: parsedLocationPosition,
 initialQuantity: parsedQuantity,
 reorderLevel: parsedReorderLevel,
 });
@@ -406,6 +477,11 @@ productName: "Auriculares Hyperx",
 imageUrl: "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=240&q=80",
 category: "Accesorios",
 warehouseCode: "WH-SCL-01",
+locationZone: "A",
+locationAisle: "A",
+locationRack: "1",
+locationLevel: "1",
+locationPosition: "1",
 initialQuantity: "25",
 reorderLevel: "5",
 });
@@ -428,6 +504,7 @@ return;
 }
 
 setEditingSku(item.sku);
+const location = getProductStorageLocation(item);
 
 setFormData({
 sku: item.sku,
@@ -435,6 +512,11 @@ productName: item.productName,
 imageUrl: item.imageUrl || "",
 category: item.category || "General",
 warehouseCode: item.warehouseCode,
+locationZone: item.locationZone || location.zone,
+locationAisle: item.locationAisle || location.aisle,
+locationRack: String(item.locationRack || location.rack),
+locationLevel: String(item.locationLevel || location.level),
+locationPosition: String(item.locationPosition || location.position),
 initialQuantity: String(item.availableQuantity),
 reorderLevel: String(item.reorderLevel),
 });
@@ -639,6 +721,57 @@ className="bg-slate-950/80 border border-white/10 text-white rounded-xl px-4 py-
 </select>
 
 <input
+type="text"
+name="locationZone"
+value={formData.locationZone}
+onChange={handleChange}
+placeholder="Zona"
+className="bg-slate-950/80 border border-white/10 text-white placeholder:text-slate-500 rounded-xl px-4 py-3 focus:ring-2 focus:ring-indigo-400 outline-none"
+/>
+
+<input
+type="text"
+name="locationAisle"
+value={formData.locationAisle}
+onChange={handleChange}
+placeholder="Pasillo"
+className="bg-slate-950/80 border border-white/10 text-white placeholder:text-slate-500 rounded-xl px-4 py-3 focus:ring-2 focus:ring-indigo-400 outline-none"
+/>
+
+<input
+type="number"
+name="locationRack"
+value={formData.locationRack}
+onChange={handleChange}
+placeholder="Rack"
+min="1"
+required
+className="bg-slate-950/80 border border-white/10 text-white placeholder:text-slate-500 rounded-xl px-4 py-3 focus:ring-2 focus:ring-indigo-400 outline-none"
+/>
+
+<input
+type="number"
+name="locationLevel"
+value={formData.locationLevel}
+onChange={handleChange}
+placeholder="Nivel"
+min="1"
+required
+className="bg-slate-950/80 border border-white/10 text-white placeholder:text-slate-500 rounded-xl px-4 py-3 focus:ring-2 focus:ring-indigo-400 outline-none"
+/>
+
+<input
+type="number"
+name="locationPosition"
+value={formData.locationPosition}
+onChange={handleChange}
+placeholder="Posicion"
+min="1"
+required
+className="bg-slate-950/80 border border-white/10 text-white placeholder:text-slate-500 rounded-xl px-4 py-3 focus:ring-2 focus:ring-indigo-400 outline-none"
+/>
+
+<input
 type="number"
 name="initialQuantity"
 value={formData.initialQuantity}
@@ -684,6 +817,11 @@ onSelectWarehouse={setWarehouseFilter}
 />
 
 <WarehouseOperationsBoard
+focusedSku={focusedWarehouseSku}
+locationResults={locationSearchResults}
+locationSearch={warehouseSearch}
+onLocationSearchChange={handleWarehouseSearchChange}
+onLocateProduct={handleLocateProduct}
 selectedWarehouse={warehouseFilter}
 warehouses={warehouseSummary}
 onOpenDetail={handleOpenDetail}
@@ -755,6 +893,7 @@ className="w-full rounded-xl border border-white/10 bg-slate-950/80 px-4 py-3 fo
 <th className="p-4 text-left">Nombre</th>
 <th className="p-4 text-left">Categoria</th>
 <th className="p-4 text-left">Bodega</th>
+<th className="p-4 text-left">Ubicacion</th>
 <th className="p-4 text-left">Stock</th>
 <th className="p-4 text-left">Reservado</th>
 <th className="p-4 text-left">Disponible</th>
@@ -768,13 +907,16 @@ Acciones
 <tbody>
 {filteredItems.length === 0 && (
 <tr>
-<td colSpan="11" className="p-8 text-center font-bold text-slate-400">
+<td colSpan="12" className="p-8 text-center font-bold text-slate-400">
 No hay productos para la categoria seleccionada.
 </td>
 </tr>
 )}
 
-{filteredItems.map((item) => (
+{filteredItems.map((item) => {
+const location = getProductStorageLocation(item);
+
+return (
 <tr
 key={item.sku}
 className="border-b border-white/10 hover:bg-white/5 transition"
@@ -796,6 +938,14 @@ className="border-b border-white/10 hover:bg-white/5 transition"
 <span className="rounded-full bg-indigo-500/15 px-3 py-1 text-sm font-bold text-indigo-200">
 {item.warehouseCode}
 </span>
+</td>
+<td className="p-4">
+<div className="flex flex-col gap-1">
+<span className="rounded-full bg-sky-500/15 px-3 py-1 text-sm font-bold text-sky-200">
+{location.shortLabel}
+</span>
+<span className="text-xs font-semibold text-slate-400">{location.label}</span>
+</div>
 </td>
 <td className="p-4">{item.availableQuantity}</td>
 <td className="p-4">{item.reservedQuantity}</td>
@@ -855,7 +1005,8 @@ Movimientos
 </div>
 </td>
 </tr>
-))}
+);
+})}
 </tbody>
 </table>
 </div>
@@ -1063,14 +1214,24 @@ return (
 }
 
 function WarehouseOperationsBoard({
+focusedSku,
+locationResults,
+locationSearch,
+onLocationSearchChange,
+onLocateProduct,
 onOpenDetail,
 onOpenLabel,
 onSelectWarehouse,
 selectedWarehouse,
 warehouses,
 }) {
+const cleanLocationSearch = locationSearch.trim();
 const visibleWarehouses = selectedWarehouse
 ? warehouses.filter((warehouse) => warehouse.code === selectedWarehouse)
+: cleanLocationSearch
+? warehouses.filter((warehouse) =>
+warehouse.products.some((item) => productMatchesSearch(item, cleanLocationSearch))
+)
 : warehouses;
 const maxAvailable = Math.max(...warehouses.map((warehouse) => warehouse.available), 1);
 const activeWarehouses = warehouses.filter((warehouse) => warehouse.items > 0).length;
@@ -1093,10 +1254,63 @@ Cada bodega muestra sus productos asignados, disponibilidad, reservas, categoria
 </div>
 </div>
 
+<div className="mb-5 rounded-2xl border border-sky-300/15 bg-slate-950/40 p-4">
+<div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+<label className="block flex-1">
+<span className="mb-2 block text-xs font-black uppercase text-sky-300">
+Localizador de producto
+</span>
+<input
+value={locationSearch}
+onChange={(event) => onLocationSearchChange(event.target.value)}
+placeholder="Buscar por nombre, SKU, bodega o ubicacion..."
+className="w-full rounded-xl border border-white/10 bg-slate-950/80 px-4 py-3 font-bold text-white outline-none placeholder:text-slate-500 focus:ring-2 focus:ring-sky-400"
+/>
+</label>
+<div className="grid grid-cols-2 gap-2 text-center sm:min-w-[260px]">
+<div className="rounded-xl bg-white/5 p-3">
+<p className="text-[10px] font-black uppercase text-slate-500">Coincidencias</p>
+<p className="mt-1 text-xl font-black text-white">
+{cleanLocationSearch ? locationResults.length : "-"}
+</p>
+</div>
+<div className="rounded-xl bg-white/5 p-3">
+<p className="text-[10px] font-black uppercase text-slate-500">Bodega foco</p>
+<p className="mt-1 text-sm font-black text-emerald-300">
+{selectedWarehouse || "Todas"}
+</p>
+</div>
+</div>
+</div>
+
+{cleanLocationSearch && (
+<div className="mt-4">
+{locationResults.length === 0 ? (
+<div className="rounded-xl border border-dashed border-white/15 bg-slate-900/60 p-4 text-center text-sm font-bold text-slate-400">
+No se encontraron productos con ese nombre, SKU o ubicacion.
+</div>
+) : (
+<div className="grid gap-3 xl:grid-cols-2">
+{locationResults.map((item) => (
+<LocationResultCard
+key={`location-${item.sku}`}
+item={item}
+isFocused={focusedSku === item.sku}
+onLocateProduct={onLocateProduct}
+/>
+))}
+</div>
+)}
+</div>
+)}
+</div>
+
 <div className="grid gap-4 xl:grid-cols-2">
 {visibleWarehouses.map((warehouse) => (
 <WarehouseLane
+focusedSku={focusedSku}
 key={warehouse.code}
+locationSearch={cleanLocationSearch}
 maxAvailable={maxAvailable}
 onOpenDetail={onOpenDetail}
 onOpenLabel={onOpenLabel}
@@ -1107,6 +1321,58 @@ warehouse={warehouse}
 ))}
 </div>
 </section>
+);
+}
+
+function LocationResultCard({ isFocused, item, onLocateProduct }) {
+const location = getProductStorageLocation(item);
+const available = getAvailableUnits(item);
+
+return (
+<article className={`rounded-2xl border p-4 transition ${
+isFocused
+? "border-sky-300/60 bg-sky-500/10 shadow-lg shadow-sky-950/30"
+: "border-white/10 bg-slate-900/70 hover:bg-slate-900"
+}`}>
+<div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+<div className="flex min-w-0 items-center gap-4">
+<ProductThumbnail imageUrl={item.imageUrl} productName={item.productName} />
+<div className="min-w-0">
+<p className="truncate font-black text-white">{item.productName}</p>
+<p className="mt-1 text-xs font-bold text-slate-400">
+{item.sku} | {item.category || "General"}
+</p>
+<p className="mt-2 text-xs font-black uppercase text-sky-200">
+{location.warehouse.name}
+</p>
+</div>
+</div>
+
+<button
+type="button"
+onClick={() => onLocateProduct(item)}
+className="rounded-xl bg-sky-500 px-4 py-2 text-sm font-black text-white transition hover:bg-sky-400"
+>
+Ubicar
+</button>
+</div>
+
+<div className="mt-4 grid gap-3 md:grid-cols-[1.3fr_0.7fr]">
+<div className="rounded-xl bg-white/5 p-3">
+<p className="text-[10px] font-black uppercase text-slate-500">Ubicacion exacta</p>
+<p className="mt-1 text-sm font-black text-white">{location.label}</p>
+<p className="mt-1 text-xs font-bold text-slate-400">
+{location.slotLabel} | Codigo {location.code}
+</p>
+</div>
+<div className="rounded-xl bg-white/5 p-3 text-center">
+<p className="text-[10px] font-black uppercase text-slate-500">Disponible</p>
+<p className={`mt-1 text-xl font-black ${available > 0 ? "text-emerald-300" : "text-amber-200"}`}>
+{available}
+</p>
+</div>
+</div>
+</article>
 );
 }
 
@@ -1127,6 +1393,8 @@ return (
 }
 
 function WarehouseLane({
+focusedSku,
+locationSearch,
 maxAvailable,
 onOpenDetail,
 onOpenLabel,
@@ -1136,6 +1404,9 @@ warehouse,
 }) {
 const hasCritical = warehouse.critical > 0;
 const fillPercent = Math.min(100, Math.round((warehouse.available / maxAvailable) * 100));
+const visibleProducts = locationSearch
+? warehouse.products.filter((item) => productMatchesSearch(item, locationSearch))
+: warehouse.products;
 
 return (
 <article className="rounded-2xl border border-white/10 bg-slate-950/35 p-5">
@@ -1202,14 +1473,15 @@ Sin categorias
 </div>
 
 <div className="mt-5 space-y-3">
-{warehouse.products.length === 0 && (
+{visibleProducts.length === 0 && (
 <div className="rounded-2xl border border-dashed border-white/15 bg-slate-900/50 p-5 text-center text-sm font-bold text-slate-400">
-Sin productos asignados a esta bodega.
+{locationSearch ? "Sin coincidencias en esta bodega." : "Sin productos asignados a esta bodega."}
 </div>
 )}
 
-{warehouse.products.slice(0, 6).map((item) => (
+{visibleProducts.slice(0, 6).map((item) => (
 <WarehouseProductRow
+isFocused={focusedSku === item.sku}
 key={`${warehouse.code}-${item.sku}`}
 item={item}
 onOpenDetail={onOpenDetail}
@@ -1217,13 +1489,13 @@ onOpenLabel={onOpenLabel}
 />
 ))}
 
-{warehouse.products.length > 6 && (
+{visibleProducts.length > 6 && (
 <button
 type="button"
 onClick={() => onSelectWarehouse(warehouse.code)}
 className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-black text-slate-200 transition hover:bg-white/10"
 >
-Ver {warehouse.products.length - 6} producto(s) mas en esta bodega
+Ver {visibleProducts.length - 6} producto(s) mas en esta bodega
 </button>
 )}
 </div>
@@ -1231,9 +1503,14 @@ Ver {warehouse.products.length - 6} producto(s) mas en esta bodega
 );
 }
 
-function WarehouseProductRow({ item, onOpenDetail, onOpenLabel }) {
+function WarehouseProductRow({ isFocused, item, onOpenDetail, onOpenLabel }) {
+const location = getProductStorageLocation(item);
+
 return (
 <div className={`rounded-2xl border p-4 ${
+isFocused
+? "border-sky-300/70 bg-sky-500/10 shadow-lg shadow-sky-950/30"
+:
 item.isCriticalVisual
 ? "border-amber-300/25 bg-amber-500/10"
 : "border-white/10 bg-slate-900/70"
@@ -1246,18 +1523,27 @@ item.isCriticalVisual
 <p className="mt-1 text-xs font-bold text-slate-400">
 {item.sku} | {item.category || "General"}
 </p>
+<p className="mt-2 text-xs font-black uppercase text-sky-200">
+{location.label}
+</p>
 </div>
 </div>
 
-<div className="grid grid-cols-3 gap-2 text-center text-xs lg:min-w-[260px]">
+<div className="grid grid-cols-4 gap-2 text-center text-xs lg:min-w-[340px]">
 <WarehouseMiniStock label="Stock" value={item.availableQuantity} />
 <WarehouseMiniStock label="Reservado" value={item.reservedQuantity} tone="warning" />
 <WarehouseMiniStock label="Disponible" value={item.availableVisual} tone={item.isCriticalVisual ? "warning" : "success"} />
+<WarehouseMiniStock label="Slot" value={location.shortLabel} tone="success" />
 </div>
 </div>
 
 <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+<div className="flex flex-wrap items-center gap-2">
 <StockBadge item={item} />
+<span className="rounded-full bg-sky-500/15 px-3 py-1 text-xs font-black text-sky-200">
+{location.slotLabel}
+</span>
+</div>
 <div className="flex flex-wrap gap-2">
 <button
 type="button"
@@ -1476,6 +1762,7 @@ loading="lazy"
 
 function SkuLabelModal({ item, onClose }) {
 const available = item.availableQuantity - item.reservedQuantity;
+const location = getProductStorageLocation(item);
 
 return (
 <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm">
@@ -1503,6 +1790,7 @@ Cerrar
 
 <div className="mt-5 grid grid-cols-2 gap-3 text-sm">
 <DetailMetric label="Bodega" value={item.warehouseCode} />
+<DetailMetric label="Ubicacion" value={location.shortLabel} />
 <DetailMetric label="Categoria" value={item.category || "General"} />
 <DetailMetric label="Disponible" value={available} tone={available <= item.reorderLevel ? "warning" : "success"} />
 <DetailMetric label="Reposicion" value={item.reorderLevel} />
@@ -1523,6 +1811,7 @@ Imprimir etiqueta
 function ProductDetailModal({ canViewMovements, item, movements, loading, error, onClose }) {
 const available = item.availableQuantity - item.reservedQuantity;
 const isLowStock = available <= item.reorderLevel;
+const location = getProductStorageLocation(item);
 
 return (
 <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm">
@@ -1581,6 +1870,8 @@ Sin imagen
 <DetailMetric label="SKU" value={item.sku} />
 <DetailMetric label="Categoria" value={item.category || "General"} />
 <DetailMetric label="Bodega" value={item.warehouseCode} />
+<DetailMetric label="Ubicacion" value={location.shortLabel} />
+<DetailMetric label="Detalle ubicacion" value={location.label} />
 <DetailMetric label="Stock total" value={item.availableQuantity} />
 <DetailMetric label="Reservado" value={item.reservedQuantity} />
 <DetailMetric label="Disponible" value={available} tone={isLowStock ? "warning" : "success"} />
