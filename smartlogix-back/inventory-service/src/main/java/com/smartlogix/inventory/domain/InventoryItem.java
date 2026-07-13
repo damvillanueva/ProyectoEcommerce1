@@ -5,6 +5,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Lob;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
@@ -24,8 +25,11 @@ public class InventoryItem {
     @Column(nullable = false, length = 120)
     private String productName;
 
-    @Column(length = 500)
+    @Lob
     private String imageUrl;
+
+    @Column(length = 80)
+    private String category;
 
     @Column(nullable = false, length = 40)
     private String warehouseCode;
@@ -74,6 +78,14 @@ public class InventoryItem {
 
     public void setImageUrl(String imageUrl) {
         this.imageUrl = imageUrl;
+    }
+
+    public String getCategory() {
+        return category;
+    }
+
+    public void setCategory(String category) {
+        this.category = category;
     }
 
     public String getWarehouseCode() {

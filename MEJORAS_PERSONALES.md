@@ -23,6 +23,19 @@ Base copiada desde la entrega grupal y separada para seguir iterando sin tocar l
 - [x] Permisos mas finos: usuario ve inventario en modo lectura, admin/bodega gestionan y admin audita/elimina.
 - [x] Toasts visuales de exito/error en inventario e historial.
 - [x] Modal propio de confirmacion para eliminar productos.
+- [x] Categorias de productos con selector, filtro y visualizacion en detalle.
+- [x] Bodegas multiples visuales completas: selector, filtro, resumen separado, mapa visual por bodega, productos por ubicacion, categorias, stock disponible/reservado y alertas criticas.
+- [x] Subida simple de imagen desde archivo en el formulario de inventario, guardada como data URL.
+- [x] Campo de imagen del backend ampliado con `@Lob` para aceptar imagenes embebidas.
+- [x] QR escaneable por SKU en tabla, detalle y modal imprimible, con respaldo visual local.
+- [x] Motivos predefinidos para movimientos manuales.
+- [x] Historial con ordenamiento por fecha, producto, SKU, tipo, cantidad, stock y usuario.
+- [x] Vista timeline para explicar movimientos por producto de forma visual.
+- [x] Dashboard de inventario con productos criticos, movimientos del dia, stock por bodega y top productos con movimiento.
+- [x] Validacion backend para impedir stock disponible menor al reservado.
+- [x] Tests unitarios backend para reglas de SKU duplicado normalizado y stock reservado.
+- [x] `npm audit --omit=dev` sin vulnerabilidades de produccion conocidas.
+- [x] Flujo pedido-envio corregido: comuna separada en pedidos/envios, estado legible y sincronizacion segura del destino del envio al editar un pedido.
 
 ## Siguientes mejoras recomendadas
 
@@ -30,6 +43,7 @@ Base copiada desde la entrega grupal y separada para seguir iterando sin tocar l
    - Reemplazar URL manual por carga de archivo.
    - Guardar imagen local o en un servicio externo.
    - Validar tipo y tamano de archivo.
+   - Estado: implementado en modo demo con archivo convertido a data URL. Pendiente solo almacenamiento externo si se quisiera produccion.
 
 2. Historial filtrado por producto
    - Boton en cada producto: `Ver movimientos`.
@@ -46,6 +60,7 @@ Base copiada desde la entrega grupal y separada para seguir iterando sin tocar l
    - Productos con stock bajo.
    - Movimientos del dia.
    - Top productos con mas movimientos.
+   - Estado: implementado en dashboard con stock por bodega, productos criticos, movimientos del dia y ranking por movimientos.
 
 5. Detalle de producto mas completo
    - Vista con SKU, bodega, stock, reservado, disponible, nivel de reposicion e imagen.
@@ -64,10 +79,18 @@ Base copiada desde la entrega grupal y separada para seguir iterando sin tocar l
 8. Categorias de productos
    - Agregar campo `category`.
    - Filtrar inventario por categoria.
+   - Estado: implementado en backend, formulario, tabla, filtro y detalle.
 
 9. Bodegas multiples
    - Mejorar `warehouseCode` con selector.
    - Ver stock por bodega.
+   - Estado: implementado completo a nivel visual: selector, filtro, panel separado por bodega, mapa visual por ubicacion, productos dentro de cada bodega, categorias, stock total, disponible, reservado, productos criticos, barra de capacidad visual y acciones rapidas de detalle/QR.
+   - Pendiente solo si se quisiera nivel produccion: tabla propia de bodegas, CRUD de bodegas, movimientos de traslado entre bodegas y stock separado por SKU/bodega en backend.
+
+9.1. Etiquetas por SKU
+   - Generar QR escaneable por SKU.
+   - Mostrarlo en tabla, detalle y modal imprimible.
+   - Estado: implementado con libreria local `qrcode` y respaldo visual autocontenido.
 
 10. Exportacion mejorada
    - Agregar Excel o PDF.
@@ -94,9 +117,11 @@ Base copiada desde la entrega grupal y separada para seguir iterando sin tocar l
     - Tests backend para `imageUrl`.
     - Tests de seguridad de movimientos.
     - Tests de reglas de stock bajo.
+    - Estado: agregados tests unitarios para SKU duplicado normalizado y stock disponible menor al reservado.
 
 ## Validacion actual
 
 - Backend: `.\mvnw.cmd -pl inventory-service -am test` OK.
+- Backend: `.\mvnw.cmd -pl order-service -am test` OK.
 - Frontend: `npm.cmd run build` OK.
 - Nota: Vite mantiene advertencia de bundle mayor a 500 KB; no bloquea.

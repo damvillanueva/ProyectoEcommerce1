@@ -6,6 +6,7 @@ public record InventoryItemResponse(
         String sku,
         String productName,
         String imageUrl,
+        String category,
         String warehouseCode,
         int availableQuantity,
         int reservedQuantity,

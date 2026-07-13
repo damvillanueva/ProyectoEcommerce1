@@ -1,16 +1,18 @@
 package com.smartlogix.order.discount;
 
 import com.smartlogix.order.repository.DiscountRepository;
-import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
 
 @Service
-@RequiredArgsConstructor
 public class DiscountService {
 
     private final DiscountRepository repository;
+
+    public DiscountService(DiscountRepository repository) {
+        this.repository = repository;
+    }
 
     public DiscountResponse create(DiscountRequest request) {
 

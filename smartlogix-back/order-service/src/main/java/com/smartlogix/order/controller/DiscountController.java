@@ -3,17 +3,19 @@ package com.smartlogix.order.controller;
 import com.smartlogix.order.discount.DiscountRequest;
 import com.smartlogix.order.discount.DiscountResponse;
 import com.smartlogix.order.discount.DiscountService;
-import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
 @RestController
 @RequestMapping("/api/discounts")
-@RequiredArgsConstructor
 public class DiscountController {
 
     private final DiscountService discountService;
+
+    public DiscountController(DiscountService discountService) {
+        this.discountService = discountService;
+    }
 
     @PostMapping
     public DiscountResponse create(@RequestBody DiscountRequest request) {

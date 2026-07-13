@@ -11,6 +11,7 @@ import {
   FiDownload,
   FiFileText,
   FiHash,
+  FiList,
   FiPackage,
   FiPlus,
   FiRefreshCw,
@@ -39,6 +40,32 @@ import { useSearchParams } from "react-router-dom";
 const PAGE_SIZE = 7;
 const EXPORT_PAGE_SIZE = 200;
 const SAVED_AT_KEY = "smartlogix.inventoryHistorySavedAt";
+
+const SORT_OPTIONS = [
+  { value: "createdAt,desc", label: "Fecha mas reciente" },
+  { value: "createdAt,asc", label: "Fecha mas antigua" },
+  { value: "quantity,desc", label: "Cantidad mayor" },
+  { value: "quantity,asc", label: "Cantidad menor" },
+  { value: "username,asc", label: "Usuario A-Z" },
+  { value: "movementType,asc", label: "Tipo A-Z" },
+];
+
+const DEFAULT_SORT_BY_FIELD = {
+  createdAt: "desc",
+  quantity: "desc",
+  previousStock: "desc",
+  newStock: "desc",
+  productName: "asc",
+  sku: "asc",
+  movementType: "asc",
+  username: "asc",
+};
+
+const MANUAL_REASON_OPTIONS = {
+  ENTRY: ["Compra proveedor", "Carga inicial", "Devolucion cliente"],
+  EXIT: ["Orden de venta", "Dano/perdida", "Traslado de bodega"],
+  ADJUSTMENT: ["Correccion inventario", "Conteo fisico", "Ajuste por diferencia"],
+};
 
 const EMPTY_FILTERS = {
   product: "",
@@ -108,6 +135,24 @@ function getMovementMeta(type) {
 
 function getActionLabel(action) {
   return ACTION_LABELS[action] || action || "Movimiento";
+}
+
+function getSortParts(sortOption) {
+  const [field = "createdAt", direction = "desc"] = String(sortOption || "").split(",");
+  return { field, direction };
+}
+
+function getNextSortOption(sortOption, field) {
+  const current = getSortParts(sortOption);
+  if (current.field === field) {
+    return `${field},${current.direction === "asc" ? "desc" : "asc"}`;
+  }
+
+  return `${field},${DEFAULT_SORT_BY_FIELD[field] || "asc"}`;
+}
+
+function getSortLabel(sortOption) {
+  return SORT_OPTIONS.find((option) => option.value === sortOption)?.label || sortOption;
 }
 
 function getApiFilters(filters) {
@@ -303,6 +348,8 @@ function InventoryMovementsPage() {
   const [isRegisterOpen, setIsRegisterOpen] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState(getInitialSavedAt);
   const [lastSavedReport, setLastSavedReport] = useState(null);
+  const [sortOption, setSortOption] = useState("createdAt,desc");
+  const [viewMode, setViewMode] = useState("table");
   const { dismissToast, showToast, toasts } = useToasts();
 
   const stats = useMemo(() => {
@@ -396,7 +443,7 @@ function InventoryMovementsPage() {
   useEffect(() => {
     const urlFilters = getFiltersFromSearch(searchParams);
     setFilters(urlFilters);
-    loadMovements(0, urlFilters);
+    loadMovements(0, urlFilters, sortOption);
   }, [searchFilterKey]);
 
   useEffect(() => {
@@ -429,14 +476,14 @@ function InventoryMovementsPage() {
     }
   }
 
-  async function loadMovements(page = pagination.page, activeFilters = filters) {
+  async function loadMovements(page = pagination.page, activeFilters = filters, activeSort = sortOption) {
     try {
       setLoading(true);
       const data = await fetchInventoryMovements({
         ...getApiFilters(activeFilters),
         page,
         size: PAGE_SIZE,
-        sort: "createdAt,desc",
+        sort: activeSort,
       });
 
       const content = Array.isArray(data.content) ? data.content : data;
@@ -474,13 +521,25 @@ function InventoryMovementsPage() {
 
   async function handleFilterSubmit(event) {
     event.preventDefault();
-    await loadMovements(0, filters);
+    await loadMovements(0, filters, sortOption);
   }
 
   async function handleClearFilters() {
     setSearchParams({});
     setFilters(EMPTY_FILTERS);
-    await loadMovements(0, EMPTY_FILTERS);
+    await loadMovements(0, EMPTY_FILTERS, sortOption);
+  }
+
+  async function handleSortChange(event) {
+    const nextSort = event.target.value;
+    setSortOption(nextSort);
+    await loadMovements(0, filters, nextSort);
+  }
+
+  async function handleSortColumn(field) {
+    const nextSort = getNextSortOption(sortOption, field);
+    setSortOption(nextSort);
+    await loadMovements(0, filters, nextSort);
   }
 
   async function loadLatestHistoryReport() {
@@ -535,7 +594,7 @@ function InventoryMovementsPage() {
       setIsRegisterOpen(false);
       showToast("Movimiento registrado correctamente.", "success");
       await loadInventoryItems();
-      await loadMovements(0, filters);
+      await loadMovements(0, filters, sortOption);
     } catch (saveError) {
       console.error(saveError);
       setError("No se pudo registrar el movimiento manual.");
@@ -561,12 +620,12 @@ function InventoryMovementsPage() {
     }
   }
 
-  async function fetchAllMovementsForExport(activeFilters = filters) {
+  async function fetchAllMovementsForExport(activeFilters = filters, activeSort = sortOption) {
     const firstPage = await fetchInventoryMovements({
       ...getApiFilters(activeFilters),
       page: 0,
       size: EXPORT_PAGE_SIZE,
-      sort: "createdAt,desc",
+      sort: activeSort,
     });
     const firstContent = Array.isArray(firstPage.content) ? firstPage.content : firstPage;
     const totalPages = firstPage.totalPages || 1;
@@ -582,7 +641,7 @@ function InventoryMovementsPage() {
         ...getApiFilters(activeFilters),
         page,
         size: EXPORT_PAGE_SIZE,
-        sort: "createdAt,desc",
+        sort: activeSort,
       });
       const content = Array.isArray(data.content) ? data.content : data;
       remainingContent.push(...content);
@@ -595,7 +654,7 @@ function InventoryMovementsPage() {
     try {
       setExportingExcel(true);
       setError("");
-      const exportMovements = await fetchAllMovementsForExport(filters);
+      const exportMovements = await fetchAllMovementsForExport(filters, sortOption);
       const excelHtml = buildExcelHtml(exportMovements, filters);
       const blob = new Blob(["\ufeff", excelHtml], {
         type: "application/vnd.ms-excel;charset=utf-8",
@@ -639,7 +698,7 @@ function InventoryMovementsPage() {
 
   async function goToPage(page) {
     if (page < 0 || (pagination.totalPages > 0 && page >= pagination.totalPages)) return;
-    await loadMovements(page, filters);
+    await loadMovements(page, filters, sortOption);
   }
 
   return (
@@ -687,26 +746,48 @@ function InventoryMovementsPage() {
 
             <FilterPanel
               filters={filters}
+              sortOption={sortOption}
               userOptions={userOptions}
+              viewMode={viewMode}
               onChange={handleFilterChange}
+              onSortChange={handleSortChange}
               onSubmit={handleFilterSubmit}
               onClear={handleClearFilters}
-              onRefresh={() => loadMovements(pagination.page, filters)}
+              onRefresh={() => loadMovements(pagination.page, filters, sortOption)}
+              onViewModeChange={setViewMode}
             />
 
             <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
-              <MovementsTable
-                loading={loading}
-                movements={movements}
-                pagination={pagination}
-                pageButtons={pageButtons}
-                rangeStart={movementRangeStart}
-                rangeEnd={movementRangeEnd}
-                selectedMovement={selectedMovement}
-                productImageBySku={productImageBySku}
-                onSelect={setSelectedMovement}
-                onPageChange={goToPage}
-              />
+              {viewMode === "timeline" ? (
+                <MovementsTimeline
+                  loading={loading}
+                  movements={movements}
+                  pagination={pagination}
+                  pageButtons={pageButtons}
+                  rangeStart={movementRangeStart}
+                  rangeEnd={movementRangeEnd}
+                  selectedMovement={selectedMovement}
+                  sortOption={sortOption}
+                  productImageBySku={productImageBySku}
+                  onSelect={setSelectedMovement}
+                  onPageChange={goToPage}
+                />
+              ) : (
+                <MovementsTable
+                  loading={loading}
+                  movements={movements}
+                  pagination={pagination}
+                  pageButtons={pageButtons}
+                  rangeStart={movementRangeStart}
+                  rangeEnd={movementRangeEnd}
+                  selectedMovement={selectedMovement}
+                  sortOption={sortOption}
+                  productImageBySku={productImageBySku}
+                  onSelect={setSelectedMovement}
+                  onPageChange={goToPage}
+                  onSort={handleSortColumn}
+                />
+              )}
 
               <MovementDetailPanel
                 movement={selectedMovement}
@@ -734,6 +815,12 @@ function InventoryMovementsPage() {
           manualQuantityLabel={manualQuantityLabel}
           saving={saving}
           onChange={handleManualChange}
+          onReasonSelect={(reason) =>
+            setManualForm((previousForm) => ({
+              ...previousForm,
+              reason,
+            }))
+          }
           onSubmit={handleManualSubmit}
           onClose={() => setIsRegisterOpen(false)}
         />
@@ -756,10 +843,21 @@ function ActionButton({ children, disabled = false, icon: Icon, onClick }) {
   );
 }
 
-function FilterPanel({ filters, userOptions, onChange, onSubmit, onClear, onRefresh }) {
+function FilterPanel({
+  filters,
+  sortOption,
+  userOptions,
+  viewMode,
+  onChange,
+  onClear,
+  onRefresh,
+  onSortChange,
+  onSubmit,
+  onViewModeChange,
+}) {
   return (
     <section className="rounded-lg border border-white/10 bg-white/[0.07] p-4 shadow-xl shadow-slate-950/20">
-      <form onSubmit={onSubmit} className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+      <form onSubmit={onSubmit} className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
         <FilterField label="Buscar producto" className="xl:col-span-1">
           <div className="relative">
             <input
@@ -820,6 +918,16 @@ function FilterPanel({ filters, userOptions, onChange, onSubmit, onClear, onRefr
           </select>
         </FilterField>
 
+        <FilterField label="Ordenar por">
+          <select value={sortOption} onChange={onSortChange} className="field-control">
+            {SORT_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </FilterField>
+
         <FilterField label="Cantidad minima">
           <input
             type="number"
@@ -843,6 +951,35 @@ function FilterPanel({ filters, userOptions, onChange, onSubmit, onClear, onRefr
             className="field-control"
           />
         </FilterField>
+
+        <div className="flex items-end">
+          <div className="grid w-full grid-cols-2 overflow-hidden rounded-md border border-white/10 bg-slate-950/45 p-1">
+            <button
+              type="button"
+              onClick={() => onViewModeChange("table")}
+              className={`inline-flex min-h-10 items-center justify-center gap-2 rounded px-3 text-xs font-black transition ${
+                viewMode === "table"
+                  ? "bg-sky-400 text-slate-950"
+                  : "text-slate-200 hover:bg-white/10"
+              }`}
+            >
+              <FiList />
+              Tabla
+            </button>
+            <button
+              type="button"
+              onClick={() => onViewModeChange("timeline")}
+              className={`inline-flex min-h-10 items-center justify-center gap-2 rounded px-3 text-xs font-black transition ${
+                viewMode === "timeline"
+                  ? "bg-sky-400 text-slate-950"
+                  : "text-slate-200 hover:bg-white/10"
+              }`}
+            >
+              <FiRepeat />
+              Timeline
+            </button>
+          </div>
+        </div>
 
         <div className="flex items-end gap-3 xl:col-span-3 xl:justify-end">
           <button
@@ -891,24 +1028,28 @@ function MovementsTable({
   rangeStart,
   rangeEnd,
   selectedMovement,
+  sortOption,
   productImageBySku,
   onSelect,
   onPageChange,
+  onSort,
 }) {
+  const currentSort = getSortParts(sortOption);
+
   return (
     <section className="min-w-0 rounded-lg border border-white/10 bg-white/[0.07] p-4 shadow-xl shadow-slate-950/20">
       <div className="overflow-x-auto">
         <table className="w-full min-w-[1060px] border-collapse text-sm">
           <thead>
             <tr className="border-b border-white/10 text-left text-xs font-black uppercase text-slate-300">
-              <th className="px-3 py-3">Fecha y hora</th>
-              <th className="px-3 py-3">Producto</th>
-              <th className="px-3 py-3">SKU</th>
-              <th className="px-3 py-3">Tipo</th>
-              <th className="px-3 py-3">Cantidad</th>
-              <th className="px-3 py-3">Stock anterior</th>
-              <th className="px-3 py-3">Stock nuevo</th>
-              <th className="px-3 py-3">Usuario</th>
+              <SortableHeader currentSort={currentSort} field="createdAt" label="Fecha y hora" onSort={onSort} />
+              <SortableHeader currentSort={currentSort} field="productName" label="Producto" onSort={onSort} />
+              <SortableHeader currentSort={currentSort} field="sku" label="SKU" onSort={onSort} />
+              <SortableHeader currentSort={currentSort} field="movementType" label="Tipo" onSort={onSort} />
+              <SortableHeader currentSort={currentSort} field="quantity" label="Cantidad" onSort={onSort} />
+              <SortableHeader currentSort={currentSort} field="previousStock" label="Stock anterior" onSort={onSort} />
+              <SortableHeader currentSort={currentSort} field="newStock" label="Stock nuevo" onSort={onSort} />
+              <SortableHeader currentSort={currentSort} field="username" label="Usuario" onSort={onSort} />
               <th className="px-3 py-3">Motivo</th>
               <th className="px-3 py-3 text-right"> </th>
             </tr>
@@ -945,49 +1086,217 @@ function MovementsTable({
         </table>
       </div>
 
-      <div className="mt-4 flex flex-col gap-3 border-t border-white/10 pt-4 lg:flex-row lg:items-center lg:justify-between">
-        <span className="text-sm font-bold text-slate-300">
-          Mostrando {rangeStart} a {rangeEnd} de {pagination.totalElements} movimientos
-        </span>
+      <MovementPagination
+        pageButtons={pageButtons}
+        pagination={pagination}
+        rangeEnd={rangeEnd}
+        rangeStart={rangeStart}
+        onPageChange={onPageChange}
+      />
+    </section>
+  );
+}
 
-        <div className="flex flex-wrap items-center gap-2">
-          <PageButton disabled={pagination.page <= 0} onClick={() => onPageChange(pagination.page - 1)}>
-            <FiChevronLeft />
-            Anterior
-          </PageButton>
+function SortableHeader({ currentSort, field, label, onSort }) {
+  const active = currentSort.field === field;
+  const Icon = currentSort.direction === "asc" ? FiArrowUp : FiArrowDown;
 
-          {pageButtons.map((page, index) => {
-            const previousPage = pageButtons[index - 1];
-            const showGap = index > 0 && page - previousPage > 1;
+  return (
+    <th className="px-3 py-3">
+      <button
+        type="button"
+        onClick={() => onSort(field)}
+        className={`inline-flex items-center gap-1 rounded px-1 py-1 text-left transition hover:bg-white/10 ${
+          active ? "text-sky-200" : ""
+        }`}
+      >
+        {label}
+        {active && <Icon className="text-[13px]" />}
+      </button>
+    </th>
+  );
+}
 
-            return (
-              <span key={page} className="flex items-center gap-2">
-                {showGap && <span className="text-slate-400">...</span>}
-                <button
-                  type="button"
-                  onClick={() => onPageChange(page)}
-                  className={`h-9 min-w-9 rounded-md border px-3 text-sm font-black transition ${
-                    page === pagination.page
-                      ? "border-sky-300 bg-sky-400 text-slate-950"
-                      : "border-white/10 bg-slate-950/55 text-white hover:bg-white/10"
-                  }`}
-                >
-                  {page + 1}
-                </button>
-              </span>
-            );
-          })}
+function MovementPagination({ pageButtons, pagination, rangeEnd, rangeStart, onPageChange }) {
+  return (
+    <div className="mt-4 flex flex-col gap-3 border-t border-white/10 pt-4 lg:flex-row lg:items-center lg:justify-between">
+      <span className="text-sm font-bold text-slate-300">
+        Mostrando {rangeStart} a {rangeEnd} de {pagination.totalElements} movimientos
+      </span>
 
-          <PageButton
-            disabled={pagination.totalPages === 0 || pagination.page >= pagination.totalPages - 1}
-            onClick={() => onPageChange(pagination.page + 1)}
-          >
-            Siguiente
-            <FiChevronRight />
-          </PageButton>
+      <div className="flex flex-wrap items-center gap-2">
+        <PageButton disabled={pagination.page <= 0} onClick={() => onPageChange(pagination.page - 1)}>
+          <FiChevronLeft />
+          Anterior
+        </PageButton>
+
+        {pageButtons.map((page, index) => {
+          const previousPage = pageButtons[index - 1];
+          const showGap = index > 0 && page - previousPage > 1;
+
+          return (
+            <span key={page} className="flex items-center gap-2">
+              {showGap && <span className="text-slate-400">...</span>}
+              <button
+                type="button"
+                onClick={() => onPageChange(page)}
+                className={`h-9 min-w-9 rounded-md border px-3 text-sm font-black transition ${
+                  page === pagination.page
+                    ? "border-sky-300 bg-sky-400 text-slate-950"
+                    : "border-white/10 bg-slate-950/55 text-white hover:bg-white/10"
+                }`}
+              >
+                {page + 1}
+              </button>
+            </span>
+          );
+        })}
+
+        <PageButton
+          disabled={pagination.totalPages === 0 || pagination.page >= pagination.totalPages - 1}
+          onClick={() => onPageChange(pagination.page + 1)}
+        >
+          Siguiente
+          <FiChevronRight />
+        </PageButton>
+      </div>
+    </div>
+  );
+}
+
+function MovementsTimeline({
+  loading,
+  movements,
+  pagination,
+  pageButtons,
+  rangeStart,
+  rangeEnd,
+  selectedMovement,
+  sortOption,
+  productImageBySku,
+  onSelect,
+  onPageChange,
+}) {
+  return (
+    <section className="min-w-0 rounded-lg border border-white/10 bg-white/[0.07] p-4 shadow-xl shadow-slate-950/20">
+      <div className="mb-4 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="text-lg font-black text-white">Timeline de movimientos</h2>
+          <p className="text-sm font-semibold text-slate-400">
+            Vista cronologica segun el orden seleccionado: {getSortLabel(sortOption)}
+          </p>
         </div>
       </div>
+
+      <div className="space-y-3">
+        {loading && (
+          <div className="rounded-md border border-dashed border-white/15 bg-slate-950/35 p-6 text-center text-sm font-bold text-slate-400">
+            Cargando movimientos...
+          </div>
+        )}
+
+        {!loading && movements.length === 0 && (
+          <div className="rounded-md border border-dashed border-white/15 bg-slate-950/35 p-6 text-center text-sm font-bold text-slate-400">
+            No hay movimientos registrados.
+          </div>
+        )}
+
+        {!loading &&
+          movements.map((movement) => (
+            <TimelineItem
+              key={movement.id}
+              imageUrl={productImageBySku[movement.sku]}
+              movement={movement}
+              selected={selectedMovement?.id === movement.id}
+              onSelect={() => onSelect(movement)}
+            />
+          ))}
+      </div>
+
+      <MovementPagination
+        pageButtons={pageButtons}
+        pagination={pagination}
+        rangeEnd={rangeEnd}
+        rangeStart={rangeStart}
+        onPageChange={onPageChange}
+      />
     </section>
+  );
+}
+
+function TimelineItem({ imageUrl, movement, selected, onSelect }) {
+  const meta = getMovementMeta(movement.movementType);
+  const Icon = meta.icon;
+  const quantityClass = getQuantityDelta(movement) < 0 ? "text-rose-300" : meta.text;
+
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      className={`grid w-full grid-cols-[auto_1fr] gap-4 rounded-lg border p-4 text-left transition hover:bg-white/10 ${
+        selected
+          ? "border-sky-300/40 bg-sky-400/10"
+          : "border-white/10 bg-slate-950/30"
+      }`}
+    >
+      <div className="flex flex-col items-center">
+        <span className={`flex h-11 w-11 items-center justify-center rounded-full border ${meta.badge}`}>
+          <Icon />
+        </span>
+        <span className="mt-2 h-full w-px bg-white/10" />
+      </div>
+
+      <div className="min-w-0">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex min-w-0 items-center gap-3">
+            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-md border border-white/10 bg-slate-950/60 text-sky-200">
+              {imageUrl ? (
+                <img
+                  src={imageUrl}
+                  alt={movement.productName || "Producto"}
+                  className="h-full w-full rounded-md object-cover"
+                  loading="lazy"
+                />
+              ) : (
+                <FiPackage />
+              )}
+            </span>
+            <div className="min-w-0">
+              <p className="truncate text-base font-black text-white">
+                {movement.productName || "Producto"}
+              </p>
+              <p className="text-xs font-black uppercase text-slate-400">
+                {movement.sku || "-"} | {formatDate(movement.createdAt)}
+              </p>
+            </div>
+          </div>
+
+          <span className={`inline-flex items-center gap-2 rounded-md border px-3 py-2 text-xs font-black ${meta.badge}`}>
+            {meta.label}
+          </span>
+        </div>
+
+        <div className="mt-4 grid gap-3 sm:grid-cols-4">
+          <TimelineMetric label="Cantidad" value={getQuantityLabel(movement)} valueClass={quantityClass} />
+          <TimelineMetric label="Stock anterior" value={movement.previousStock ?? "-"} />
+          <TimelineMetric label="Stock nuevo" value={movement.newStock ?? "-"} />
+          <TimelineMetric label="Usuario" value={movement.username || "system"} />
+        </div>
+
+        <p className="mt-3 line-clamp-2 text-sm font-bold text-slate-300">
+          {movement.reason || getActionLabel(movement.actionType)}
+        </p>
+      </div>
+    </button>
+  );
+}
+
+function TimelineMetric({ label, value, valueClass = "text-white" }) {
+  return (
+    <div className="rounded-md border border-white/10 bg-slate-950/35 p-3">
+      <p className="text-[11px] font-black uppercase text-slate-500">{label}</p>
+      <p className={`mt-1 text-sm font-black ${valueClass}`}>{value}</p>
+    </div>
   );
 }
 
@@ -1264,8 +1573,11 @@ function RegisterMovementModal({
   saving,
   onChange,
   onClose,
+  onReasonSelect,
   onSubmit,
 }) {
+  const reasonOptions = MANUAL_REASON_OPTIONS[manualForm.movementType] || [];
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm">
       <form
@@ -1324,12 +1636,31 @@ function RegisterMovementModal({
             />
           </FilterField>
 
-          <FilterField label="Motivo">
+          <FilterField label="Motivo rapido">
+            <div className="flex flex-wrap gap-2">
+              {reasonOptions.map((reason) => (
+                <button
+                  key={reason}
+                  type="button"
+                  onClick={() => onReasonSelect(reason)}
+                  className={`rounded-md border px-3 py-2 text-xs font-black transition ${
+                    manualForm.reason === reason
+                      ? "border-sky-300 bg-sky-400 text-slate-950"
+                      : "border-white/10 bg-white/10 text-slate-100 hover:bg-white/15"
+                  }`}
+                >
+                  {reason}
+                </button>
+              ))}
+            </div>
+          </FilterField>
+
+          <FilterField label="Motivo detallado">
             <textarea
               name="reason"
               value={manualForm.reason}
               onChange={onChange}
-              placeholder="Motivo"
+              placeholder="Escribe un motivo o usa una opcion rapida"
               rows="3"
               className="field-control resize-none"
             />

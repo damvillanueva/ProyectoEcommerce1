@@ -33,14 +33,16 @@ public class InventoryService {
     }
 
     public InventoryItemResponse createItem(CreateInventoryItemRequest request) {
-        if (repository.existsBySku(request.sku())) {
-            throw new InventoryOperationException("El SKU ya existe: " + request.sku());
+        String normalizedSku = request.sku().trim().toUpperCase();
+        if (repository.existsBySku(normalizedSku)) {
+            throw new InventoryOperationException("El SKU ya existe: " + normalizedSku);
         }
 
         InventoryItem item = new InventoryItem();
-        item.setSku(request.sku().trim().toUpperCase());
+        item.setSku(normalizedSku);
         item.setProductName(request.productName().trim());
         item.setImageUrl(normalizeImageUrl(request.imageUrl()));
+        item.setCategory(normalizeCategory(request.category()));
         item.setWarehouseCode(request.warehouseCode().trim().toUpperCase());
         item.setAvailableQuantity(request.initialQuantity());
         item.setReservedQuantity(0);
@@ -171,6 +173,7 @@ public class InventoryService {
                 item.getSku(),
                 item.getProductName(),
                 item.getImageUrl(),
+                item.getCategory(),
                 item.getWarehouseCode(),
                 item.getAvailableQuantity(),
                 item.getReservedQuantity(),
@@ -182,9 +185,12 @@ public class InventoryService {
     public InventoryItemResponse updateItem(String sku, UpdateInventoryItemRequest request) {
         InventoryItem item = loadBySku(sku);
 
+        validateStockState(request.availableQuantity(), request.reservedQuantity());
+
         int previousStock = item.getAvailableQuantity();
         item.setProductName(request.productName().trim());
         item.setImageUrl(normalizeImageUrl(request.imageUrl()));
+        item.setCategory(normalizeCategory(request.category()));
         item.setWarehouseCode(request.warehouseCode().trim().toUpperCase());
         item.setAvailableQuantity(request.availableQuantity());
         item.setReservedQuantity(request.reservedQuantity());
@@ -244,5 +250,21 @@ public class InventoryService {
         }
 
         return imageUrl.trim();
+    }
+
+    private String normalizeCategory(String category) {
+        if (category == null || category.isBlank()) {
+            return "General";
+        }
+
+        return category.trim();
+    }
+
+    private void validateStockState(int availableQuantity, int reservedQuantity) {
+        if (availableQuantity < reservedQuantity) {
+            throw new InventoryOperationException(
+                    "El stock disponible no puede ser menor al stock reservado."
+            );
+        }
     }
 }

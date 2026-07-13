@@ -482,6 +482,7 @@ function ShipmentPage() {
                         <th className="p-4 text-left rounded-l-xl">Tracking</th>
                         <th className="p-4 text-left">Pedido</th>
                         <th className="p-4 text-left">Transportista</th>
+                        <th className="p-4 text-left">Comuna</th>
                         <th className="p-4 text-left">Direccion</th>
                         <th className="p-4 text-left">Entrega estimada</th>
                         <th className="p-4 text-left">Estado</th>
@@ -492,7 +493,7 @@ function ShipmentPage() {
                     <tbody>
                       {shipments.length === 0 && (
                         <tr>
-                          <td colSpan="7" className="p-6 text-center text-slate-400">
+                          <td colSpan="8" className="p-6 text-center text-slate-400">
                             No hay envios registrados todavia.
                           </td>
                         </tr>
@@ -500,6 +501,7 @@ function ShipmentPage() {
 
                       {shipments.map((shipment) => {
                         const shipmentStatus = getShipmentStatusMeta(shipment.status);
+                        const destinationInfo = splitDestinationAddress(shipment.destinationAddress);
 
                         return (
                           <tr
@@ -509,7 +511,12 @@ function ShipmentPage() {
                             <td className="p-4 font-bold">{shipment.trackingCode}</td>
                             <td className="p-4">{shipment.orderNumber}</td>
                             <td className="p-4">{shipment.carrier}</td>
-                            <td className="p-4">{shipment.destinationAddress}</td>
+                            <td className="p-4">
+                              <span className="rounded-full bg-sky-500/20 px-3 py-1 font-bold text-sky-200">
+                                {destinationInfo.commune || "Sin comuna"}
+                              </span>
+                            </td>
+                            <td className="p-4">{destinationInfo.street || shipment.destinationAddress}</td>
                             <td className="p-4">
                               {formatShipmentDate(shipment.estimatedDeliveryDate)}
                             </td>

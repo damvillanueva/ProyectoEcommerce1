@@ -188,6 +188,9 @@ public class OrderService {
 
         return new OrderResponse(
                 order.getOrderNumber(),
+                order.getCustomerName(),
+                order.getCustomerEmail(),
+                order.getShippingAddress(),
                 order.getStatus(),
                 order.getSubtotalAmount(),
                 order.getDiscountAmount(),
@@ -230,7 +233,10 @@ public class OrderService {
             order.addLine(line);
         }
 
-        return toResponse(repository.save(order));
+        PurchaseOrder savedOrder = repository.save(order);
+        syncShipmentDestination(savedOrder);
+
+        return toResponse(savedOrder);
     }
 
     @Transactional
@@ -240,5 +246,20 @@ public class OrderService {
                         new OrderNotFoundException("No existe la orden " + orderNumber));
 
         repository.delete(order);
+    }
+
+    private void syncShipmentDestination(PurchaseOrder order) {
+        if (order.getTrackingCode() == null || order.getTrackingCode().isBlank()) {
+            return;
+        }
+
+        shipmentClient.updateShipment(
+                order.getTrackingCode(),
+                new ShipmentRequest(
+                        order.getOrderNumber(),
+                        order.getShippingAddress(),
+                        totalUnits(order)
+                )
+        );
     }
 }

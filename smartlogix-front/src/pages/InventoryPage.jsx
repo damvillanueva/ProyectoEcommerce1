@@ -13,6 +13,25 @@ import PageContainer from "../layout/PageContainer";
 import ToastStack from "../components/ToastStack";
 import { useToasts } from "../hooks/useToasts";
 
+const CATEGORY_OPTIONS = [
+"Accesorios",
+"Componentes",
+"Monitores",
+"Notebooks",
+"Perifericos",
+"Otros",
+];
+
+const WAREHOUSE_OPTIONS = [
+{ code: "WH-SCL-01", name: "Bodega Santiago", city: "Santiago" },
+{ code: "WH-VAP-02", name: "Bodega Valparaiso", city: "Valparaiso" },
+{ code: "WH-CON-03", name: "Bodega Concepcion", city: "Concepcion" },
+{ code: "WH-ANT-04", name: "Bodega Antofagasta", city: "Antofagasta" },
+];
+
+const MAX_IMAGE_UPLOAD_BYTES = 900 * 1024;
+const SKU_CODE_GRID_SIZE = 11;
+
 function getRoleFromToken() {
 const token = localStorage.getItem("token");
 
@@ -36,6 +55,47 @@ return null;
 }
 }
 
+function isFinderPatternCell(row, column, startRow, startColumn) {
+const localRow = row - startRow;
+const localColumn = column - startColumn;
+
+if (localRow < 0 || localRow > 2 || localColumn < 0 || localColumn > 2) {
+return null;
+}
+
+return (
+localRow === 0 ||
+localRow === 2 ||
+localColumn === 0 ||
+localColumn === 2 ||
+(localRow === 1 && localColumn === 1)
+);
+}
+
+function getSkuCodeCells(sku) {
+const normalizedSku = String(sku || "SKU").toUpperCase();
+let hash = 2166136261;
+
+for (let index = 0; index < normalizedSku.length; index += 1) {
+hash ^= normalizedSku.charCodeAt(index);
+hash = Math.imul(hash, 16777619);
+}
+
+return Array.from({ length: SKU_CODE_GRID_SIZE * SKU_CODE_GRID_SIZE }, (_, index) => {
+const row = Math.floor(index / SKU_CODE_GRID_SIZE);
+const column = index % SKU_CODE_GRID_SIZE;
+const finder =
+isFinderPatternCell(row, column, 0, 0) ??
+isFinderPatternCell(row, column, 0, SKU_CODE_GRID_SIZE - 3) ??
+isFinderPatternCell(row, column, SKU_CODE_GRID_SIZE - 3, 0);
+
+if (finder !== null) return finder;
+
+hash = Math.imul(hash ^ (row * 31 + column * 17 + index), 1103515245) + 12345;
+return (hash >>> 0) % 4 !== 0;
+});
+}
+
 function InventoryPage() {
 const [items, setItems] = useState([]);
 const [loading, setLoading] = useState(true);
@@ -51,6 +111,9 @@ const [auditLoading, setAuditLoading] = useState(false);
 const [auditError, setAuditError] = useState("");
 const [deleteTarget, setDeleteTarget] = useState(null);
 const [deleting, setDeleting] = useState(false);
+const [categoryFilter, setCategoryFilter] = useState("");
+const [warehouseFilter, setWarehouseFilter] = useState("");
+const [labelItem, setLabelItem] = useState(null);
 const { dismissToast, showToast, toasts } = useToasts();
 
 const role = getRoleFromToken();
@@ -70,6 +133,80 @@ items.filter(
 [items]
 );
 
+const categoryOptions = useMemo(() => {
+const categories = new Set(CATEGORY_OPTIONS);
+items.forEach((item) => {
+if (item.category) categories.add(item.category);
+});
+return Array.from(categories).sort((left, right) => left.localeCompare(right));
+}, [items]);
+
+const warehouseOptions = useMemo(() => {
+const warehouses = new Map(WAREHOUSE_OPTIONS.map((warehouse) => [warehouse.code, warehouse]));
+items.forEach((item) => {
+if (item.warehouseCode && !warehouses.has(item.warehouseCode)) {
+warehouses.set(item.warehouseCode, {
+code: item.warehouseCode,
+name: item.warehouseCode,
+city: "Sin ciudad",
+});
+}
+});
+return Array.from(warehouses.values()).sort((left, right) => left.code.localeCompare(right.code));
+}, [items]);
+
+const warehouseSummary = useMemo(() => {
+return warehouseOptions.map((warehouse) => {
+const warehouseItems = items.filter((item) => item.warehouseCode === warehouse.code);
+const categoryCounts = Array.from(
+warehouseItems.reduce((categories, item) => {
+const category = item.category || "General";
+categories.set(category, (categories.get(category) || 0) + 1);
+return categories;
+}, new Map())
+).map(([name, count]) => ({ name, count }));
+const totals = warehouseItems.reduce(
+(summary, item) => {
+const available = item.availableQuantity - item.reservedQuantity;
+summary.stock += item.availableQuantity;
+summary.reserved += item.reservedQuantity;
+summary.available += available;
+if (available <= item.reorderLevel) summary.critical += 1;
+return summary;
+},
+{ stock: 0, reserved: 0, available: 0, critical: 0 }
+);
+
+return {
+...warehouse,
+...totals,
+items: warehouseItems.length,
+categories: categoryCounts,
+products: [...warehouseItems]
+.map((item) => ({
+...item,
+availableVisual: item.availableQuantity - item.reservedQuantity,
+isCriticalVisual: item.availableQuantity - item.reservedQuantity <= item.reorderLevel,
+}))
+.sort((left, right) => {
+if (left.isCriticalVisual !== right.isCriticalVisual) {
+return left.isCriticalVisual ? -1 : 1;
+}
+
+return left.productName.localeCompare(right.productName);
+}),
+};
+});
+}, [items, warehouseOptions]);
+
+const filteredItems = useMemo(() => {
+return items.filter((item) => {
+const matchesCategory = !categoryFilter || (item.category || "General") === categoryFilter;
+const matchesWarehouse = !warehouseFilter || item.warehouseCode === warehouseFilter;
+return matchesCategory && matchesWarehouse;
+});
+}, [categoryFilter, items, warehouseFilter]);
+
 function showPageError(message) {
 setError(message);
 showToast(message, "error");
@@ -84,7 +221,8 @@ const [formData, setFormData] = useState({
 sku: `SKU-${Math.floor(Math.random() * 9000) + 1000}`,
 productName: "Auriculares Hyperx",
 imageUrl: "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=240&q=80",
-warehouseCode: "BOD-001",
+category: "Accesorios",
+warehouseCode: "WH-SCL-01",
 initialQuantity: "25",
 reorderLevel: "5",
 });
@@ -133,6 +271,39 @@ setFormData((prevData) => ({
 }));
 }
 
+function handleImageUpload(event) {
+const file = event.target.files?.[0];
+
+if (!file) return;
+
+if (!file.type.startsWith("image/")) {
+showPageError("Selecciona un archivo de imagen valido.");
+event.target.value = "";
+return;
+}
+
+if (file.size > MAX_IMAGE_UPLOAD_BYTES) {
+showPageError("La imagen debe pesar menos de 900 KB para guardarla en la demo.");
+event.target.value = "";
+return;
+}
+
+const reader = new FileReader();
+reader.onload = () => {
+setFormData((prevData) => ({
+...prevData,
+imageUrl: String(reader.result || ""),
+}));
+showPageSuccess("Imagen cargada en el formulario.");
+event.target.value = "";
+};
+reader.onerror = () => {
+showPageError("No se pudo leer la imagen seleccionada.");
+event.target.value = "";
+};
+reader.readAsDataURL(file);
+}
+
 async function handleCreateInventory(event) {
 event.preventDefault();
 
@@ -144,6 +315,7 @@ return;
 const cleanSku = formData.sku.trim();
 const cleanProductName = formData.productName.trim();
 const cleanImageUrl = formData.imageUrl.trim();
+const cleanCategory = formData.category.trim();
 const cleanWarehouseCode = formData.warehouseCode.trim();
 const parsedQuantity = Number(formData.initialQuantity);
 const parsedReorderLevel = Number(formData.reorderLevel);
@@ -201,6 +373,7 @@ return;
 await editInventoryItem(editingSku, {
 productName: cleanProductName,
 imageUrl: cleanImageUrl,
+category: cleanCategory,
 warehouseCode: cleanWarehouseCode,
 availableQuantity: parsedQuantity,
 reservedQuantity,
@@ -211,6 +384,7 @@ await saveInventoryItem({
 sku: cleanSku,
 productName: cleanProductName,
 imageUrl: cleanImageUrl,
+category: cleanCategory,
 warehouseCode: cleanWarehouseCode,
 initialQuantity: parsedQuantity,
 reorderLevel: parsedReorderLevel,
@@ -230,7 +404,8 @@ setFormData({
 sku: `SKU-${Math.floor(Math.random() * 9000) + 1000}`,
 productName: "Auriculares Hyperx",
 imageUrl: "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=240&q=80",
-warehouseCode: "BOD-001",
+category: "Accesorios",
+warehouseCode: "WH-SCL-01",
 initialQuantity: "25",
 reorderLevel: "5",
 });
@@ -258,6 +433,7 @@ setFormData({
 sku: item.sku,
 productName: item.productName,
 imageUrl: item.imageUrl || "",
+category: item.category || "General",
 warehouseCode: item.warehouseCode,
 initialQuantity: String(item.availableQuantity),
 reorderLevel: String(item.reorderLevel),
@@ -420,15 +596,47 @@ placeholder="URL de imagen del producto"
 className="bg-slate-950/80 border border-white/10 text-white placeholder:text-slate-500 rounded-xl px-4 py-3 focus:ring-2 focus:ring-indigo-400 outline-none"
 />
 
+<label className="cursor-pointer rounded-xl border border-dashed border-sky-300/40 bg-sky-500/10 px-4 py-3 text-sm font-black text-sky-100 transition hover:bg-sky-500/15">
+<span className="block">
+{formData.imageUrl ? "Cambiar imagen desde archivo" : "Subir imagen desde archivo"}
+</span>
+<span className="mt-1 block text-xs font-semibold text-sky-200/80">
+JPG, PNG o WebP hasta 900 KB
+</span>
 <input
-type="text"
+type="file"
+accept="image/png,image/jpeg,image/webp"
+onChange={handleImageUpload}
+className="hidden"
+/>
+</label>
+
+<select
+name="category"
+value={formData.category}
+onChange={handleChange}
+className="bg-slate-950/80 border border-white/10 text-white rounded-xl px-4 py-3 focus:ring-2 focus:ring-indigo-400 outline-none"
+>
+{categoryOptions.map((category) => (
+<option key={category} value={category}>
+{category}
+</option>
+))}
+</select>
+
+<select
 name="warehouseCode"
 value={formData.warehouseCode}
 onChange={handleChange}
-placeholder="Código de bodega"
 required
-className="bg-slate-950/80 border border-white/10 text-white placeholder:text-slate-500 rounded-xl px-4 py-3 focus:ring-2 focus:ring-indigo-400 outline-none"
-/>
+className="bg-slate-950/80 border border-white/10 text-white rounded-xl px-4 py-3 focus:ring-2 focus:ring-indigo-400 outline-none"
+>
+{warehouseOptions.map((warehouse) => (
+<option key={warehouse.code} value={warehouse.code}>
+{warehouse.code} - {warehouse.name}
+</option>
+))}
+</select>
 
 <input
 type="number"
@@ -469,6 +677,20 @@ className="rounded-xl bg-indigo-600 px-6 py-3 text-white font-bold shadow-lg hov
 </div>
 )}
 
+<WarehouseSummaryPanel
+selectedWarehouse={warehouseFilter}
+summary={warehouseSummary}
+onSelectWarehouse={setWarehouseFilter}
+/>
+
+<WarehouseOperationsBoard
+selectedWarehouse={warehouseFilter}
+warehouses={warehouseSummary}
+onOpenDetail={handleOpenDetail}
+onOpenLabel={setLabelItem}
+onSelectWarehouse={setWarehouseFilter}
+/>
+
 {!canManageInventory && (
 <div className="bg-slate-800/80 border border-white/10 rounded-2xl p-5 mb-6">
 <p className="text-slate-300">
@@ -480,17 +702,59 @@ o bodegueros.
 )}
 
 <div className="bg-slate-800/80 border border-white/10 rounded-3xl p-6">
-<h2 className="text-2xl font-black mb-6">
+<div className="mb-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+<div>
+<h2 className="text-2xl font-black">
 Listado de inventario
 </h2>
+<p className="mt-1 text-sm font-semibold text-slate-400">
+Mostrando {filteredItems.length} de {items.length} productos.
+</p>
+</div>
+<div className="grid w-full gap-3 md:w-[620px] md:grid-cols-2">
+<label>
+<span className="mb-2 block text-xs font-black uppercase text-slate-400">Categoria</span>
+<select
+value={categoryFilter}
+onChange={(event) => setCategoryFilter(event.target.value)}
+className="w-full rounded-xl border border-white/10 bg-slate-950/80 px-4 py-3 font-bold text-white outline-none focus:ring-2 focus:ring-indigo-400"
+>
+<option value="">Todas</option>
+{categoryOptions.map((category) => (
+<option key={category} value={category}>
+{category}
+</option>
+))}
+</select>
+</label>
+<label>
+<span className="mb-2 block text-xs font-black uppercase text-slate-400">Bodega</span>
+<select
+value={warehouseFilter}
+onChange={(event) => setWarehouseFilter(event.target.value)}
+className="w-full rounded-xl border border-white/10 bg-slate-950/80 px-4 py-3 font-bold text-white outline-none focus:ring-2 focus:ring-indigo-400"
+>
+<option value="">Todas</option>
+{warehouseOptions.map((warehouse) => (
+<option key={warehouse.code} value={warehouse.code}>
+{warehouse.code} - {warehouse.city}
+</option>
+))}
+</select>
+</label>
+</div>
+</div>
 
 <div className="overflow-x-auto">
 <table className="w-full border-collapse">
 <thead>
 <tr className="bg-slate-900/80 text-slate-300 uppercase text-sm">
 <th className="p-4 text-left rounded-l-xl">SKU</th>
+<th className="p-4 text-left">Codigo</th>
 <th className="p-4 text-left">Imagen</th>
 <th className="p-4 text-left">Nombre</th>
+<th className="p-4 text-left">Categoria</th>
+<th className="p-4 text-left">Bodega</th>
 <th className="p-4 text-left">Stock</th>
 <th className="p-4 text-left">Reservado</th>
 <th className="p-4 text-left">Disponible</th>
@@ -502,16 +766,37 @@ Acciones
 </thead>
 
 <tbody>
-{items.map((item) => (
+{filteredItems.length === 0 && (
+<tr>
+<td colSpan="11" className="p-8 text-center font-bold text-slate-400">
+No hay productos para la categoria seleccionada.
+</td>
+</tr>
+)}
+
+{filteredItems.map((item) => (
 <tr
 key={item.sku}
 className="border-b border-white/10 hover:bg-white/5 transition"
 >
 <td className="p-4 font-bold">{item.sku}</td>
 <td className="p-4">
+<SkuQrCode sku={item.sku} compact />
+</td>
+<td className="p-4">
 <ProductThumbnail imageUrl={item.imageUrl} productName={item.productName} />
 </td>
 <td className="p-4">{item.productName}</td>
+<td className="p-4">
+<span className="rounded-full bg-sky-500/15 px-3 py-1 text-sm font-bold text-sky-200">
+{item.category || "General"}
+</span>
+</td>
+<td className="p-4">
+<span className="rounded-full bg-indigo-500/15 px-3 py-1 text-sm font-bold text-indigo-200">
+{item.warehouseCode}
+</span>
+</td>
 <td className="p-4">{item.availableQuantity}</td>
 <td className="p-4">{item.reservedQuantity}</td>
 <td className="p-4">
@@ -530,6 +815,14 @@ onClick={() => handleOpenDetail(item)}
 className="rounded-xl bg-white/10 px-4 py-2 text-white font-bold hover:bg-white/20 transition"
 >
 Detalle
+</button>
+
+<button
+type="button"
+onClick={() => setLabelItem(item)}
+className="rounded-xl bg-indigo-500 px-4 py-2 text-white font-bold hover:bg-indigo-400 transition"
+>
+Etiqueta
 </button>
 
 {canManageInventory && (
@@ -599,6 +892,13 @@ deleting={deleting}
 item={deleteTarget}
 onCancel={() => setDeleteTarget(null)}
 onConfirm={handleConfirmDelete}
+/>
+)}
+
+{labelItem && (
+<SkuLabelModal
+item={labelItem}
+onClose={() => setLabelItem(null)}
 />
 )}
 </div>
@@ -679,6 +979,319 @@ Todavia no hay eventos de auditoria.
 </div>
 )}
 </section>
+);
+}
+
+function WarehouseSummaryPanel({ onSelectWarehouse, selectedWarehouse, summary }) {
+return (
+<section className="mb-8 rounded-3xl border border-white/10 bg-slate-800/80 p-6">
+<div className="mb-5 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+<div>
+<h2 className="text-2xl font-black">Stock por bodega</h2>
+<p className="mt-1 text-sm font-semibold text-slate-400">
+Visualiza productos, stock y alertas separados por ubicacion.
+</p>
+</div>
+{selectedWarehouse && (
+<button
+type="button"
+onClick={() => onSelectWarehouse("")}
+className="rounded-xl bg-white/10 px-4 py-2 text-sm font-black text-white transition hover:bg-white/20"
+>
+Ver todas
+</button>
+)}
+</div>
+
+<div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+{summary.map((warehouse) => {
+const isSelected = selectedWarehouse === warehouse.code;
+const hasCritical = warehouse.critical > 0;
+
+return (
+<button
+key={warehouse.code}
+type="button"
+onClick={() => onSelectWarehouse(isSelected ? "" : warehouse.code)}
+className={`rounded-2xl border p-5 text-left transition hover:-translate-y-0.5 hover:bg-white/10 ${
+isSelected
+? "border-sky-300 bg-sky-500/15 shadow-lg shadow-sky-950/20"
+: "border-white/10 bg-slate-950/35"
+}`}
+>
+<div className="mb-4 flex items-start justify-between gap-3">
+<div>
+<p className="text-xs font-black uppercase text-slate-500">{warehouse.code}</p>
+<h3 className="mt-1 text-lg font-black text-white">{warehouse.name}</h3>
+<p className="text-sm font-semibold text-slate-400">{warehouse.city}</p>
+</div>
+<span className={`rounded-full px-3 py-1 text-xs font-black ${
+hasCritical ? "bg-amber-500/20 text-amber-200" : "bg-emerald-500/20 text-emerald-300"
+}`}>
+{hasCritical ? `${warehouse.critical} criticos` : "OK"}
+</span>
+</div>
+
+<div className="grid grid-cols-2 gap-3">
+<WarehouseMetric label="Productos" value={warehouse.items} />
+<WarehouseMetric label="Disponible" value={warehouse.available} tone="success" />
+<WarehouseMetric label="Reservado" value={warehouse.reserved} tone="warning" />
+<WarehouseMetric label="Stock total" value={warehouse.stock} />
+</div>
+</button>
+);
+})}
+</div>
+</section>
+);
+}
+
+function WarehouseMetric({ label, tone = "default", value }) {
+const toneClass =
+tone === "success"
+? "text-emerald-300"
+: tone === "warning"
+? "text-amber-200"
+: "text-white";
+
+return (
+<div className="rounded-xl bg-white/5 p-3">
+<p className="text-xs font-black uppercase text-slate-500">{label}</p>
+<p className={`mt-1 text-2xl font-black ${toneClass}`}>{value}</p>
+</div>
+);
+}
+
+function WarehouseOperationsBoard({
+onOpenDetail,
+onOpenLabel,
+onSelectWarehouse,
+selectedWarehouse,
+warehouses,
+}) {
+const visibleWarehouses = selectedWarehouse
+? warehouses.filter((warehouse) => warehouse.code === selectedWarehouse)
+: warehouses;
+const maxAvailable = Math.max(...warehouses.map((warehouse) => warehouse.available), 1);
+const activeWarehouses = warehouses.filter((warehouse) => warehouse.items > 0).length;
+const totalCritical = warehouses.reduce((total, warehouse) => total + warehouse.critical, 0);
+
+return (
+<section className="mb-8 rounded-3xl border border-white/10 bg-slate-800/80 p-6">
+<div className="mb-5 flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+<div>
+<p className="text-sm font-black uppercase text-sky-300">Bodegas multiples visuales</p>
+<h2 className="mt-1 text-2xl font-black">Mapa visual de bodegas</h2>
+<p className="mt-1 max-w-3xl text-sm font-semibold text-slate-400">
+Cada bodega muestra sus productos asignados, disponibilidad, reservas, categorias y alertas de reposicion.
+</p>
+</div>
+<div className="grid gap-3 sm:grid-cols-3">
+<WarehouseBoardMetric label="Bodegas activas" value={activeWarehouses} />
+<WarehouseBoardMetric label="Productos criticos" value={totalCritical} tone={totalCritical ? "warning" : "success"} />
+<WarehouseBoardMetric label="Vista actual" value={selectedWarehouse || "Todas"} />
+</div>
+</div>
+
+<div className="grid gap-4 xl:grid-cols-2">
+{visibleWarehouses.map((warehouse) => (
+<WarehouseLane
+key={warehouse.code}
+maxAvailable={maxAvailable}
+onOpenDetail={onOpenDetail}
+onOpenLabel={onOpenLabel}
+onSelectWarehouse={onSelectWarehouse}
+selectedWarehouse={selectedWarehouse}
+warehouse={warehouse}
+/>
+))}
+</div>
+</section>
+);
+}
+
+function WarehouseBoardMetric({ label, tone = "default", value }) {
+const toneClass =
+tone === "success"
+? "text-emerald-300"
+: tone === "warning"
+? "text-amber-200"
+: "text-white";
+
+return (
+<div className="min-w-[150px] rounded-2xl border border-white/10 bg-slate-950/45 p-4">
+<p className="text-xs font-black uppercase text-slate-500">{label}</p>
+<p className={`mt-1 text-xl font-black ${toneClass}`}>{value}</p>
+</div>
+);
+}
+
+function WarehouseLane({
+maxAvailable,
+onOpenDetail,
+onOpenLabel,
+onSelectWarehouse,
+selectedWarehouse,
+warehouse,
+}) {
+const hasCritical = warehouse.critical > 0;
+const fillPercent = Math.min(100, Math.round((warehouse.available / maxAvailable) * 100));
+
+return (
+<article className="rounded-2xl border border-white/10 bg-slate-950/35 p-5">
+<div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+<div>
+<div className="flex flex-wrap items-center gap-2">
+<span className="rounded-full bg-indigo-500/20 px-3 py-1 text-xs font-black text-indigo-200">
+{warehouse.code}
+</span>
+<span className={`rounded-full px-3 py-1 text-xs font-black ${
+hasCritical ? "bg-amber-500/20 text-amber-200" : "bg-emerald-500/20 text-emerald-300"
+}`}>
+{hasCritical ? `${warehouse.critical} criticos` : "Sin alertas"}
+</span>
+</div>
+<h3 className="mt-3 text-xl font-black text-white">{warehouse.name}</h3>
+<p className="text-sm font-semibold text-slate-400">{warehouse.city}</p>
+</div>
+
+<button
+type="button"
+onClick={() => onSelectWarehouse(selectedWarehouse === warehouse.code ? "" : warehouse.code)}
+className="rounded-xl bg-white/10 px-4 py-2 text-sm font-black text-white transition hover:bg-white/20"
+>
+{selectedWarehouse === warehouse.code ? "Ver todas" : "Filtrar bodega"}
+</button>
+</div>
+
+<div className="mt-5 grid gap-3 sm:grid-cols-4">
+<WarehouseMetric label="Productos" value={warehouse.items} />
+<WarehouseMetric label="Disponible" value={warehouse.available} tone="success" />
+<WarehouseMetric label="Reservado" value={warehouse.reserved} tone="warning" />
+<WarehouseMetric label="Stock total" value={warehouse.stock} />
+</div>
+
+<div className="mt-5">
+<div className="mb-2 flex items-center justify-between text-xs font-black uppercase text-slate-500">
+<span>Capacidad visual por stock disponible</span>
+<span>{warehouse.available} unidades</span>
+</div>
+<div className="h-3 overflow-hidden rounded-full bg-slate-900">
+<div
+className={`h-full rounded-full ${hasCritical ? "bg-amber-300" : "bg-emerald-300"}`}
+style={{ width: `${fillPercent}%` }}
+/>
+</div>
+</div>
+
+<div className="mt-5 flex flex-wrap gap-2">
+{warehouse.categories.length > 0 ? (
+warehouse.categories.map((category) => (
+<span
+key={`${warehouse.code}-${category.name}`}
+className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-black text-slate-300"
+>
+{category.name}: {category.count}
+</span>
+))
+) : (
+<span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-black text-slate-500">
+Sin categorias
+</span>
+)}
+</div>
+
+<div className="mt-5 space-y-3">
+{warehouse.products.length === 0 && (
+<div className="rounded-2xl border border-dashed border-white/15 bg-slate-900/50 p-5 text-center text-sm font-bold text-slate-400">
+Sin productos asignados a esta bodega.
+</div>
+)}
+
+{warehouse.products.slice(0, 6).map((item) => (
+<WarehouseProductRow
+key={`${warehouse.code}-${item.sku}`}
+item={item}
+onOpenDetail={onOpenDetail}
+onOpenLabel={onOpenLabel}
+/>
+))}
+
+{warehouse.products.length > 6 && (
+<button
+type="button"
+onClick={() => onSelectWarehouse(warehouse.code)}
+className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-black text-slate-200 transition hover:bg-white/10"
+>
+Ver {warehouse.products.length - 6} producto(s) mas en esta bodega
+</button>
+)}
+</div>
+</article>
+);
+}
+
+function WarehouseProductRow({ item, onOpenDetail, onOpenLabel }) {
+return (
+<div className={`rounded-2xl border p-4 ${
+item.isCriticalVisual
+? "border-amber-300/25 bg-amber-500/10"
+: "border-white/10 bg-slate-900/70"
+}`}>
+<div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+<div className="flex min-w-0 items-center gap-4">
+<ProductThumbnail imageUrl={item.imageUrl} productName={item.productName} />
+<div className="min-w-0">
+<p className="truncate font-black text-white">{item.productName}</p>
+<p className="mt-1 text-xs font-bold text-slate-400">
+{item.sku} | {item.category || "General"}
+</p>
+</div>
+</div>
+
+<div className="grid grid-cols-3 gap-2 text-center text-xs lg:min-w-[260px]">
+<WarehouseMiniStock label="Stock" value={item.availableQuantity} />
+<WarehouseMiniStock label="Reservado" value={item.reservedQuantity} tone="warning" />
+<WarehouseMiniStock label="Disponible" value={item.availableVisual} tone={item.isCriticalVisual ? "warning" : "success"} />
+</div>
+</div>
+
+<div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+<StockBadge item={item} />
+<div className="flex flex-wrap gap-2">
+<button
+type="button"
+onClick={() => onOpenDetail(item)}
+className="rounded-xl bg-white/10 px-3 py-2 text-xs font-black text-white transition hover:bg-white/20"
+>
+Detalle
+</button>
+<button
+type="button"
+onClick={() => onOpenLabel(item)}
+className="rounded-xl bg-indigo-500 px-3 py-2 text-xs font-black text-white transition hover:bg-indigo-400"
+>
+QR
+</button>
+</div>
+</div>
+</div>
+);
+}
+
+function WarehouseMiniStock({ label, tone = "default", value }) {
+const toneClass =
+tone === "success"
+? "text-emerald-300"
+: tone === "warning"
+? "text-amber-200"
+: "text-white";
+
+return (
+<div className="rounded-xl bg-white/5 p-2">
+<p className="text-[10px] font-black uppercase text-slate-500">{label}</p>
+<p className={`mt-1 text-sm font-black ${toneClass}`}>{value}</p>
+</div>
 );
 }
 
@@ -785,6 +1398,128 @@ ROLE_USER: "Usuario",
 return labels[role] || role || "-";
 }
 
+function SkuVisualCode({ compact = false, sku }) {
+const cells = useMemo(() => getSkuCodeCells(sku), [sku]);
+const sizeClass = compact ? "h-14 w-14" : "h-44 w-44";
+
+return (
+<div
+className={`${sizeClass} grid rounded-xl border border-white/10 bg-white p-1 shadow-lg`}
+style={{
+gridTemplateColumns: `repeat(${SKU_CODE_GRID_SIZE}, minmax(0, 1fr))`,
+gridTemplateRows: `repeat(${SKU_CODE_GRID_SIZE}, minmax(0, 1fr))`,
+}}
+title={`Codigo visual SKU ${sku}`}
+>
+{cells.map((active, index) => (
+<span
+key={`${sku}-${index}`}
+className={active ? "rounded-[2px] bg-slate-950" : "rounded-[2px] bg-white"}
+/>
+))}
+</div>
+);
+}
+
+function SkuQrCode({ compact = false, sku }) {
+const [qrDataUrl, setQrDataUrl] = useState("");
+const [failed, setFailed] = useState(false);
+const sizeClass = compact ? "h-14 w-14" : "h-44 w-44";
+
+useEffect(() => {
+let active = true;
+setQrDataUrl("");
+setFailed(false);
+
+import("qrcode")
+.then((module) =>
+module.default.toDataURL(String(sku || "SKU"), {
+errorCorrectionLevel: "M",
+margin: compact ? 1 : 2,
+width: compact ? 88 : 260,
+})
+)
+.then((dataUrl) => {
+if (active) setQrDataUrl(dataUrl);
+})
+.catch((error) => {
+console.error("No se pudo generar el QR:", error);
+if (active) setFailed(true);
+});
+
+return () => {
+active = false;
+};
+}, [compact, sku]);
+
+if (failed) {
+return <SkuVisualCode compact={compact} sku={sku} />;
+}
+
+if (!qrDataUrl) {
+return (
+<div className={`${sizeClass} flex items-center justify-center rounded-xl border border-white/10 bg-white text-xs font-black text-slate-500 shadow-lg`}>
+QR
+</div>
+);
+}
+
+return (
+<img
+src={qrDataUrl}
+alt={`QR SKU ${sku}`}
+className={`${sizeClass} rounded-xl border border-white/10 bg-white p-1 shadow-lg`}
+loading="lazy"
+/>
+);
+}
+
+function SkuLabelModal({ item, onClose }) {
+const available = item.availableQuantity - item.reservedQuantity;
+
+return (
+<div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm">
+<section className="w-full max-w-md rounded-3xl border border-white/10 bg-slate-900 p-6 text-white shadow-2xl">
+<div className="mb-5 flex items-start justify-between gap-4">
+<div>
+<p className="text-sm font-black uppercase text-sky-300">Etiqueta de producto</p>
+<h2 className="mt-1 text-2xl font-black">{item.productName}</h2>
+<p className="mt-1 text-sm font-semibold text-slate-400">{item.sku}</p>
+</div>
+<button
+type="button"
+onClick={onClose}
+className="rounded-xl bg-white/10 px-4 py-2 text-sm font-black text-white transition hover:bg-white/20"
+>
+Cerrar
+</button>
+</div>
+
+<div className="flex flex-col items-center rounded-2xl border border-white/10 bg-white p-5 text-slate-950">
+<SkuQrCode sku={item.sku} />
+<p className="mt-4 text-center text-2xl font-black">{item.sku}</p>
+<p className="mt-1 text-center text-sm font-bold text-slate-600">{item.productName}</p>
+</div>
+
+<div className="mt-5 grid grid-cols-2 gap-3 text-sm">
+<DetailMetric label="Bodega" value={item.warehouseCode} />
+<DetailMetric label="Categoria" value={item.category || "General"} />
+<DetailMetric label="Disponible" value={available} tone={available <= item.reorderLevel ? "warning" : "success"} />
+<DetailMetric label="Reposicion" value={item.reorderLevel} />
+</div>
+
+<button
+type="button"
+onClick={() => window.print()}
+className="mt-5 w-full rounded-xl bg-indigo-600 px-5 py-3 text-sm font-black text-white transition hover:bg-indigo-500"
+>
+Imprimir etiqueta
+</button>
+</section>
+</div>
+);
+}
+
 function ProductDetailModal({ canViewMovements, item, movements, loading, error, onClose }) {
 const available = item.availableQuantity - item.reservedQuantity;
 const isLowStock = available <= item.reorderLevel;
@@ -831,11 +1566,20 @@ Sin imagen
 : "El producto se mantiene sobre el nivel de reposicion."}
 </p>
 </div>
+
+<div className="mt-4 rounded-2xl border border-white/10 bg-slate-950/45 p-4">
+<p className="mb-3 text-sm font-black text-slate-300">Etiqueta SKU</p>
+<div className="flex flex-col items-center rounded-2xl bg-white p-4 text-slate-950">
+<SkuQrCode sku={item.sku} />
+<p className="mt-3 text-lg font-black">{item.sku}</p>
+</div>
+</div>
 </div>
 
 <div className="space-y-6">
 <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
 <DetailMetric label="SKU" value={item.sku} />
+<DetailMetric label="Categoria" value={item.category || "General"} />
 <DetailMetric label="Bodega" value={item.warehouseCode} />
 <DetailMetric label="Stock total" value={item.availableQuantity} />
 <DetailMetric label="Reservado" value={item.reservedQuantity} />

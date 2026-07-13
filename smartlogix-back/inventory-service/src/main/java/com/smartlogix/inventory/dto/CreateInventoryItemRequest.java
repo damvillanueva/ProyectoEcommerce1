@@ -7,6 +7,7 @@ public record CreateInventoryItemRequest(
         @NotBlank String sku,
         @NotBlank String productName,
         String imageUrl,
+        String category,
         @NotBlank String warehouseCode,
         @Min(0) int initialQuantity,
         @Min(0) int reorderLevel
