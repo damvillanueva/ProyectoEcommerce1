@@ -39,6 +39,7 @@ Base copiada desde la entrega grupal y separada para seguir iterando sin tocar l
 - [x] Localizador de productos en bodegas: busqueda por nombre, SKU, bodega o ubicacion, con zona, pasillo, rack, nivel y producto resaltado.
 - [x] Ubicacion fisica real en backend de inventario: zona, pasillo, rack, nivel y posicion.
 - [x] Crear pedido mas logico: catalogo de inventario con buscador, imagen, stock disponible, bodega, ubicacion y boton para elegir producto sin escribir SKU manualmente.
+- [x] Vista 3D completa de bodega con Three.js: pasillos, racks, cajas, etiquetas, seleccion por clic, buscador global por SKU/nombre/ubicacion, filtros y panel de detalle.
 
 ## Siguientes mejoras recomendadas
 
@@ -129,9 +130,17 @@ Base copiada desde la entrega grupal y separada para seguir iterando sin tocar l
     - Crear pedidos desde productos disponibles del inventario sin depender de memorizar SKU.
     - Estado: implementado en frontend y backend. La ubicacion fisica ahora se guarda como datos reales del producto y mantiene calculo de respaldo si faltan datos antiguos.
 
+16. Vista 3D de bodega
+    - Renderizar una bodega navegable con pasillos A-F, racks 01-06, cajas y paredes usando Three.js.
+    - Permitir rotar, hacer zoom, seleccionar productos desde el rack y alternar vista superior.
+    - Buscar por nombre, SKU o ubicacion; si el producto esta en otra bodega, cambia automaticamente a esa bodega y muestra la ubicacion exacta.
+    - Mostrar panel lateral con codigo de ubicacion, zona, pasillo, rack, nivel, posicion, imagen, categoria y stock disponible.
+    - Estado: implementado en inventario con validacion visual desktop/movil.
+
 ## Validacion actual
 
 - Backend: `.\mvnw.cmd -pl inventory-service -am test` OK.
 - Backend: `.\mvnw.cmd -pl order-service -am test` OK.
 - Frontend: `npm.cmd run build` OK.
+- Frontend 3D: Playwright con Edge OK en desktop y movil; busqueda `SKU-3001` encontro `WH-VAP-02-MC-R1-N2-P3`; capturas con pixeles no vacios.
 - Nota: Vite mantiene advertencia de bundle mayor a 500 KB; no bloquea.

@@ -11,6 +11,7 @@ fetchInventoryAuditLogs,
 import Navbar from "../components/Navbar";
 import PageContainer from "../layout/PageContainer";
 import ToastStack from "../components/ToastStack";
+import Warehouse3DExplorer from "../components/Warehouse3DExplorer";
 import { useToasts } from "../hooks/useToasts";
 import {
 getAvailableUnits,
@@ -814,6 +815,14 @@ className="rounded-xl bg-indigo-600 px-6 py-3 text-white font-bold shadow-lg hov
 selectedWarehouse={warehouseFilter}
 summary={warehouseSummary}
 onSelectWarehouse={setWarehouseFilter}
+/>
+
+<Warehouse3DExplorer
+items={items}
+onOpenDetail={handleOpenDetail}
+onSelectWarehouse={setWarehouseFilter}
+selectedWarehouse={warehouseFilter}
+warehouseOptions={warehouseOptions}
 />
 
 <WarehouseOperationsBoard
