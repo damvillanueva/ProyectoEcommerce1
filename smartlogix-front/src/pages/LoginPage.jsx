@@ -18,7 +18,7 @@ function LoginPage() {
       });
       console.log("Respuesta login:", response);
       saveLoginSession(response);
-      navigate("/dashboard");
+      navigate(response.role === "ROLE_CUSTOMER" ? "/shop" : "/dashboard");
     } catch (error) {
       console.error(error);
       alert(error.message || "Credenciales inválidas");
@@ -68,6 +68,14 @@ function LoginPage() {
               Iniciar sesión
             </button>
           </form>
+
+          <button
+            type="button"
+            onClick={() => navigate("/shop")}
+            className="mt-4 w-full rounded-xl border border-white/10 px-6 py-3 font-bold text-slate-200 transition hover:bg-white/10"
+          >
+            Ir a la tienda online
+          </button>
         </div>
       </div>
     );

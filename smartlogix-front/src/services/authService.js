@@ -1,4 +1,4 @@
-import { loginRequest } from "../api/authApi"
+import { loginRequest, registerRequest } from "../api/authApi"
 
 export async function login({ credential, password }) {
     const cleanCredential = credential.trim()
@@ -21,8 +21,8 @@ export function saveLoginSession(loginResponse){
     }
 
     localStorage.setItem("token", loginResponse.token)
-    localStorage.setItem("role", loginResponse.role)
     localStorage.setItem("username", loginResponse.username)
+    localStorage.removeItem("role")
 
     localStorage.setItem("user",
         JSON.stringify({
@@ -71,4 +71,22 @@ export function getRequiredAuthorizationHeader() {
 export function clearLogin() {
     localStorage.removeItem("token")
     localStorage.removeItem("user")
+    localStorage.removeItem("role")
+    localStorage.removeItem("username")
+}
+
+export async function registerCustomer({ username, email, password }) {
+    const cleanUsername = username.trim()
+    const cleanEmail = email.trim().toLowerCase()
+    const cleanPassword = password.trim()
+
+    if (!cleanUsername || !cleanEmail || !cleanPassword) {
+        throw new Error("Completa usuario, email y contrasena")
+    }
+
+    return registerRequest({
+        username: cleanUsername,
+        email: cleanEmail,
+        password: cleanPassword
+    })
 }

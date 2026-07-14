@@ -3,11 +3,14 @@ package com.smartlogix.order.controller;
 import com.smartlogix.order.dto.CreateOrderRequest;
 import com.smartlogix.order.dto.UpdateOrderRequest;
 import com.smartlogix.order.dto.OrderResponse;
+import com.smartlogix.order.domain.OrderChannel;
+import com.smartlogix.order.security.AuthenticatedUser;
 import com.smartlogix.order.service.OrderService;
 import jakarta.validation.Valid;
 import java.util.List;
 
 import org.springframework.web.bind.annotation.*;
+import org.springframework.security.core.Authentication;
 
 @RestController
 @RequestMapping("/api/orders")
@@ -20,8 +23,35 @@ public class OrderController {
     }
 
     @PostMapping
-    public OrderResponse createOrder(@Valid @RequestBody CreateOrderRequest request) {
-        return orderService.createOrder(request);
+    public OrderResponse createOrder(
+            @Valid @RequestBody CreateOrderRequest request,
+            Authentication authentication
+    ) {
+        boolean customer = authentication.getAuthorities().stream()
+                .anyMatch(authority -> "ROLE_CUSTOMER".equals(authority.getAuthority()));
+        AuthenticatedUser principal = authentication.getPrincipal() instanceof AuthenticatedUser user
+                ? user
+                : new AuthenticatedUser(authentication.getName(), null);
+
+        return orderService.createOrder(
+                request,
+                customer ? principal.username() : null,
+                customer ? principal.email() : null,
+                customer ? OrderChannel.ONLINE : OrderChannel.STORE
+        );
+    }
+
+    @GetMapping("/mine")
+    public List<OrderResponse> listMyOrders(Authentication authentication) {
+        return orderService.getCustomerOrders(authentication.getName());
+    }
+
+    @GetMapping("/mine/{orderNumber}")
+    public OrderResponse findMyOrder(
+            Authentication authentication,
+            @PathVariable String orderNumber
+    ) {
+        return orderService.getCustomerOrder(authentication.getName(), orderNumber);
     }
 
     @GetMapping

@@ -15,6 +15,10 @@ spring:
           uri: lb://inventory-service
           predicates:
             - Path=/api/inventory/**
+        - id: catalog-service
+          uri: lb://inventory-service
+          predicates:
+            - Path=/api/catalog/**
         - id: order-service
           uri: lb://order-service
           predicates:

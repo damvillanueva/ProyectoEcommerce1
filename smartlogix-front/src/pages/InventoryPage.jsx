@@ -263,6 +263,7 @@ sku: `SKU-${Math.floor(Math.random() * 9000) + 1000}`,
 productName: "Auriculares Hyperx",
 imageUrl: "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=240&q=80",
 category: "Accesorios",
+salePrice: "29990",
 warehouseCode: "WH-SCL-01",
 locationZone: "A",
 locationAisle: "A",
@@ -362,6 +363,7 @@ const cleanSku = formData.sku.trim();
 const cleanProductName = formData.productName.trim();
 const cleanImageUrl = formData.imageUrl.trim();
 const cleanCategory = formData.category.trim();
+const parsedSalePrice = Number(formData.salePrice);
 const cleanWarehouseCode = formData.warehouseCode.trim();
 const cleanLocationZone = formData.locationZone.trim();
 const cleanLocationAisle = formData.locationAisle.trim();
@@ -370,6 +372,11 @@ const parsedLocationLevel = Number(formData.locationLevel);
 const parsedLocationPosition = Number(formData.locationPosition);
 const parsedQuantity = Number(formData.initialQuantity);
 const parsedReorderLevel = Number(formData.reorderLevel);
+
+if (!Number.isFinite(parsedSalePrice) || parsedSalePrice <= 0) {
+showPageError("Ingresa un precio de venta mayor a 0.");
+return;
+}
 
 if (!cleanSku) {
 showPageError("Ingresa un SKU válido.");
@@ -437,6 +444,7 @@ await editInventoryItem(editingSku, {
 productName: cleanProductName,
 imageUrl: cleanImageUrl,
 category: cleanCategory,
+salePrice: parsedSalePrice,
 warehouseCode: cleanWarehouseCode,
 locationZone: cleanLocationZone,
 locationAisle: cleanLocationAisle,
@@ -453,6 +461,7 @@ sku: cleanSku,
 productName: cleanProductName,
 imageUrl: cleanImageUrl,
 category: cleanCategory,
+salePrice: parsedSalePrice,
 warehouseCode: cleanWarehouseCode,
 locationZone: cleanLocationZone,
 locationAisle: cleanLocationAisle,
@@ -478,6 +487,7 @@ sku: `SKU-${Math.floor(Math.random() * 9000) + 1000}`,
 productName: "Auriculares Hyperx",
 imageUrl: "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=240&q=80",
 category: "Accesorios",
+salePrice: "29990",
 warehouseCode: "WH-SCL-01",
 locationZone: "A",
 locationAisle: "A",
@@ -513,6 +523,7 @@ sku: item.sku,
 productName: item.productName,
 imageUrl: item.imageUrl || "",
 category: item.category || "General",
+salePrice: String(item.salePrice || ""),
 warehouseCode: item.warehouseCode,
 locationZone: item.locationZone || location.zone,
 locationAisle: item.locationAisle || location.aisle,
@@ -634,6 +645,7 @@ await editInventoryItem(item.sku, {
 productName: item.productName,
 imageUrl: item.imageUrl || "",
 category: item.category || "General",
+salePrice: item.salePrice,
 warehouseCode: destinationWarehouse,
 locationZone: destinationZone.toUpperCase(),
 locationAisle: destinationAisle.toUpperCase(),
@@ -779,6 +791,18 @@ className="bg-slate-950/80 border border-white/10 text-white rounded-xl px-4 py-
 </option>
 ))}
 </select>
+
+<input
+type="number"
+name="salePrice"
+value={formData.salePrice}
+onChange={handleChange}
+placeholder="Precio de venta"
+min="1"
+step="1"
+required
+className="bg-slate-950/80 border border-white/10 text-white placeholder:text-slate-500 rounded-xl px-4 py-3 focus:ring-2 focus:ring-indigo-400 outline-none"
+/>
 
 <select
 name="warehouseCode"
@@ -984,6 +1008,7 @@ className="w-full rounded-xl border border-white/10 bg-slate-950/80 px-4 py-3 fo
 <th className="p-4 text-left">Imagen</th>
 <th className="p-4 text-left">Nombre</th>
 <th className="p-4 text-left">Categoria</th>
+<th className="p-4 text-left">Precio</th>
 <th className="p-4 text-left">Bodega</th>
 <th className="p-4 text-left">Ubicacion</th>
 <th className="p-4 text-left">Stock</th>
@@ -999,7 +1024,7 @@ Acciones
 <tbody>
 {filteredItems.length === 0 && (
 <tr>
-<td colSpan="12" className="p-8 text-center font-bold text-slate-400">
+<td colSpan="13" className="p-8 text-center font-bold text-slate-400">
 No hay productos para la categoria seleccionada.
 </td>
 </tr>
@@ -1025,6 +1050,9 @@ className="border-b border-white/10 hover:bg-white/5 transition"
 <span className="rounded-full bg-sky-500/15 px-3 py-1 text-sm font-bold text-sky-200">
 {item.category || "General"}
 </span>
+</td>
+<td className="p-4 font-black text-emerald-300">
+{new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(item.salePrice || 0)}
 </td>
 <td className="p-4">
 <span className="rounded-full bg-indigo-500/15 px-3 py-1 text-sm font-bold text-indigo-200">
@@ -1888,6 +1916,7 @@ Cerrar
 <DetailMetric label="Bodega" value={item.warehouseCode} />
 <DetailMetric label="Ubicacion" value={location.shortLabel} />
 <DetailMetric label="Categoria" value={item.category || "General"} />
+<DetailMetric label="Precio venta" value={new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(item.salePrice || 0)} />
 <DetailMetric label="Disponible" value={available} tone={available <= item.reorderLevel ? "warning" : "success"} />
 <DetailMetric label="Reposicion" value={item.reorderLevel} />
 </div>
@@ -1980,6 +2009,7 @@ Sin imagen
 <DetailMetric label="Ubicacion" value={location.shortLabel} />
 <DetailMetric label="Detalle ubicacion" value={location.label} />
 <DetailMetric label="Stock total" value={item.availableQuantity} />
+<DetailMetric label="Precio venta" value={new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(item.salePrice || 0)} />
 <DetailMetric label="Reservado" value={item.reservedQuantity} />
 <DetailMetric label="Disponible" value={available} tone={isLowStock ? "warning" : "success"} />
 <DetailMetric label="Nivel reposicion" value={item.reorderLevel} />

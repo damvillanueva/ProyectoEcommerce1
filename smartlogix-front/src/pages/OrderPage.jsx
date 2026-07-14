@@ -9,6 +9,7 @@ import {
   getProductStorageLocation,
   productMatchesSearch,
 } from "../utils/inventoryLocationUtils";
+import { getRoleFromToken } from "../utils/authTokenUtils";
 
 const DEFAULT_CUSTOMER_NAME = "Cliente Demo";
 const DEFAULT_CUSTOMER_EMAIL = "cliente@smartlogix.com";
@@ -16,7 +17,7 @@ const DEFAULT_SHIPPING_STREET = "Av. Principal 123";
 const DEFAULT_SHIPPING_COMMUNE = "Puente Alto";
 const DEFAULT_SKU = "SKU-1001";
 const DEFAULT_QUANTITY = 1;
-const DEFAULT_UNIT_PRICE = 19990;
+const DEFAULT_UNIT_PRICE = 29990;
 
 const ORDER_STATUS_META = {
   PENDING: {
@@ -88,10 +89,6 @@ function formatOrderDate(value) {
   }).format(new Date(value));
 }
 
-function getRoleFromStorage() {
-  return localStorage.getItem("role");
-}
-
 function OrdersPage() {
   const [orders, setOrders] = useState([]);
   const [error, setError] = useState("");
@@ -108,9 +105,10 @@ function OrdersPage() {
   const [sku, setSku] = useState(DEFAULT_SKU);
   const [quantity, setQuantity] = useState(DEFAULT_QUANTITY);
   const [unitPrice, setUnitPrice] = useState(DEFAULT_UNIT_PRICE);
+  const [discountCode, setDiscountCode] = useState("");
   const [editingOrderNumber, setEditingOrderNumber] = useState(null);
 
-  const role = getRoleFromStorage();
+  const role = getRoleFromToken();
   const canOpenShipments = role === "ROLE_ADMIN" || role === "ROLE_WAREHOUSE_MANAGER";
   const selectedProduct = useMemo(
     () => inventoryItems.find((item) => item.sku === sku.trim().toUpperCase()) || null,
@@ -181,6 +179,7 @@ function OrdersPage() {
     setSku(DEFAULT_SKU);
     setQuantity(DEFAULT_QUANTITY);
     setUnitPrice(DEFAULT_UNIT_PRICE);
+    setDiscountCode("");
   }
 
   function handleSelectProduct(item) {
@@ -188,6 +187,7 @@ function OrdersPage() {
 
     setSku(item.sku);
     setProductSearch(item.productName);
+    setUnitPrice(Number(item.salePrice || 0));
     setQuantity(Math.max(1, Math.min(Number(quantity) || 1, available || 1)));
     setError("");
   }
@@ -201,7 +201,6 @@ function OrdersPage() {
     const cleanCommune = shippingCommune.trim();
     const cleanSku = sku.trim();
     const parsedQuantity = Number(quantity);
-    const parsedUnitPrice = Number(unitPrice);
 
     if (!cleanCustomerName) {
       setError("Ingresa el nombre del cliente.");
@@ -233,11 +232,6 @@ function OrdersPage() {
       return;
     }
 
-    if (!Number.isFinite(parsedUnitPrice) || parsedUnitPrice < 0) {
-      setError("Ingresa un precio valido.");
-      return;
-    }
-
     const catalogProduct = inventoryItems.find(
       (item) => item.sku === cleanSku.toUpperCase()
     );
@@ -257,11 +251,11 @@ function OrdersPage() {
       customerName: cleanCustomerName,
       customerEmail: cleanCustomerEmail,
       shippingAddress: composeShippingAddress(cleanStreet, cleanCommune),
+      discountCode: discountCode.trim() || null,
       lines: [
         {
           sku: cleanSku,
           quantity: parsedQuantity,
-          unitPrice: parsedUnitPrice,
         },
       ],
     };
@@ -295,6 +289,7 @@ function OrdersPage() {
     setCustomerEmail(order.customerEmail || DEFAULT_CUSTOMER_EMAIL);
     setShippingStreet(parsedAddress.street);
     setShippingCommune(parsedAddress.commune);
+    setDiscountCode(order.discountCode || "");
 
     if (firstLine) {
       setSku(firstLine.sku);
@@ -411,12 +406,20 @@ function OrdersPage() {
                 />
 
                 <input
-                  className="rounded-xl border border-white/10 bg-slate-950/80 px-4 py-3 text-white outline-none placeholder:text-slate-500 focus:ring-2 focus:ring-indigo-400"
+                  readOnly
+                  title="Precio definido por inventario y validado por el backend"
+                  className="cursor-not-allowed rounded-xl border border-emerald-400/20 bg-emerald-500/10 px-4 py-3 font-black text-emerald-200 outline-none"
                   min="0"
                   type="number"
                   value={unitPrice}
-                  onChange={(event) => setUnitPrice(event.target.value)}
-                  placeholder="Precio unitario"
+                  placeholder="Precio desde inventario"
+                />
+
+                <input
+                  className="bg-slate-950/80 border border-white/10 text-white placeholder:text-slate-500 rounded-xl px-4 py-3 focus:ring-2 focus:ring-indigo-400 outline-none"
+                  value={discountCode}
+                  onChange={(e) => setDiscountCode(e.target.value)}
+                  placeholder="Código descuento opcional"
                 />
 
                 <button
@@ -457,6 +460,9 @@ function OrdersPage() {
                         <th className="p-4 text-left">Comuna</th>
                         <th className="p-4 text-left">Direccion</th>
                         <th className="p-4 text-left">Estado</th>
+                        <th className="p-4 text-left">Subtotal</th>
+                        <th className="p-4 text-left">Descuento</th>
+                        <th className="p-4 text-left">Código</th>
                         <th className="p-4 text-left">Total</th>
                         <th className="p-4 text-left">Envio</th>
                         <th className="p-4 text-left">Fecha</th>
@@ -467,7 +473,7 @@ function OrdersPage() {
                     <tbody>
                       {orders.length === 0 && (
                         <tr>
-                          <td colSpan="9" className="p-8 text-center font-bold text-slate-400">
+                          <td colSpan="12" className="p-8 text-center font-bold text-slate-400">
                             No hay pedidos registrados todavia.
                           </td>
                         </tr>
@@ -500,7 +506,21 @@ function OrdersPage() {
                               </span>
                             </td>
 
-                            <td className="p-4">${order.totalAmount}</td>
+                            <td className="p-4">
+                              ${order.subtotalAmount}
+                            </td>
+
+                            <td className="p-4 font-bold text-emerald-300">
+                              -${order.discountAmount}
+                            </td>
+
+                            <td className="p-4">
+                              {order.discountCode || "-"}
+                            </td>
+
+                            <td className="p-4 font-black">
+                              ${order.totalAmount}
+                            </td>
 
                             <td className="p-4">
                               {order.trackingCode ? (

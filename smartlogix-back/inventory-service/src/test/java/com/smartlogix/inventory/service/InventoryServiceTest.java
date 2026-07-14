@@ -12,6 +12,7 @@ import com.smartlogix.inventory.dto.UpdateInventoryItemRequest;
 import com.smartlogix.inventory.exception.InventoryOperationException;
 import com.smartlogix.inventory.repository.InventoryItemRepository;
 import java.util.Optional;
+import java.math.BigDecimal;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -49,6 +50,14 @@ class InventoryServiceTest {
                 "Mouse",
                 null,
                 "Perifericos",
+                null,
+                null,
+                BigDecimal.valueOf(12990),
+                null,
+                null,
+                null,
+                null,
+                null,
                 "WH-SCL-01",
                 null,
                 null,
@@ -76,6 +85,14 @@ class InventoryServiceTest {
                 "Teclado",
                 null,
                 "Perifericos",
+                null,
+                null,
+                BigDecimal.valueOf(29990),
+                null,
+                null,
+                null,
+                null,
+                null,
                 "WH-SCL-01",
                 null,
                 null,

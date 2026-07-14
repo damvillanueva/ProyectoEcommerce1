@@ -28,6 +28,21 @@ public class SecurityConfig {
                         .requestMatchers("/actuator/health", "/actuator/info")
                         .permitAll()
 
+                        .requestMatchers(HttpMethod.GET, "/api/catalog", "/api/catalog/**")
+                        .permitAll()
+
+                        .requestMatchers(HttpMethod.POST,
+                                "/api/inventory/items/*/reserve",
+                                "/api/inventory/items/*/release",
+                                "/api/inventory/items/*/dispatch")
+                        .hasAuthority("ROLE_ORDER_SERVICE")
+
+                        .requestMatchers(HttpMethod.PATCH,
+                                "/api/inventory/items/*/reserve",
+                                "/api/inventory/items/*/release",
+                                "/api/inventory/items/*/dispatch")
+                        .hasAuthority("ROLE_ORDER_SERVICE")
+
                         .requestMatchers("/api/inventory/movements", "/api/inventory/movements/**")
                         .hasAnyAuthority("ROLE_ADMIN", "ROLE_WAREHOUSE_MANAGER")
 

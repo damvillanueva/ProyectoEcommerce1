@@ -28,7 +28,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private static final List<String> PUBLIC_PATHS = List.of(
             "/actuator/health",
-            "/actuator/info"
+            "/actuator/info",
+            "/api/catalog"
     );
 
     private final SecretKey signingKey;

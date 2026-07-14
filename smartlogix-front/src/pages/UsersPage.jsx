@@ -175,6 +175,7 @@ function UsersPage() {
                   <input name="password" type="password" value={formData.password} onChange={handleChange} placeholder={editingId ? "Nueva contraseña opcional" : "Contraseña"} required={!editingId} className="w-full bg-slate-950/80 border border-white/10 text-white placeholder:text-slate-500 rounded-xl px-4 py-3 focus:ring-2 focus:ring-indigo-400 outline-none" />
 
                   <select name="role" value={formData.role} onChange={handleChange} className="w-full bg-slate-950/80 border border-white/10 text-white rounded-xl px-4 py-3 focus:ring-2 focus:ring-indigo-400 outline-none">
+                    <option value="ROLE_CUSTOMER">Cliente / Tienda online</option>
                     <option value="ROLE_USER">Usuario / Pedidos</option>
                     <option value="ROLE_WAREHOUSE_MANAGER">Bodeguero / Inventario y envíos</option>
                     <option value="ROLE_ADMIN">Administrador</option>

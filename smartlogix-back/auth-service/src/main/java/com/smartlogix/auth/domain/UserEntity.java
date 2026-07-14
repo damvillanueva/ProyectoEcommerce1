@@ -20,6 +20,16 @@ public class UserEntity {
     @Column(nullable = false, unique = true, length = 100)
     private String email;
 
+    @Column(length = 120)
+    private String displayName;
+
+    @Column(length = 30)
+    private String phone;
+
+    @Lob
+    @Column(columnDefinition = "CLOB")
+    private String avatarUrl;
+
     @Column(nullable = false)
     private String password;
 
@@ -57,6 +67,15 @@ public class UserEntity {
 
     public String getEmail() { return email; }
     public void setEmail(String email) { this.email = email; }
+
+    public String getDisplayName() { return displayName; }
+    public void setDisplayName(String displayName) { this.displayName = displayName; }
+
+    public String getPhone() { return phone; }
+    public void setPhone(String phone) { this.phone = phone; }
+
+    public String getAvatarUrl() { return avatarUrl; }
+    public void setAvatarUrl(String avatarUrl) { this.avatarUrl = avatarUrl; }
 
     public String getPassword() { return password; }
     public void setPassword(String password) { this.password = password; }

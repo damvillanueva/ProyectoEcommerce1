@@ -79,6 +79,11 @@ export async function exportInventoryMovements(params = {}) {
   return response.data;
 }
 
+export async function getCatalogProducts() {
+  const response = await axios.get(`${API_URL}/api/catalog/products`);
+  return response.data;
+}
+
 export async function saveInventoryHistoryReport(reportData = {}) {
   const response = await axios.post(
     `${API_URL}/api/inventory/movements/reports`,

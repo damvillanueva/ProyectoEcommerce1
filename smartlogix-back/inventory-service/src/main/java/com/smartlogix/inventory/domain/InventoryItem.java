@@ -9,6 +9,7 @@ import jakarta.persistence.Lob;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
+import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 
 @Entity
@@ -30,6 +31,30 @@ public class InventoryItem {
 
     @Column(length = 80)
     private String category;
+
+    @Column(length = 80)
+    private String brand;
+
+    @Column(length = 280)
+    private String shortDescription;
+
+    @Column(nullable = false, precision = 14, scale = 2)
+    private BigDecimal salePrice;
+
+    @Column(precision = 14, scale = 2)
+    private BigDecimal originalPrice;
+
+    @Column(nullable = false)
+    private boolean featured;
+
+    @Column(nullable = false)
+    private boolean fastShipping;
+
+    @Column(nullable = false)
+    private boolean freeShipping;
+
+    @Column(nullable = false)
+    private boolean storePickup = true;
 
     @Column(nullable = false, length = 40)
     private String warehouseCode;
@@ -102,6 +127,35 @@ public class InventoryItem {
     public void setCategory(String category) {
         this.category = category;
     }
+
+    public String getBrand() { return brand; }
+    public void setBrand(String brand) { this.brand = brand; }
+
+    public String getShortDescription() { return shortDescription; }
+    public void setShortDescription(String shortDescription) { this.shortDescription = shortDescription; }
+
+    public BigDecimal getSalePrice() {
+        return salePrice;
+    }
+
+    public void setSalePrice(BigDecimal salePrice) {
+        this.salePrice = salePrice;
+    }
+
+    public BigDecimal getOriginalPrice() { return originalPrice; }
+    public void setOriginalPrice(BigDecimal originalPrice) { this.originalPrice = originalPrice; }
+
+    public boolean isFeatured() { return featured; }
+    public void setFeatured(boolean featured) { this.featured = featured; }
+
+    public boolean isFastShipping() { return fastShipping; }
+    public void setFastShipping(boolean fastShipping) { this.fastShipping = fastShipping; }
+
+    public boolean isFreeShipping() { return freeShipping; }
+    public void setFreeShipping(boolean freeShipping) { this.freeShipping = freeShipping; }
+
+    public boolean isStorePickup() { return storePickup; }
+    public void setStorePickup(boolean storePickup) { this.storePickup = storePickup; }
 
     public String getWarehouseCode() {
         return warehouseCode;

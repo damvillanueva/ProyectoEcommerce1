@@ -66,6 +66,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     .getPayload();
 
             String username = claims.getSubject();
+            String email = claims.get("email", String.class);
             String role = claims.get("role", String.class);
             if (username == null || username.isBlank() || role == null || role.isBlank()) {
                 writeUnauthorized(response, "Token de autenticacion incompleto.");
@@ -74,7 +75,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
             UsernamePasswordAuthenticationToken authentication =
                     new UsernamePasswordAuthenticationToken(
-                            username,
+                            new AuthenticatedUser(username, email),
                             null,
                             List.of(new SimpleGrantedAuthority(role)));
             authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));

@@ -4,7 +4,11 @@ import DashboardPage from "./pages/DashboardPage";
 import InventoryPage from "./pages/InventoryPage";
 import InventoryMovementsPage from "./pages/InventoryMovementsPage";
 import OrdersPage from "./pages/OrderPage";
+import ShopPage from "./pages/ShopPage";
+import StoreAuthPage from "./pages/StoreAuthPage";
+import CustomerAccountPage from "./pages/CustomerAccountPage";
 import ShipmentPage from "./pages/ShipmentsPage";
+import DiscountsPage from "./pages/DiscountsPage";
 import ProtectedRoute from "./components/ProtectedRoute";
 import UsersPage from "./pages/UsersPage";
 
@@ -15,7 +19,7 @@ function App() {
         <Route path="/" element={<LoginPage />} />
         <Route path="/dashboard"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute allowedRoles={["ROLE_ADMIN", "ROLE_WAREHOUSE_MANAGER", "ROLE_USER"]}>
               <DashboardPage />
             </ProtectedRoute>
           }/>
@@ -38,6 +42,14 @@ function App() {
                 <OrdersPage />
               </ProtectedRoute>
           } />
+        <Route path="/shop" element={<ShopPage />} />
+        <Route path="/shop/login" element={<StoreAuthPage />} />
+        <Route path="/shop/account"
+          element={
+            <ProtectedRoute allowedRoles={["ROLE_CUSTOMER"]} loginPath="/shop/login">
+              <CustomerAccountPage />
+            </ProtectedRoute>
+          } />
         <Route path="/shipments"
           element={
               <ProtectedRoute allowedRoles={["ROLE_ADMIN", "ROLE_WAREHOUSE_MANAGER"]}>
@@ -48,6 +60,12 @@ function App() {
           element={
             <ProtectedRoute allowedRoles={["ROLE_ADMIN"]}>
               <UsersPage />
+            </ProtectedRoute>
+          } />
+        <Route path="/discounts"
+          element={
+            <ProtectedRoute allowedRoles={["ROLE_ADMIN"]}>
+              <DiscountsPage />
             </ProtectedRoute>
           } />
       </Routes>

@@ -1,5 +1,6 @@
 package com.smartlogix.inventory.dto;
 
+import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 
 public record InventoryItemResponse(
@@ -7,6 +8,14 @@ public record InventoryItemResponse(
         String productName,
         String imageUrl,
         String category,
+        String brand,
+        String shortDescription,
+        BigDecimal salePrice,
+        BigDecimal originalPrice,
+        boolean featured,
+        boolean fastShipping,
+        boolean freeShipping,
+        boolean storePickup,
         String warehouseCode,
         String locationZone,
         String locationAisle,

@@ -49,8 +49,9 @@ public class AuthService {
         UserEntity user = new UserEntity();
         user.setUsername(request.username().trim());
         user.setEmail(request.email().trim().toLowerCase());
+        user.setDisplayName(request.username().trim());
         user.setPassword(passwordEncoder.encode(request.password()));
-        user.setRole(Role.ROLE_USER);
+        user.setRole(Role.ROLE_CUSTOMER);
         user.setEnabled(true);
 
         userRepository.save(user);
@@ -75,7 +76,12 @@ public class AuthService {
                     .resolve(request.credential())
                     .authenticate(request.credential(), request.password());
 
-            String token = jwtProvider.generateToken(user.getUsername(), user.getRole().name());
+            String token = jwtProvider.generateToken(
+                    user.getId(),
+                    user.getUsername(),
+                    user.getEmail(),
+                    user.getRole().name()
+            );
 
             return new AuthResponse(
                     token,

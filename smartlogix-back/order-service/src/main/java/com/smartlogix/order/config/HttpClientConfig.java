@@ -19,7 +19,8 @@ public class HttpClientConfig {
         restTemplate.getInterceptors().add((request, body, execution) -> {
             if (RequestContextHolder.getRequestAttributes() instanceof ServletRequestAttributes attributes) {
                 String authorization = attributes.getRequest().getHeader(HttpHeaders.AUTHORIZATION);
-                if (StringUtils.hasText(authorization)) {
+                if (StringUtils.hasText(authorization)
+                        && !request.getHeaders().containsKey(HttpHeaders.AUTHORIZATION)) {
                     request.getHeaders().set(HttpHeaders.AUTHORIZATION, authorization);
                 }
             }

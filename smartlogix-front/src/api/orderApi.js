@@ -32,3 +32,19 @@ export async function deleteOrder(orderNumber) {
     headers: getAuthHeaders(),
   });
 }
+
+export async function getMyOrders() {
+  const response = await axios.get(`${API_URL}/api/orders/mine`, {
+    headers: getAuthHeaders(),
+  });
+
+  return response.data;
+}
+
+export async function getMyOrder(orderNumber) {
+  const response = await axios.get(`${API_URL}/api/orders/mine/${orderNumber}`, {
+    headers: getAuthHeaders(),
+  });
+
+  return response.data;
+}

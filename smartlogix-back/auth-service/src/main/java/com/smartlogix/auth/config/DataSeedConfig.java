@@ -28,7 +28,8 @@ public class DataSeedConfig {
             PasswordEncoder passwordEncoder,
             @Value("${smartlogix.seed.admin-password:admin123}") String adminPassword,
             @Value("${smartlogix.seed.user-password:user123}") String userPassword,
-            @Value("${smartlogix.seed.warehouse-password:bodega123}") String warehousePassword) {
+            @Value("${smartlogix.seed.warehouse-password:bodega123}") String warehousePassword,
+            @Value("${smartlogix.seed.customer-password:cliente123}") String customerPassword) {
         return args -> {
             if (userRepository.count() == 0) {
                 UserEntity admin = new UserEntity();
@@ -55,7 +56,16 @@ public class DataSeedConfig {
                 manager.setEnabled(true);
                 userRepository.save(manager);
 
-                log.info(">> Usuarios de prueba creados: admin, usuario, bodeguero");
+                UserEntity customer = new UserEntity();
+                customer.setUsername("cliente");
+                customer.setEmail("cliente@smartlogix.com");
+                customer.setDisplayName("Cliente SmartLogix");
+                customer.setPassword(passwordEncoder.encode(customerPassword));
+                customer.setRole(Role.ROLE_CUSTOMER);
+                customer.setEnabled(true);
+                userRepository.save(customer);
+
+                log.info(">> Usuarios de prueba creados: admin, usuario, bodeguero, cliente");
             }
         };
     }

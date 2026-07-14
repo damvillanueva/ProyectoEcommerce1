@@ -14,9 +14,10 @@ import { loadOrderService } from "../services/orderService";
 import { loadShipmentService } from "../services/shipmentService";
 import { loadUsersService } from "../services/userService";
 import { generateSmartRecommendations } from "../advisor/smartAdvisor";
+import { getRoleFromToken } from "../utils/authTokenUtils";
 
 function DashboardPage() {
-  const role = localStorage.getItem("role");
+  const role = getRoleFromToken();
 
   const [inventory, setInventory] = useState([]);
   const [movements, setMovements] = useState([]);

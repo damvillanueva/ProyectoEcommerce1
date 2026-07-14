@@ -29,6 +29,7 @@ smartlogix:
     admin-password: ${SMARTLOGIX_SEED_ADMIN_PASSWORD:admin123}
     user-password: ${SMARTLOGIX_SEED_USER_PASSWORD:user123}
     warehouse-password: ${SMARTLOGIX_SEED_WAREHOUSE_PASSWORD:bodega123}
+    customer-password: ${SMARTLOGIX_SEED_CUSTOMER_PASSWORD:cliente123}
 
 management:
   endpoints:

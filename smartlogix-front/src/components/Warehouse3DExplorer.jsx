@@ -1,11 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
-import {
-  getAvailableUnits,
-  getProductStorageLocation,
-  productMatchesSearch,
-} from "../utils/inventoryLocationUtils";
+import {getAvailableUnits, getProductStorageLocation, productMatchesSearch,} from "../utils/inventoryLocationUtils";
 
 const AISLES = ["A", "B", "C", "D", "E", "F"];
 const RACKS = [1, 2, 3, 4, 5, 6];
@@ -117,6 +113,7 @@ function Warehouse3DExplorer({
   const [levelFilter, setLevelFilter] = useState("");
   const [selectedSku, setSelectedSku] = useState("");
   const [showLegend, setShowLegend] = useState(true);
+  const [showWalls, setShowWalls] = useState(true);
   const cleanQuery = query.trim();
 
   const allEnrichedItems = useMemo(
@@ -185,8 +182,11 @@ function Warehouse3DExplorer({
     const scene = new THREE.Scene();
     scene.background = new THREE.Color("#07111f");
     scene.fog = new THREE.Fog("#07111f", 13, 28);
+    container.__scene = scene;
 
-    const camera = new THREE.PerspectiveCamera(46, 1, 0.1, 100);
+    const width = container.clientWidth || 900;
+    const height = container.clientHeight || 560;
+    const camera = new THREE.PerspectiveCamera(46, width / height, 0.1, 100);
     camera.position.set(8.5, 7.2, 10);
     camera.lookAt(0, 0, 0);
     cameraRef.current = camera;
@@ -196,6 +196,7 @@ function Warehouse3DExplorer({
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFShadowMap;
     renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.setSize(width, height);
     container.innerHTML = "";
     container.appendChild(renderer.domElement);
 
@@ -254,6 +255,8 @@ function Warehouse3DExplorer({
       color: "#111827",
       roughness: 0.86,
       metalness: 0.2,
+      transparent: true,
+      opacity: showWalls ? 1 : 0,
     });
     addBox(scene, new THREE.BoxGeometry(14.2, 2.7, 0.28), wallMaterial, { x: 0, y: 1.28, z: -4.88 });
     addBox(scene, new THREE.BoxGeometry(0.28, 2.35, 9.8), wallMaterial, { x: -7.25, y: 1.1, z: 0 });
@@ -433,16 +436,25 @@ function Warehouse3DExplorer({
     renderer.domElement.addEventListener("pointerdown", handlePointerDown);
 
     function resize() {
-      const width = container.clientWidth || 900;
-      const height = container.clientHeight || 560;
+      const rect = container.getBoundingClientRect();
+      const width = rect.width || container.clientWidth || 900;
+      const height = rect.height || container.clientHeight || 560;
+
+      if (width === 0 || height === 0) return;
+
       camera.aspect = width / height;
       camera.updateProjectionMatrix();
       renderer.setSize(width, height, false);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     }
 
-    const observer = new ResizeObserver(resize);
+    const observer = new ResizeObserver(() => {
+      requestAnimationFrame(resize);
+    });
     observer.observe(container);
-    resize();
+
+    requestAnimationFrame(resize);
+    setTimeout(resize, 100);
 
     let animationFrame = 0;
     function animate() {
@@ -471,6 +483,35 @@ function Warehouse3DExplorer({
       container.innerHTML = "";
     };
   }, [aisleFilter, enrichedItems, filteredItems, hasActiveFilters, levelFilter, selectedItem, zoneFilter]);
+
+  // Efecto para ocultar/mostrar paredes sin recargar toda la escena
+  useEffect(() => {
+    if (!mountRef.current) return;
+
+    const container = mountRef.current;
+    const scene = container.__scene;
+    if (!scene) return;
+
+    scene.traverse((object) => {
+      if (object.isMesh && object.material) {
+        // Identificar paredes por su color (0x111827)
+        const colorHex = object.material.color?.getHex();
+        if (colorHex === 0x111827 && object.geometry) {
+          // Verificar que sea una de las paredes grandes (no las puertas)
+          const width = object.geometry.parameters?.width || 0;
+          const height = object.geometry.parameters?.height || 0;
+          const depth = object.geometry.parameters?.depth || 0;
+
+          // Solo las paredes grandes (14.2, 0.28, 2.7 etc.)
+          if (width > 10 || height > 2 || depth > 8) {
+            object.material.transparent = true;
+            object.material.opacity = showWalls ? 1 : 0;
+            object.material.needsUpdate = true;
+          }
+        }
+      }
+    });
+  }, [showWalls]);
 
   function resetCamera() {
     cameraRef.current?.position.set(8.5, 7.2, 10);
@@ -513,7 +554,7 @@ function Warehouse3DExplorer({
       : "";
 
   return (
-    <section className="mb-8">
+    <section className="mb-8 w-full">
       <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <p className="text-sm font-black uppercase text-sky-300">Vista 3D de Bodega</p>
@@ -530,6 +571,13 @@ function Warehouse3DExplorer({
             className="rounded-xl border border-indigo-300/30 bg-indigo-500/10 px-4 py-3 text-sm font-black text-indigo-100 transition hover:bg-indigo-500/20"
           >
             Leyenda
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowWalls((current) => !current)}
+            className="rounded-xl border border-indigo-300/30 bg-indigo-500/10 px-4 py-3 text-sm font-black text-indigo-100 transition hover:bg-indigo-500/20"
+          >
+            {showWalls ? "Ocultar paredes" : "Mostrar paredes"}
           </button>
           <button
             type="button"
@@ -610,31 +658,33 @@ function Warehouse3DExplorer({
         </div>
       )}
 
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
-        <div className="relative min-h-[560px] overflow-hidden rounded-2xl border border-white/10 bg-slate-950">
-          <div ref={mountRef} className="h-[560px] w-full" />
-
-          <div className="pointer-events-none absolute left-4 top-4 rounded-2xl border border-white/10 bg-slate-950/70 p-3 backdrop-blur">
-            <p className="text-xs font-black uppercase text-slate-400">Controles</p>
-            <p className="mt-1 text-xs font-semibold text-slate-300">
-              Arrastra para rotar, rueda para zoom, clic para seleccionar.
-            </p>
-          </div>
-
-          {showLegend && (
-            <div className="absolute bottom-4 left-4 right-4 rounded-2xl border border-white/10 bg-slate-950/75 p-4 backdrop-blur">
-              <div className="flex flex-wrap items-center gap-4 text-sm font-bold text-slate-300">
-                <LegendDot className="bg-emerald-400" label="En stock" />
-                <LegendDot className="bg-amber-400" label="Stock bajo" />
-                <LegendDot className="bg-red-500" label="Sin stock" />
-                <LegendDot className="bg-slate-500" label="Fuera de filtro" />
-                <LegendDot className="bg-violet-500" label="Seleccionado" />
-              </div>
+      <div className="flex flex-col xl:flex-row gap-4 w-full">
+        {/* Contenedor 3D - ocupa todo el espacio disponible */}
+        <div className="flex-1 min-h-[500px]">
+          <div className="relative w-full h-[calc(100vh-480px)] min-h-[500px] rounded-2xl border border-white/10 bg-slate-950 overflow-hidden">
+            <div ref={mountRef} className="w-full h-full" />
+            <div className="pointer-events-none absolute left-4 top-4 rounded-2xl border border-white/10 bg-slate-950/70 p-3 backdrop-blur">
+              <p className="text-xs font-black uppercase text-slate-400">Controles</p>
+              <p className="mt-1 text-xs font-semibold text-slate-300">
+                Arrastra para rotar, rueda para zoom, clic para seleccionar.
+              </p>
             </div>
-          )}
+            {showLegend && (
+              <div className="absolute bottom-4 left-4 right-4 rounded-2xl border border-white/10 bg-slate-950/75 p-4 backdrop-blur">
+                <div className="flex flex-wrap items-center gap-4 text-sm font-bold text-slate-300">
+                  <LegendDot className="bg-emerald-400" label="En stock" />
+                  <LegendDot className="bg-amber-400" label="Stock bajo" />
+                  <LegendDot className="bg-red-500" label="Sin stock" />
+                  <LegendDot className="bg-slate-500" label="Fuera de filtro" />
+                  <LegendDot className="bg-violet-500" label="Seleccionado" />
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
-        <aside className="rounded-2xl border border-white/10 bg-slate-900/90 p-5 text-white">
+        {/* Panel lateral - ancho fijo */}
+        <aside className="xl:w-[340px] w-full rounded-2xl border border-white/10 bg-slate-900/90 p-5 text-white h-[calc(100vh-480px)] min-h-[500px] overflow-y-auto">
           <div className="mb-5 flex items-start justify-between gap-3">
             <div>
               <p className="text-sm font-black text-slate-300">Detalle de ubicacion</p>

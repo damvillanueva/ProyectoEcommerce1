@@ -1,4 +1,11 @@
-import { getOrders, createOrder, updateOrder, deleteOrder } from "../api/orderApi";
+import {
+  getOrders,
+  createOrder,
+  updateOrder,
+  deleteOrder,
+  getMyOrders,
+  getMyOrder,
+} from "../api/orderApi";
 
 export async function loadOrderService() {
     return await getOrders();
@@ -14,4 +21,12 @@ export async function editOrder(orderNumber, orderData) {
 
 export async function removeOrder(orderNumber) {
     return await deleteOrder(orderNumber);
+}
+
+export function loadMyOrders() {
+  return getMyOrders();
+}
+
+export function loadMyOrder(orderNumber) {
+  return getMyOrder(orderNumber);
 }

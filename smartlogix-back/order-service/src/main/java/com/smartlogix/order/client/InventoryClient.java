@@ -1,5 +1,8 @@
 package com.smartlogix.order.client;
 
+import com.smartlogix.order.security.InternalServiceTokenProvider;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
@@ -8,9 +11,26 @@ import org.springframework.web.client.RestTemplate;
 public class InventoryClient {
 
     private final RestTemplate restTemplate;
+    private final InternalServiceTokenProvider internalServiceTokenProvider;
 
-    public InventoryClient(RestTemplate restTemplate) {
+    public InventoryClient(
+            RestTemplate restTemplate,
+            InternalServiceTokenProvider internalServiceTokenProvider
+    ) {
         this.restTemplate = restTemplate;
+        this.internalServiceTokenProvider = internalServiceTokenProvider;
+    }
+
+    public CatalogProductResponse findProduct(String sku) {
+        try {
+            return restTemplate.getForObject(
+                    "http://inventory-service/api/catalog/products/{sku}",
+                    CatalogProductResponse.class,
+                    sku
+            );
+        } catch (RestClientException ex) {
+            throw new InventoryClientException("No fue posible consultar el producto " + sku, ex);
+        }
     }
 
     public InventoryAvailabilityResponse checkAvailability(String sku, int quantity) {
@@ -26,7 +46,7 @@ public class InventoryClient {
         try {
             restTemplate.postForObject(
                     "http://inventory-service/api/inventory/items/{sku}/reserve?quantity={quantity}",
-                    null,
+                    internalRequest(),
                     Object.class,
                     sku,
                     quantity
@@ -40,7 +60,7 @@ public class InventoryClient {
         try {
             restTemplate.postForObject(
                     "http://inventory-service/api/inventory/items/{sku}/release?quantity={quantity}",
-                    null,
+                    internalRequest(),
                     Object.class,
                     sku,
                     quantity
@@ -48,5 +68,11 @@ public class InventoryClient {
         } catch (RestClientException ex) {
             throw new InventoryClientException("No fue posible liberar stock para " + sku, ex);
         }
+    }
+
+    private HttpEntity<Void> internalRequest() {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(internalServiceTokenProvider.createInventoryToken());
+        return new HttpEntity<>(headers);
     }
 }

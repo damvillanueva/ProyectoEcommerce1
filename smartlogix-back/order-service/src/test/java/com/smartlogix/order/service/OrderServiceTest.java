@@ -4,17 +4,21 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.smartlogix.order.client.InventoryAvailabilityResponse;
 import com.smartlogix.order.client.InventoryClient;
+import com.smartlogix.order.client.CatalogProductResponse;
 import com.smartlogix.order.client.ShipmentClient;
 import com.smartlogix.order.client.ShipmentRequest;
 import com.smartlogix.order.client.ShipmentResponse;
 import com.smartlogix.order.domain.OrderLine;
+import com.smartlogix.order.domain.OrderChannel;
 import com.smartlogix.order.domain.OrderStatus;
 import com.smartlogix.order.domain.PurchaseOrder;
+import com.smartlogix.order.discount.Discount;
 import com.smartlogix.order.dto.CreateOrderRequest;
 import com.smartlogix.order.dto.OrderLineRequest;
 import com.smartlogix.order.dto.OrderResponse;
 import com.smartlogix.order.repository.DiscountRepository;
 import com.smartlogix.order.repository.PurchaseOrderRepository;
+import com.smartlogix.order.security.InternalServiceTokenProvider;
 import java.lang.reflect.Proxy;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -48,14 +52,14 @@ class OrderServiceTest {
 
     @Test
     void createOrderReservesStockAndRequestsShipment() {
-        inventoryClient.setAvailable("SKU-3001", 45);
+        inventoryClient.setProduct("SKU-3001", 45, BigDecimal.valueOf(45990));
 
         OrderResponse response = orderService.createOrder(new CreateOrderRequest(
                 "Cliente Demo",
                 "cliente.demo@smartlogix.cl",
                 "Providencia | Av. Demo 123",
                 null,
-                List.of(new OrderLineRequest("sku-3001", 1, BigDecimal.valueOf(45990)))
+                List.of(new OrderLineRequest("sku-3001", 1))
         ));
 
         assertThat(response.status()).isEqualTo(OrderStatus.SHIPMENT_REQUESTED);
@@ -68,13 +72,13 @@ class OrderServiceTest {
 
     @Test
     void deleteOrderReleasesReservedStockAndDeletesShipment() {
-        inventoryClient.setAvailable("SKU-3001", 45);
+        inventoryClient.setProduct("SKU-3001", 45, BigDecimal.valueOf(45990));
         OrderResponse response = orderService.createOrder(new CreateOrderRequest(
                 "Cliente Demo",
                 "cliente.demo@smartlogix.cl",
                 "Providencia | Av. Demo 123",
                 null,
-                List.of(new OrderLineRequest("SKU-3001", 1, BigDecimal.valueOf(45990)))
+                List.of(new OrderLineRequest("SKU-3001", 1))
         ));
 
         orderService.deleteOrder(response.orderNumber());
@@ -85,17 +89,98 @@ class OrderServiceTest {
         assertThat(store.find(response.orderNumber())).isEmpty();
     }
 
+    @Test
+    void createOrderAppliesDiscountCodeToTotals() {
+        inventoryClient.setProduct("SKU-1001", 20, BigDecimal.valueOf(10000));
+        orderService = new OrderService(
+                store.repository(),
+                inventoryClient,
+                shipmentClient,
+                discountRepository(activeDiscount("TEST10", 10))
+        );
+
+        OrderResponse response = orderService.createOrder(new CreateOrderRequest(
+                "Cliente Descuento",
+                "descuento@smartlogix.cl",
+                "Providencia | Av. Demo 123",
+                "test10",
+                List.of(new OrderLineRequest("SKU-1001", 1))
+        ));
+
+        assertThat(response.status()).isEqualTo(OrderStatus.SHIPMENT_REQUESTED);
+        assertThat(response.discountCode()).isEqualTo("TEST10");
+        assertThat(response.subtotalAmount()).isEqualByComparingTo("10000");
+        assertThat(response.discountAmount()).isEqualByComparingTo("1000");
+        assertThat(response.totalAmount()).isEqualByComparingTo("9000");
+    }
+
+    @Test
+    void customerOnlyReceivesOrdersOwnedByAuthenticatedUsername() {
+        inventoryClient.setProduct("SKU-1001", 20, BigDecimal.valueOf(10000));
+
+        OrderResponse damianOrder = orderService.createOrder(
+                new CreateOrderRequest(
+                        "Damian",
+                        "correo-manipulado@ejemplo.cl",
+                        "Santiago | Direccion 1",
+                        null,
+                        List.of(new OrderLineRequest("SKU-1001", 1))
+                ),
+                "damian",
+                "damian@smartlogix.cl",
+                OrderChannel.ONLINE
+        );
+        orderService.createOrder(
+                new CreateOrderRequest(
+                        "Otro cliente",
+                        "otro@smartlogix.cl",
+                        "Santiago | Direccion 2",
+                        null,
+                        List.of(new OrderLineRequest("SKU-1001", 1))
+                ),
+                "otro",
+                "otro@smartlogix.cl",
+                OrderChannel.ONLINE
+        );
+
+        List<OrderResponse> customerOrders = orderService.getCustomerOrders("damian");
+
+        assertThat(customerOrders).extracting(OrderResponse::orderNumber)
+                .containsExactly(damianOrder.orderNumber());
+        assertThat(customerOrders.get(0).customerEmail()).isEqualTo("damian@smartlogix.cl");
+        assertThat(customerOrders.get(0).salesChannel()).isEqualTo(OrderChannel.ONLINE);
+    }
+
     private DiscountRepository emptyDiscountRepository() {
+        return discountRepository();
+    }
+
+    private DiscountRepository discountRepository(Discount... discounts) {
+        Map<String, Discount> discountsByCode = new HashMap<>();
+        for (Discount discount : discounts) {
+            discountsByCode.put(discount.getCode().toUpperCase(), discount);
+        }
+
         return (DiscountRepository) Proxy.newProxyInstance(
                 DiscountRepository.class.getClassLoader(),
                 new Class<?>[] { DiscountRepository.class },
                 (proxy, method, args) -> {
                     if ("findByCodeIgnoreCase".equals(method.getName())) {
-                        return Optional.empty();
+                        return Optional.ofNullable(discountsByCode.get(String.valueOf(args[0]).toUpperCase()));
                     }
                     throw new UnsupportedOperationException("Metodo no usado en este test: " + method.getName());
                 }
         );
+    }
+
+    private Discount activeDiscount(String code, int percentage) {
+        Discount discount = new Discount();
+        discount.setCode(code);
+        discount.setName("Descuento " + code);
+        discount.setPercentage(percentage);
+        discount.setActive(true);
+        discount.setOnlyNewUsers(false);
+        return discount;
     }
 
     private static class FakePurchaseOrderStore {
@@ -109,6 +194,11 @@ class OrderServiceTest {
                         case "save" -> save((PurchaseOrder) args[0]);
                         case "findByOrderNumber" -> find((String) args[0]);
                         case "findAll" -> List.copyOf(orders.values());
+                        case "findAllByCustomerUsernameOrderByCreatedAtDesc" -> orders.values().stream()
+                                .filter(order -> args[0].equals(order.getCustomerUsername()))
+                                .toList();
+                        case "findByOrderNumberAndCustomerUsername" -> find((String) args[0])
+                                .filter(order -> args[1].equals(order.getCustomerUsername()));
                         case "delete" -> {
                             delete((PurchaseOrder) args[0]);
                             yield null;
@@ -137,14 +227,21 @@ class OrderServiceTest {
     private static class FakeInventoryClient extends InventoryClient {
         private final Map<String, Integer> availableBySku = new HashMap<>();
         private final Map<String, Integer> reservedBySku = new HashMap<>();
+        private final Map<String, BigDecimal> priceBySku = new HashMap<>();
 
         FakeInventoryClient() {
-            super(new RestTemplate());
+            super(
+                    new RestTemplate(),
+                    new InternalServiceTokenProvider(
+                            "SmartLogixSuperSecretKeyForJWT2024PlatformMicroservicesArchitecture!!"
+                    )
+            );
         }
 
-        void setAvailable(String sku, int available) {
+        void setProduct(String sku, int available, BigDecimal price) {
             availableBySku.put(sku, available);
             reservedBySku.putIfAbsent(sku, 0);
+            priceBySku.put(sku, price);
         }
 
         int available(String sku) {
@@ -153,6 +250,20 @@ class OrderServiceTest {
 
         int reserved(String sku) {
             return reservedBySku.getOrDefault(sku, 0);
+        }
+
+        @Override
+        public CatalogProductResponse findProduct(String sku) {
+            return new CatalogProductResponse(
+                    sku,
+                    "Producto " + sku,
+                    null,
+                    "General",
+                    priceBySku.get(sku),
+                    available(sku),
+                    available(sku) > 0,
+                    false
+            );
         }
 
         @Override

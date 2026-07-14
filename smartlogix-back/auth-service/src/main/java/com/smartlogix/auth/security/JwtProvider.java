@@ -29,12 +29,14 @@ public class JwtProvider {
     /**
      * Genera un token JWT firmado con el username y el rol como claims.
      */
-    public String generateToken(String username, String role) {
+    public String generateToken(Long userId, String username, String email, String role) {
         Date now = new Date();
         Date expiry = new Date(now.getTime() + expirationMs);
 
         return Jwts.builder()
                 .subject(username)
+                .claim("userId", userId)
+                .claim("email", email)
                 .claim("role", role)
                 .issuedAt(now)
                 .expiration(expiry)

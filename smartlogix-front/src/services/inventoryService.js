@@ -1,5 +1,6 @@
 import {
   getInventoryItems,
+  getCatalogProducts,
   createInventoryItem,
   updateInventoryItem,
   deleteInventoryItem,
@@ -43,6 +44,10 @@ export async function registerManualInventoryMovement(movementData) {
 
 export async function exportInventoryMovementsCsv(params) {
   return await exportInventoryMovements(params);
+}
+
+export async function getPublicCatalogProducts() {
+  return await getCatalogProducts();
 }
 
 export async function saveInventoryHistory(params) {

@@ -1,6 +1,7 @@
 package com.smartlogix.order.dto;
 
 import com.smartlogix.order.domain.OrderStatus;
+import com.smartlogix.order.domain.OrderChannel;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
@@ -10,6 +11,7 @@ public record OrderResponse(
         String orderNumber,
         String customerName,
         String customerEmail,
+        OrderChannel salesChannel,
         String shippingAddress,
         OrderStatus status,
         BigDecimal subtotalAmount,

@@ -1,9 +1,10 @@
 import { useMemo } from "react";
+import { getRoleFromToken, getUsernameFromToken } from "../utils/authTokenUtils";
 
 export function useAuth() {
     const token = localStorage.getItem("token");
-    const role = localStorage.getItem("role");
-    const username = localStorage.getItem("username");
+    const role = getRoleFromToken(token);
+    const username = getUsernameFromToken(token) || localStorage.getItem("username");
 
     return useMemo(() => ({
         token,

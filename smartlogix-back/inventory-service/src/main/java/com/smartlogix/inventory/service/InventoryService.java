@@ -3,6 +3,7 @@ package com.smartlogix.inventory.service;
 import com.smartlogix.inventory.domain.ActionType;
 import com.smartlogix.inventory.domain.InventoryItem;
 import com.smartlogix.inventory.domain.MovementType;
+import com.smartlogix.inventory.dto.CatalogProductResponse;
 import com.smartlogix.inventory.dto.CreateInventoryItemRequest;
 import com.smartlogix.inventory.dto.UpdateInventoryItemRequest;
 import com.smartlogix.inventory.dto.InventoryAvailabilityResponse;
@@ -43,6 +44,14 @@ public class InventoryService {
         item.setProductName(request.productName().trim());
         item.setImageUrl(normalizeImageUrl(request.imageUrl()));
         item.setCategory(normalizeCategory(request.category()));
+        item.setBrand(normalizeOptionalText(request.brand(), "SmartLogix"));
+        item.setShortDescription(normalizeOptionalText(request.shortDescription(), request.productName().trim()));
+        item.setSalePrice(request.salePrice());
+        item.setOriginalPrice(request.originalPrice() == null ? request.salePrice() : request.originalPrice());
+        item.setFeatured(Boolean.TRUE.equals(request.featured()));
+        item.setFastShipping(Boolean.TRUE.equals(request.fastShipping()));
+        item.setFreeShipping(Boolean.TRUE.equals(request.freeShipping()));
+        item.setStorePickup(request.storePickup() == null || request.storePickup());
         item.setWarehouseCode(request.warehouseCode().trim().toUpperCase());
         applyLocation(
                 item,
@@ -87,6 +96,18 @@ public class InventoryService {
     public InventoryItemResponse findBySku(String sku) {
         InventoryItem item = loadBySku(sku);
         return toResponse(item);
+    }
+
+    @Transactional(readOnly = true)
+    public List<CatalogProductResponse> findCatalogProducts() {
+        return repository.findAll().stream()
+                .map(this::toCatalogResponse)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public CatalogProductResponse findCatalogProduct(String sku) {
+        return toCatalogResponse(loadBySku(sku));
     }
 
     @Transactional(readOnly = true)
@@ -182,6 +203,14 @@ public class InventoryService {
                 item.getProductName(),
                 item.getImageUrl(),
                 item.getCategory(),
+                item.getBrand(),
+                item.getShortDescription(),
+                item.getSalePrice(),
+                item.getOriginalPrice(),
+                item.isFeatured(),
+                item.isFastShipping(),
+                item.isFreeShipping(),
+                item.isStorePickup(),
                 item.getWarehouseCode(),
                 item.getLocationZone(),
                 item.getLocationAisle(),
@@ -195,6 +224,27 @@ public class InventoryService {
         );
     }
 
+    private CatalogProductResponse toCatalogResponse(InventoryItem item) {
+        return new CatalogProductResponse(
+                item.getSku(),
+                item.getProductName(),
+                item.getImageUrl(),
+                item.getCategory(),
+                item.getBrand(),
+                item.getShortDescription(),
+                item.getSalePrice(),
+                item.getOriginalPrice(),
+                item.isFeatured(),
+                item.isFastShipping(),
+                item.isFreeShipping(),
+                item.isStorePickup(),
+                item.getAvailableQuantity(),
+                item.getAvailableQuantity() > 0,
+                item.getAvailableQuantity() > 0
+                        && item.getAvailableQuantity() <= item.getReorderLevel()
+        );
+    }
+
     public InventoryItemResponse updateItem(String sku, UpdateInventoryItemRequest request) {
         InventoryItem item = loadBySku(sku);
 
@@ -204,6 +254,28 @@ public class InventoryService {
         item.setProductName(request.productName().trim());
         item.setImageUrl(normalizeImageUrl(request.imageUrl()));
         item.setCategory(normalizeCategory(request.category()));
+        if (request.brand() != null) {
+            item.setBrand(normalizeOptionalText(request.brand(), "SmartLogix"));
+        }
+        if (request.shortDescription() != null) {
+            item.setShortDescription(normalizeOptionalText(request.shortDescription(), request.productName().trim()));
+        }
+        item.setSalePrice(request.salePrice());
+        if (request.originalPrice() != null) {
+            item.setOriginalPrice(request.originalPrice());
+        }
+        if (request.featured() != null) {
+            item.setFeatured(request.featured());
+        }
+        if (request.fastShipping() != null) {
+            item.setFastShipping(request.fastShipping());
+        }
+        if (request.freeShipping() != null) {
+            item.setFreeShipping(request.freeShipping());
+        }
+        if (request.storePickup() != null) {
+            item.setStorePickup(request.storePickup());
+        }
         item.setWarehouseCode(request.warehouseCode().trim().toUpperCase());
         applyLocation(
                 item,
@@ -279,6 +351,13 @@ public class InventoryService {
         }
 
         return category.trim();
+    }
+
+    private String normalizeOptionalText(String value, String fallback) {
+        if (value == null || value.isBlank()) {
+            return fallback;
+        }
+        return value.trim();
     }
 
     private void applyLocation(

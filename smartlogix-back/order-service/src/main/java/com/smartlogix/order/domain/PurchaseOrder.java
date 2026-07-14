@@ -35,6 +35,13 @@ public class PurchaseOrder {
     @Column(nullable = false, length = 120)
     private String customerEmail;
 
+    @Column(length = 50)
+    private String customerUsername;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    private OrderChannel salesChannel = OrderChannel.ONLINE;
+
     @Column(nullable = false, length = 255)
     private String shippingAddress;
 
@@ -95,6 +102,22 @@ public class PurchaseOrder {
 
     public void setCustomerEmail(String customerEmail) {
         this.customerEmail = customerEmail;
+    }
+
+    public String getCustomerUsername() {
+        return customerUsername;
+    }
+
+    public void setCustomerUsername(String customerUsername) {
+        this.customerUsername = customerUsername;
+    }
+
+    public OrderChannel getSalesChannel() {
+        return salesChannel;
+    }
+
+    public void setSalesChannel(OrderChannel salesChannel) {
+        this.salesChannel = salesChannel;
     }
 
     public String getShippingAddress() {

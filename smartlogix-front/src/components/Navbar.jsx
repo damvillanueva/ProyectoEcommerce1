@@ -69,11 +69,15 @@ function Navbar({
 
           {role !== "ROLE_USER" && <NavItem to="/inventory/movements">Movimientos</NavItem>}
 
+          {role !== "ROLE_WAREHOUSE_MANAGER" && <NavItem to="/shop">Tienda</NavItem>}
+
           {role !== "ROLE_WAREHOUSE_MANAGER" && <NavItem to="/orders">Pedidos</NavItem>}
 
           {role !== "ROLE_USER" && <NavItem to="/shipments">Envíos</NavItem>}
 
           {role === "ROLE_ADMIN" && <NavItem to="/users">Usuarios</NavItem>}
+
+          {role === "ROLE_ADMIN" && <NavItem to="/discounts">Descuentos</NavItem>}
         </nav>
 
         <div className="flex items-center gap-4">
