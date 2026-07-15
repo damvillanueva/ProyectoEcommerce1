@@ -12,6 +12,9 @@ import com.smartlogix.order.domain.OrderLine;
 import com.smartlogix.order.domain.OrderChannel;
 import com.smartlogix.order.domain.OrderStatus;
 import com.smartlogix.order.domain.PurchaseOrder;
+import com.smartlogix.order.domain.FulfillmentMethod;
+import com.smartlogix.order.domain.PaymentMethod;
+import com.smartlogix.order.domain.PaymentStatus;
 import com.smartlogix.order.discount.Discount;
 import com.smartlogix.order.dto.CreateOrderRequest;
 import com.smartlogix.order.dto.OrderLineRequest;
@@ -64,6 +67,8 @@ class OrderServiceTest {
 
         assertThat(response.status()).isEqualTo(OrderStatus.SHIPMENT_REQUESTED);
         assertThat(response.trackingCode()).isEqualTo("SLX-TEST-1");
+        assertThat(response.shippingAmount()).isEqualByComparingTo("4990");
+        assertThat(response.paymentStatus()).isEqualTo(PaymentStatus.PAID);
         assertThat(response.orderNumber()).startsWith("ORD-");
         assertThat(inventoryClient.available("SKU-3001")).isEqualTo(44);
         assertThat(inventoryClient.reserved("SKU-3001")).isEqualTo(1);
@@ -111,7 +116,32 @@ class OrderServiceTest {
         assertThat(response.discountCode()).isEqualTo("TEST10");
         assertThat(response.subtotalAmount()).isEqualByComparingTo("10000");
         assertThat(response.discountAmount()).isEqualByComparingTo("1000");
-        assertThat(response.totalAmount()).isEqualByComparingTo("9000");
+        assertThat(response.shippingAmount()).isEqualByComparingTo("4990");
+        assertThat(response.totalAmount()).isEqualByComparingTo("13990");
+    }
+
+    @Test
+    void pickupOrderDoesNotRequestShipmentAndCanRemainPendingPayment() {
+        inventoryClient.setProduct("SKU-2001", 12, BigDecimal.valueOf(25000));
+
+        OrderResponse response = orderService.createOrder(new CreateOrderRequest(
+                "Cliente Retiro",
+                "retiro@smartlogix.cl",
+                null,
+                null,
+                FulfillmentMethod.PICKUP,
+                "Sucursal Santiago Centro",
+                PaymentMethod.PAY_ON_PICKUP,
+                List.of(new OrderLineRequest("SKU-2001", 2))
+        ));
+
+        assertThat(response.status()).isEqualTo(OrderStatus.APPROVED);
+        assertThat(response.fulfillmentMethod()).isEqualTo(FulfillmentMethod.PICKUP);
+        assertThat(response.pickupLocation()).isEqualTo("Sucursal Santiago Centro");
+        assertThat(response.shippingAmount()).isZero();
+        assertThat(response.paymentStatus()).isEqualTo(PaymentStatus.PENDING);
+        assertThat(response.trackingCode()).isNull();
+        assertThat(shipmentClient.createdTrackingCodes()).isEmpty();
     }
 
     @Test

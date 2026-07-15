@@ -1,6 +1,14 @@
 import {
   getInventoryItems,
   getCatalogProducts,
+  getCatalogProduct,
+  getProductReviews,
+  saveProductReviewRequest,
+  deleteProductReviewRequest,
+  getProductQuestions,
+  createProductQuestionRequest,
+  deleteProductQuestionRequest,
+  answerProductQuestionRequest,
   createInventoryItem,
   updateInventoryItem,
   deleteInventoryItem,
@@ -48,6 +56,38 @@ export async function exportInventoryMovementsCsv(params) {
 
 export async function getPublicCatalogProducts() {
   return await getCatalogProducts();
+}
+
+export async function getPublicCatalogProduct(sku) {
+  return await getCatalogProduct(sku);
+}
+
+export async function loadProductReviews(sku) {
+  return await getProductReviews(sku);
+}
+
+export async function saveProductReview(sku, review) {
+  return await saveProductReviewRequest(sku, review);
+}
+
+export async function deleteProductReview(sku, reviewId) {
+  return await deleteProductReviewRequest(sku, reviewId);
+}
+
+export async function loadProductQuestions(sku) {
+  return await getProductQuestions(sku);
+}
+
+export async function createProductQuestion(sku, question) {
+  return await createProductQuestionRequest(sku, question);
+}
+
+export async function deleteProductQuestion(sku, questionId) {
+  return await deleteProductQuestionRequest(sku, questionId);
+}
+
+export async function answerProductQuestion(sku, questionId, answer) {
+  return await answerProductQuestionRequest(sku, questionId, answer);
 }
 
 export async function saveInventoryHistory(params) {

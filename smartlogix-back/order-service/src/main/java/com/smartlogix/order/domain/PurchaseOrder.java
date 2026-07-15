@@ -42,8 +42,26 @@ public class PurchaseOrder {
     @Column(nullable = false, length = 20)
     private OrderChannel salesChannel = OrderChannel.ONLINE;
 
-    @Column(nullable = false, length = 255)
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    private FulfillmentMethod fulfillmentMethod = FulfillmentMethod.DELIVERY;
+
+    @Column(length = 255)
     private String shippingAddress;
+
+    @Column(length = 120)
+    private String pickupLocation;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 40)
+    private PaymentMethod paymentMethod = PaymentMethod.WEBPAY_SIMULATED;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    private PaymentStatus paymentStatus = PaymentStatus.PENDING;
+
+    @Column(length = 60)
+    private String transactionReference;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 30)
@@ -66,6 +84,9 @@ public class PurchaseOrder {
 
     @Column(precision = 14, scale = 2)
     private BigDecimal discountAmount = BigDecimal.ZERO;
+
+    @Column(nullable = false, precision = 14, scale = 2)
+    private BigDecimal shippingAmount = BigDecimal.ZERO;
 
     private String discountCode;
 
@@ -120,12 +141,52 @@ public class PurchaseOrder {
         this.salesChannel = salesChannel;
     }
 
+    public FulfillmentMethod getFulfillmentMethod() {
+        return fulfillmentMethod;
+    }
+
+    public void setFulfillmentMethod(FulfillmentMethod fulfillmentMethod) {
+        this.fulfillmentMethod = fulfillmentMethod;
+    }
+
     public String getShippingAddress() {
         return shippingAddress;
     }
 
     public void setShippingAddress(String shippingAddress) {
         this.shippingAddress = shippingAddress;
+    }
+
+    public String getPickupLocation() {
+        return pickupLocation;
+    }
+
+    public void setPickupLocation(String pickupLocation) {
+        this.pickupLocation = pickupLocation;
+    }
+
+    public PaymentMethod getPaymentMethod() {
+        return paymentMethod;
+    }
+
+    public void setPaymentMethod(PaymentMethod paymentMethod) {
+        this.paymentMethod = paymentMethod;
+    }
+
+    public PaymentStatus getPaymentStatus() {
+        return paymentStatus;
+    }
+
+    public void setPaymentStatus(PaymentStatus paymentStatus) {
+        this.paymentStatus = paymentStatus;
+    }
+
+    public String getTransactionReference() {
+        return transactionReference;
+    }
+
+    public void setTransactionReference(String transactionReference) {
+        this.transactionReference = transactionReference;
     }
 
     public OrderStatus getStatus() {
@@ -187,6 +248,14 @@ public class PurchaseOrder {
 
     public void setDiscountAmount(BigDecimal discountAmount) {
         this.discountAmount = discountAmount;
+    }
+
+    public BigDecimal getShippingAmount() {
+        return shippingAmount;
+    }
+
+    public void setShippingAmount(BigDecimal shippingAmount) {
+        this.shippingAmount = shippingAmount;
     }
 
     public String getDiscountCode() {

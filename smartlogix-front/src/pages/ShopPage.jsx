@@ -6,10 +6,10 @@ import {
   FiChevronRight,
   FiClock,
   FiCpu,
-  FiCreditCard,
   FiFilter,
   FiGrid,
   FiHardDrive,
+  FiHeart,
   FiHeadphones,
   FiLogIn,
   FiLogOut,
@@ -22,22 +22,24 @@ import {
   FiSearch,
   FiShield,
   FiShoppingCart,
-  FiTag,
   FiTrash2,
   FiTruck,
   FiUser,
   FiWifi,
 } from "react-icons/fi";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import logo from "../assets/logo-smartlogix.png";
 import { clearLogin } from "../services/authService";
-import { loadCustomerProfile } from "../services/customerAccountService";
+import {
+  addCustomerFavorite,
+  loadCustomerFavorites,
+  loadCustomerProfile,
+  removeCustomerFavorite,
+} from "../services/customerAccountService";
 import { getPublicCatalogProducts } from "../services/inventoryService";
-import { saveOrder } from "../services/orderService";
 import { getRoleFromToken, getUsernameFromToken } from "../utils/authTokenUtils";
 import { productMatchesSearch } from "../utils/inventoryLocationUtils";
 
-const DEFAULT_CUSTOMER = { name: "", email: "", street: "", commune: "" };
 const CART_STORAGE_KEY = "smartlogix-store-cart";
 
 const STOCK_FILTERS = [
@@ -91,16 +93,9 @@ function discountPercentage(product) {
   return Math.round(((original - sale) / original) * 100);
 }
 
-function composeShippingAddress(street, commune) {
-  const cleanStreet = street.trim();
-  const cleanCommune = commune.trim();
-  if (!cleanStreet) return cleanCommune;
-  if (!cleanCommune) return cleanStreet;
-  return `${cleanStreet}, ${cleanCommune}`;
-}
-
 function ShopPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -109,12 +104,11 @@ function ShopPage() {
   const [stockFilter, setStockFilter] = useState("available");
   const [sortBy, setSortBy] = useState("relevance");
   const [cart, setCart] = useState(loadSavedCart);
-  const [customer, setCustomer] = useState(DEFAULT_CUSTOMER);
-  const [discountCode, setDiscountCode] = useState("");
   const [checkoutError, setCheckoutError] = useState("");
-  const [checkoutSuccess, setCheckoutSuccess] = useState(null);
-  const [submitting, setSubmitting] = useState(false);
   const [customerProfile, setCustomerProfile] = useState(null);
+  const [favoriteSkus, setFavoriteSkus] = useState([]);
+  const [favoriteBusySku, setFavoriteBusySku] = useState(null);
+  const [favoriteNotice, setFavoriteNotice] = useState(null);
   const [session, setSession] = useState(() => ({
     role: getRoleFromToken(),
     username: getUsernameFromToken(),
@@ -141,20 +135,14 @@ function ShopPage() {
   useEffect(() => {
     if (role !== "ROLE_CUSTOMER") {
       setCustomerProfile(null);
+      setFavoriteSkus([]);
       return;
     }
 
-    loadCustomerProfile()
-      .then((profile) => {
-        const defaultAddress = profile.addresses?.find((address) => address.defaultAddress)
-          || profile.addresses?.[0];
+    Promise.all([loadCustomerProfile(), loadCustomerFavorites()])
+      .then(([profile, favoriteData]) => {
         setCustomerProfile(profile);
-        setCustomer((current) => ({
-          name: profile.displayName || profile.username || current.name,
-          email: profile.email || current.email,
-          street: defaultAddress?.street || current.street,
-          commune: defaultAddress?.commune || current.commune,
-        }));
+        setFavoriteSkus((favoriteData || []).map((favorite) => favorite.sku));
       })
       .catch((profileError) => console.error("No se pudo precargar el perfil:", profileError));
   }, [role]);
@@ -162,6 +150,12 @@ function ShopPage() {
   useEffect(() => {
     localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(cart));
   }, [cart]);
+
+  useEffect(() => {
+    if (!location.state?.openCart) return;
+    const timeoutId = window.setTimeout(() => scrollTo("carrito"), 150);
+    return () => window.clearTimeout(timeoutId);
+  }, [location.state]);
 
   const products = useMemo(
     () => items.map((item) => ({
@@ -244,14 +238,8 @@ function ShopPage() {
     scrollTo("catalogo");
   }
 
-  function updateCustomer(event) {
-    const { name, value } = event.target;
-    setCustomer((current) => ({ ...current, [name]: value }));
-  }
-
   function addToCart(product) {
     if (product.availableUnits <= 0) return;
-    setCheckoutSuccess(null);
     setCheckoutError("");
     setCart((current) => {
       const existing = current.find((item) => item.sku === product.sku);
@@ -275,63 +263,55 @@ function ShopPage() {
     setCart((current) => current.filter((item) => item.sku !== sku));
   }
 
-  async function handleCheckout(event) {
-    event.preventDefault();
-    if (!role) {
-      setCheckoutError("Inicia sesion o crea una cuenta para finalizar la compra.");
-      navigate("/shop/login");
-      return;
-    }
-    if (!["ROLE_CUSTOMER", "ROLE_ADMIN", "ROLE_USER"].includes(role)) {
-      setCheckoutError("Tu tipo de cuenta no puede crear compras online.");
+  function showFavoriteNotice(text, tone = "success") {
+    setFavoriteNotice({ text, tone });
+    window.setTimeout(() => setFavoriteNotice(null), 3000);
+  }
+
+  async function toggleFavorite(product) {
+    if (role !== "ROLE_CUSTOMER") {
+      navigate("/shop/login", {
+        state: { returnTo: `/shop/product/${encodeURIComponent(product.sku)}` },
+      });
       return;
     }
 
-    const cleanName = customer.name.trim();
-    const cleanEmail = customer.email.trim();
-    const cleanStreet = customer.street.trim();
-    const cleanCommune = customer.commune.trim();
+    const isFavorite = favoriteSkus.includes(product.sku);
+    try {
+      setFavoriteBusySku(product.sku);
+      if (isFavorite) {
+        await removeCustomerFavorite(product.sku);
+        setFavoriteSkus((current) => current.filter((sku) => sku !== product.sku));
+        showFavoriteNotice("Producto eliminado de tus favoritos.");
+      } else {
+        await addCustomerFavorite(product.sku);
+        setFavoriteSkus((current) => [...new Set([...current, product.sku])]);
+        showFavoriteNotice("Producto guardado en tus favoritos.");
+      }
+    } catch (favoriteError) {
+      console.error(favoriteError);
+      showFavoriteNotice(
+        favoriteError.response?.data?.message || "No se pudo actualizar favoritos.",
+        "error"
+      );
+    } finally {
+      setFavoriteBusySku(null);
+    }
+  }
+
+  function handleCheckout() {
     if (cartProducts.length === 0) {
       setCheckoutError("Agrega al menos un producto al carrito.");
       return;
     }
-    if (!cleanName || !cleanEmail || !cleanStreet || !cleanCommune) {
-      setCheckoutError("Completa cliente, email, direccion y comuna.");
-      return;
-    }
-    const unavailableProduct = cartProducts.find((product) => product.cartQuantity > product.availableUnits);
-    if (unavailableProduct) {
-      setCheckoutError(`Stock insuficiente para ${unavailableProduct.productName}.`);
-      return;
-    }
-
-    try {
-      setSubmitting(true);
-      setCheckoutError("");
-      const response = await saveOrder({
-        customerName: cleanName,
-        customerEmail: cleanEmail,
-        discountCode: discountCode.trim() || null,
-        shippingAddress: composeShippingAddress(cleanStreet, cleanCommune),
-        lines: cartProducts.map((product) => ({ quantity: product.cartQuantity, sku: product.sku })),
-      });
-      setCheckoutSuccess(response);
-      setCart([]);
-      setDiscountCode("");
-    } catch (checkoutFailure) {
-      console.error(checkoutFailure);
-      setCheckoutError(checkoutFailure.response?.data?.message
-        || "No se pudo finalizar la compra. Revisa stock, descuento o sesion.");
-    } finally {
-      setSubmitting(false);
-    }
+    navigate("/shop/cart");
   }
 
   function handleLogout() {
     clearLogin();
     setSession({ role: null, username: null });
     setCustomerProfile(null);
-    setCheckoutSuccess(null);
+    setFavoriteSkus([]);
     navigate("/shop");
   }
 
@@ -344,12 +324,22 @@ function ShopPage() {
         onLogout={handleLogout}
         onQueryChange={setQuery}
         onSearch={() => scrollTo("catalogo")}
-        onShowCart={() => scrollTo("carrito")}
+        onShowCart={() => navigate("/shop/cart")}
         profile={customerProfile}
         query={query}
         role={role}
         username={username}
       />
+
+      {favoriteNotice && (
+        <div className={`fixed right-4 top-24 z-50 max-w-sm rounded-md border px-4 py-3 text-sm font-black shadow-2xl ${
+          favoriteNotice.tone === "error"
+            ? "border-red-400/30 bg-slate-900 text-red-200"
+            : "border-emerald-400/30 bg-slate-900 text-emerald-200"
+        }`}>
+          {favoriteNotice.text}
+        </div>
+      )}
 
       <main>
         <CampaignHero onCategory={selectCategory} onShop={() => scrollTo("ofertas")} />
@@ -374,7 +364,10 @@ function ShopPage() {
           title="Ofertas destacadas"
           description="Descuentos calculados desde el precio normal registrado en inventario."
           products={offerProducts}
+          favoriteBusySku={favoriteBusySku}
+          favoriteSkus={favoriteSkus}
           onAdd={addToCart}
+          onFavorite={toggleFavorite}
           onSeeAll={() => { setSortBy("price-asc"); scrollTo("catalogo"); }}
         />
 
@@ -384,7 +377,10 @@ function ShopPage() {
           title="Productos recomendados"
           description="Equipos destacados por rendimiento, disponibilidad y demanda."
           products={featuredProducts}
+          favoriteBusySku={favoriteBusySku}
+          favoriteSkus={favoriteSkus}
           onAdd={addToCart}
+          onFavorite={toggleFavorite}
           onSeeAll={() => scrollTo("catalogo")}
         />
 
@@ -395,7 +391,10 @@ function ShopPage() {
           title="Envio rapido"
           description="Productos preparados para despacho prioritario o retiro."
           products={fastProducts}
+          favoriteBusySku={favoriteBusySku}
+          favoriteSkus={favoriteSkus}
           onAdd={addToCart}
+          onFavorite={toggleFavorite}
           onSeeAll={() => scrollTo("catalogo")}
         />
 
@@ -440,7 +439,14 @@ function ShopPage() {
                 {!loading && filteredProducts.length > 0 && (
                   <div className="grid gap-4 sm:grid-cols-2 2xl:grid-cols-3">
                     {filteredProducts.map((product) => (
-                      <ProductCard key={product.sku} onAdd={addToCart} product={product} />
+                      <ProductCard
+                        key={product.sku}
+                        favoriteBusy={favoriteBusySku === product.sku}
+                        isFavorite={favoriteSkus.includes(product.sku)}
+                        onAdd={addToCart}
+                        onFavorite={toggleFavorite}
+                        product={product}
+                      />
                     ))}
                   </div>
                 )}
@@ -449,15 +455,9 @@ function ShopPage() {
               <CartPanel
                 cartProducts={cartProducts}
                 checkoutError={checkoutError}
-                checkoutSuccess={checkoutSuccess}
-                customer={customer}
-                discountCode={discountCode}
                 onCheckout={handleCheckout}
-                onCustomerChange={updateCustomer}
-                onDiscountChange={setDiscountCode}
                 onQuantityChange={updateCartQuantity}
                 onRemove={removeFromCart}
-                submitting={submitting}
                 subtotal={subtotal}
               />
             </div>
@@ -636,7 +636,7 @@ function CategoryButton({ category, onClick }) {
   );
 }
 
-function ProductSection({ dark = false, description, eyebrow, id, onAdd, onSeeAll, products, title }) {
+function ProductSection({ dark = false, description, eyebrow, favoriteBusySku, favoriteSkus, id, onAdd, onFavorite, onSeeAll, products, title }) {
   if (!products.length) return null;
   return (
     <section id={id} className={`scroll-mt-36 border-y border-white/10 py-11 ${dark ? "bg-slate-950" : "bg-slate-900/70"}`}>
@@ -648,33 +648,59 @@ function ProductSection({ dark = false, description, eyebrow, id, onAdd, onSeeAl
           </button>
         </div>
         <div className="mt-7 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {products.slice(0, 4).map((product) => <ProductCard key={product.sku} onAdd={onAdd} product={product} />)}
+          {products.slice(0, 4).map((product) => (
+            <ProductCard
+              key={product.sku}
+              favoriteBusy={favoriteBusySku === product.sku}
+              isFavorite={favoriteSkus.includes(product.sku)}
+              onAdd={onAdd}
+              onFavorite={onFavorite}
+              product={product}
+            />
+          ))}
         </div>
       </div>
     </section>
   );
 }
 
-function ProductCard({ onAdd, product }) {
+function ProductCard({ favoriteBusy, isFavorite, onAdd, onFavorite, product }) {
   const isAvailable = product.availableUnits > 0;
   const discount = discountPercentage(product);
   return (
     <article className="group flex min-h-[470px] flex-col overflow-hidden rounded-md border border-white/10 bg-slate-900 shadow-xl transition hover:border-sky-400/45">
       <div className="relative h-52 overflow-hidden bg-white">
-        {product.imageUrl ? (
-          <img src={product.imageUrl} alt={product.productName} className="h-full w-full object-cover transition duration-300 group-hover:scale-105" />
-        ) : (
-          <div className="flex h-full items-center justify-center text-5xl font-black text-slate-300">{String(product.productName || "P").charAt(0)}</div>
-        )}
+        <Link to={`/shop/product/${encodeURIComponent(product.sku)}`} className="block h-full">
+          {product.imageUrl ? (
+            <img src={product.imageUrl} alt={product.productName} className="h-full w-full object-cover transition duration-300 group-hover:scale-105" />
+          ) : (
+            <div className="flex h-full items-center justify-center text-5xl font-black text-slate-300">{String(product.productName || "P").charAt(0)}</div>
+          )}
+        </Link>
         <div className="absolute left-3 top-3 flex flex-col items-start gap-2">
           {discount > 0 && <span className="rounded-md bg-red-500 px-2.5 py-1 text-xs font-black text-white">-{discount}%</span>}
           {product.fastShipping && <span className="rounded-md bg-emerald-500 px-2.5 py-1 text-[10px] font-black uppercase text-slate-950">Envio rapido</span>}
         </div>
+        <button
+          type="button"
+          disabled={favoriteBusy}
+          onClick={() => onFavorite(product)}
+          title={isFavorite ? "Quitar de favoritos" : "Agregar a favoritos"}
+          className={`absolute right-3 top-3 flex h-10 w-10 items-center justify-center rounded-md border shadow-lg transition ${
+            isFavorite
+              ? "border-red-400/40 bg-red-500 text-white"
+              : "border-slate-200 bg-white/95 text-slate-600 hover:text-red-500"
+          }`}
+        >
+          <FiHeart fill={isFavorite ? "currentColor" : "none"} />
+        </button>
       </div>
 
       <div className="flex flex-1 flex-col p-4">
         <p className="text-[11px] font-black uppercase text-sky-300">{product.brand || "SmartLogix"}</p>
-        <h3 className="mt-2 line-clamp-2 min-h-12 text-base font-black leading-6">{product.productName}</h3>
+        <h3 className="mt-2 line-clamp-2 min-h-12 text-base font-black leading-6">
+          <Link to={`/shop/product/${encodeURIComponent(product.sku)}`} className="hover:text-sky-300">{product.productName}</Link>
+        </h3>
         <p className="mt-2 line-clamp-2 min-h-10 text-xs font-semibold leading-5 text-slate-500">{product.shortDescription || product.sku}</p>
 
         <div className="mt-4 flex min-h-5 items-center gap-2 text-[10px] font-black uppercase">
@@ -756,10 +782,10 @@ function Message({ children, tone = "default" }) {
   return <div className={`mb-4 rounded-md border p-4 text-sm font-bold ${tone === "error" ? "border-red-400/30 bg-red-500/10 text-red-200" : "border-white/10 bg-slate-900 text-slate-300"}`}>{children}</div>;
 }
 
-function CartPanel({ cartProducts, checkoutError, checkoutSuccess, customer, discountCode, onCheckout, onCustomerChange, onDiscountChange, onQuantityChange, onRemove, submitting, subtotal }) {
+function CartPanel({ cartProducts, checkoutError, onCheckout, onQuantityChange, onRemove, subtotal }) {
   return (
     <aside id="carrito" className="scroll-mt-36 xl:sticky xl:top-36">
-      <form onSubmit={onCheckout} className="rounded-md border border-white/10 bg-slate-900 p-5 shadow-2xl">
+      <div className="rounded-md border border-white/10 bg-slate-900 p-5 shadow-2xl">
         <div className="mb-5 flex items-center justify-between gap-3">
           <div><p className="text-xs font-black uppercase text-sky-300">Tu compra</p><h2 className="mt-1 text-2xl font-black">Carrito</h2></div>
           <div className="flex h-11 w-11 items-center justify-center rounded-md bg-sky-500/15 text-sky-300"><FiShoppingCart size={22} /></div>
@@ -770,33 +796,18 @@ function CartPanel({ cartProducts, checkoutError, checkoutSuccess, customer, dis
           {cartProducts.map((product) => <CartLine key={product.sku} onQuantityChange={onQuantityChange} onRemove={onRemove} product={product} />)}
         </div>
 
-        <div className="mb-5 grid gap-3">
-          <CartInput name="name" onChange={onCustomerChange} placeholder="Nombre cliente" value={customer.name} />
-          <CartInput name="email" onChange={onCustomerChange} placeholder="Email cliente" value={customer.email} type="email" />
-          <CartInput name="street" onChange={onCustomerChange} placeholder="Direccion de envio" value={customer.street} />
-          <CartInput name="commune" onChange={onCustomerChange} placeholder="Comuna" value={customer.commune} />
-          <CartInput icon={FiTag} onChange={(event) => onDiscountChange(event.target.value)} placeholder="Codigo de descuento" value={discountCode} />
-        </div>
-
         <div className="mb-5 border-y border-white/10 py-4">
           <div className="flex items-center justify-between text-sm font-bold text-slate-400"><span>Subtotal</span><span className="text-white">{formatCurrency(subtotal)}</span></div>
-          <div className="mt-3 flex items-center justify-between text-xs font-bold text-slate-500"><span>Descuento</span><span>{discountCode.trim() ? "Se calcula al confirmar" : "-"}</span></div>
-          <div className="mt-4 flex items-center justify-between"><span className="text-sm font-black uppercase text-slate-400">Total estimado</span><span className="text-2xl font-black text-sky-200">{formatCurrency(subtotal)}</span></div>
+          <div className="mt-3 flex items-center justify-between text-xs font-bold text-slate-500"><span>Entrega</span><span>Se elige en checkout</span></div>
         </div>
 
         {checkoutError && <Message tone="error">{checkoutError}</Message>}
-        {checkoutSuccess && (
-          <div className="mb-4 rounded-md border border-emerald-400/30 bg-emerald-500/10 p-4 text-sm font-bold text-emerald-200">
-            Pedido {checkoutSuccess.orderNumber} creado por {formatCurrency(checkoutSuccess.totalAmount)}.
-            <Link to="/shop/account" className="mt-2 block text-xs font-black underline">Ver en Mis compras</Link>
-          </div>
-        )}
 
-        <button type="submit" disabled={submitting} className="flex h-12 w-full items-center justify-center gap-2 rounded-md bg-emerald-500 text-sm font-black text-slate-950 hover:bg-emerald-400 disabled:opacity-60">
-          <FiCreditCard /> {submitting ? "Procesando..." : "Finalizar pedido"}
+        <button type="button" onClick={onCheckout} disabled={cartProducts.length === 0} className="flex h-12 w-full items-center justify-center gap-2 rounded-md bg-emerald-500 text-sm font-black text-slate-950 hover:bg-emerald-400 disabled:opacity-60">
+          <FiShoppingCart /> Ver carrito completo
         </button>
         <p className="mt-3 flex items-center justify-center gap-2 text-[10px] font-bold uppercase text-slate-600"><FiShield /> Compra protegida</p>
-      </form>
+      </div>
     </aside>
   );
 }
@@ -823,15 +834,6 @@ function CartLine({ onQuantityChange, onRemove, product }) {
 
 function QuantityButton({ children, onClick }) {
   return <button type="button" onClick={onClick} className="flex h-9 w-9 items-center justify-center text-slate-400 hover:text-white">{children}</button>;
-}
-
-function CartInput({ icon: Icon, name, onChange, placeholder, type = "text", value }) {
-  return (
-    <label className="relative block">
-      {Icon && <Icon className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />}
-      <input required={!placeholder.includes("descuento")} name={name} value={value} onChange={onChange} placeholder={placeholder} type={type} className={`h-11 w-full rounded-md border border-white/10 bg-slate-950 px-3 text-sm font-bold outline-none placeholder:text-slate-600 focus:border-sky-400 ${Icon ? "pl-10" : ""}`} />
-    </label>
-  );
 }
 
 function BrandStrip() {

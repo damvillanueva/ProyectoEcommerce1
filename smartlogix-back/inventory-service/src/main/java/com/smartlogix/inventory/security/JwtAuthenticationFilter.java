@@ -28,8 +28,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private static final List<String> PUBLIC_PATHS = List.of(
             "/actuator/health",
-            "/actuator/info",
-            "/api/catalog"
+            "/actuator/info"
     );
 
     private final SecretKey signingKey;
@@ -44,7 +43,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             return true;
         }
         String path = request.getRequestURI();
-        return PUBLIC_PATHS.stream().anyMatch(publicPath -> matchesPath(path, publicPath));
+        if (PUBLIC_PATHS.stream().anyMatch(publicPath -> matchesPath(path, publicPath))) {
+            return true;
+        }
+        return HttpMethod.GET.matches(request.getMethod()) && matchesPath(path, "/api/catalog");
     }
 
     @Override

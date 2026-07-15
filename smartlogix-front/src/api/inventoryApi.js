@@ -84,6 +84,66 @@ export async function getCatalogProducts() {
   return response.data;
 }
 
+export async function getCatalogProduct(sku) {
+  const response = await axios.get(`${API_URL}/api/catalog/products/${encodeURIComponent(sku)}`);
+  return response.data;
+}
+
+export async function getProductReviews(sku) {
+  const response = await axios.get(
+    `${API_URL}/api/catalog/products/${encodeURIComponent(sku)}/reviews`
+  );
+  return response.data;
+}
+
+export async function saveProductReviewRequest(sku, review) {
+  const response = await axios.post(
+    `${API_URL}/api/catalog/products/${encodeURIComponent(sku)}/reviews`,
+    review,
+    { headers: getAuthHeaders() }
+  );
+  return response.data;
+}
+
+export async function deleteProductReviewRequest(sku, reviewId) {
+  await axios.delete(
+    `${API_URL}/api/catalog/products/${encodeURIComponent(sku)}/reviews/${reviewId}`,
+    { headers: getAuthHeaders() }
+  );
+}
+
+export async function getProductQuestions(sku) {
+  const response = await axios.get(
+    `${API_URL}/api/catalog/products/${encodeURIComponent(sku)}/questions`
+  );
+  return response.data;
+}
+
+export async function createProductQuestionRequest(sku, question) {
+  const response = await axios.post(
+    `${API_URL}/api/catalog/products/${encodeURIComponent(sku)}/questions`,
+    question,
+    { headers: getAuthHeaders() }
+  );
+  return response.data;
+}
+
+export async function deleteProductQuestionRequest(sku, questionId) {
+  await axios.delete(
+    `${API_URL}/api/catalog/products/${encodeURIComponent(sku)}/questions/${questionId}`,
+    { headers: getAuthHeaders() }
+  );
+}
+
+export async function answerProductQuestionRequest(sku, questionId, answer) {
+  const response = await axios.put(
+    `${API_URL}/api/catalog/products/${encodeURIComponent(sku)}/questions/${questionId}/answer`,
+    answer,
+    { headers: getAuthHeaders() }
+  );
+  return response.data;
+}
+
 export async function saveInventoryHistoryReport(reportData = {}) {
   const response = await axios.post(
     `${API_URL}/api/inventory/movements/reports`,

@@ -46,3 +46,25 @@ export async function deleteCustomerAddressRequest(addressId) {
         headers: getAuthHeaders(),
     });
 }
+
+export async function getCustomerFavoritesRequest() {
+    const response = await axios.get(`${API_URL}/api/auth/me/favorites`, {
+        headers: getAuthHeaders(),
+    });
+    return response.data;
+}
+
+export async function addCustomerFavoriteRequest(sku) {
+    const response = await axios.post(
+        `${API_URL}/api/auth/me/favorites/${encodeURIComponent(sku)}`,
+        null,
+        { headers: getAuthHeaders() }
+    );
+    return response.data;
+}
+
+export async function removeCustomerFavoriteRequest(sku) {
+    await axios.delete(`${API_URL}/api/auth/me/favorites/${encodeURIComponent(sku)}`, {
+        headers: getAuthHeaders(),
+    });
+}

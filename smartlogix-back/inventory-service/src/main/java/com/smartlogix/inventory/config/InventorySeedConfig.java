@@ -7,11 +7,13 @@ import java.util.List;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.annotation.Order;
 
 @Configuration
 public class InventorySeedConfig {
 
     @Bean
+    @Order(1)
     CommandLineRunner inventorySeeder(InventoryItemRepository repository) {
         return args -> {
             if (repository.count() > 0) {

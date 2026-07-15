@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { FiArrowLeft, FiLock, FiMail, FiUser } from "react-icons/fi";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import logo from "../assets/logo-smartlogix.png";
 import {
   clearLogin,
@@ -22,6 +22,8 @@ function StoreAuthPage() {
   const [message, setMessage] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
+  const returnTo = location.state?.returnTo || "/shop";
 
   function updateField(event) {
     const { name, value } = event.target;
@@ -62,7 +64,7 @@ function StoreAuthPage() {
       }
 
       saveLoginSession(response);
-      navigate("/shop");
+      navigate(returnTo, { replace: true });
     } catch (authError) {
       console.error(authError);
       setError(

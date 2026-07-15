@@ -9,6 +9,9 @@ import com.smartlogix.order.client.ShipmentResponse;
 import com.smartlogix.order.domain.OrderLine;
 import com.smartlogix.order.domain.OrderChannel;
 import com.smartlogix.order.domain.OrderStatus;
+import com.smartlogix.order.domain.FulfillmentMethod;
+import com.smartlogix.order.domain.PaymentMethod;
+import com.smartlogix.order.domain.PaymentStatus;
 import com.smartlogix.order.domain.PurchaseOrder;
 import com.smartlogix.order.dto.CreateOrderRequest;
 import com.smartlogix.order.dto.UpdateOrderRequest;
@@ -23,12 +26,16 @@ import com.smartlogix.order.repository.DiscountRepository;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @Transactional
 public class OrderService {
+
+    private static final BigDecimal DELIVERY_FEE = BigDecimal.valueOf(4990);
+    private static final BigDecimal FREE_SHIPPING_THRESHOLD = BigDecimal.valueOf(150000);
 
     private final PurchaseOrderRepository repository;
     private final InventoryClient inventoryClient;
@@ -91,6 +98,12 @@ public class OrderService {
         }
 
         order.setStatus(OrderStatus.APPROVED);
+        processPayment(order);
+
+        if (order.getFulfillmentMethod() == FulfillmentMethod.PICKUP) {
+            repository.save(order);
+            return toResponse(order);
+        }
 
         ShipmentResponse shipmentResponse = shipmentClient.requestShipment(
                 new ShipmentRequest(order.getOrderNumber(), order.getShippingAddress(), totalUnits(order))
@@ -154,14 +167,36 @@ public class OrderService {
         order.setCustomerEmail(customerEmail.trim().toLowerCase());
         order.setCustomerUsername(customerUsername);
         order.setSalesChannel(salesChannel == null ? OrderChannel.ONLINE : salesChannel);
-        order.setShippingAddress(request.shippingAddress().trim());
+        FulfillmentMethod fulfillmentMethod = request.fulfillmentMethod() == null
+                ? FulfillmentMethod.DELIVERY
+                : request.fulfillmentMethod();
+        PaymentMethod paymentMethod = request.paymentMethod() == null
+                ? PaymentMethod.WEBPAY_SIMULATED
+                : request.paymentMethod();
+        validateCheckoutDetails(
+                fulfillmentMethod,
+                request.shippingAddress(),
+                request.pickupLocation(),
+                paymentMethod
+        );
+        order.setFulfillmentMethod(fulfillmentMethod);
+        order.setShippingAddress(fulfillmentMethod == FulfillmentMethod.DELIVERY
+                ? request.shippingAddress().trim()
+                : null);
+        order.setPickupLocation(fulfillmentMethod == FulfillmentMethod.PICKUP
+                ? request.pickupLocation().trim()
+                : null);
+        order.setPaymentMethod(paymentMethod);
+        order.setPaymentStatus(PaymentStatus.PENDING);
         order.setStatus(OrderStatus.PENDING);
         BigDecimal subtotal = calculateTotal(pricedLines);
         BigDecimal discountAmount = calculateDiscount(request.discountCode(), subtotal);
-        BigDecimal total = subtotal.subtract(discountAmount);
+        BigDecimal shippingAmount = calculateShipping(fulfillmentMethod, subtotal);
+        BigDecimal total = subtotal.subtract(discountAmount).add(shippingAmount);
 
         order.setSubtotalAmount(subtotal);
         order.setDiscountAmount(discountAmount);
+        order.setShippingAmount(shippingAmount);
         order.setTotalAmount(total);
         order.setDiscountCode(
                 request.discountCode() == null || request.discountCode().isBlank()
@@ -178,6 +213,44 @@ public class OrderService {
         }
 
         return order;
+    }
+
+    private void validateCheckoutDetails(
+            FulfillmentMethod fulfillmentMethod,
+            String shippingAddress,
+            String pickupLocation,
+            PaymentMethod paymentMethod
+    ) {
+        if (fulfillmentMethod == FulfillmentMethod.DELIVERY
+                && (shippingAddress == null || shippingAddress.isBlank())) {
+            throw new IllegalArgumentException("La direccion de despacho es obligatoria.");
+        }
+        if (fulfillmentMethod == FulfillmentMethod.PICKUP
+                && (pickupLocation == null || pickupLocation.isBlank())) {
+            throw new IllegalArgumentException("Debes seleccionar una sucursal de retiro.");
+        }
+        if (paymentMethod == PaymentMethod.PAY_ON_PICKUP
+                && fulfillmentMethod != FulfillmentMethod.PICKUP) {
+            throw new IllegalArgumentException("El pago al retirar solo esta disponible para retiro en tienda.");
+        }
+    }
+
+    private BigDecimal calculateShipping(FulfillmentMethod fulfillmentMethod, BigDecimal subtotal) {
+        if (fulfillmentMethod == FulfillmentMethod.PICKUP
+                || subtotal.compareTo(FREE_SHIPPING_THRESHOLD) >= 0) {
+            return BigDecimal.ZERO;
+        }
+        return DELIVERY_FEE;
+    }
+
+    private void processPayment(PurchaseOrder order) {
+        if (order.getPaymentMethod() == PaymentMethod.PAY_ON_PICKUP) {
+            order.setPaymentStatus(PaymentStatus.PENDING);
+            order.setTransactionReference(null);
+            return;
+        }
+        order.setPaymentStatus(PaymentStatus.PAID);
+        order.setTransactionReference("SIM-" + UUID.randomUUID().toString().substring(0, 12).toUpperCase());
     }
 
     private BigDecimal calculateTotal(List<PricedLine> lines) {
@@ -256,9 +329,15 @@ public class OrderService {
                 order.getCustomerEmail(),
                 order.getSalesChannel(),
                 order.getShippingAddress(),
+                order.getFulfillmentMethod(),
+                order.getPickupLocation(),
+                order.getPaymentMethod(),
+                order.getPaymentStatus(),
+                order.getTransactionReference(),
                 order.getStatus(),
                 order.getSubtotalAmount(),
                 order.getDiscountAmount(),
+                order.getShippingAmount(),
                 order.getTotalAmount(),
                 order.getDiscountCode(),
                 order.getTrackingCode(),
@@ -274,14 +353,24 @@ public class OrderService {
 
         order.setCustomerName(request.customerName().trim());
         order.setCustomerEmail(request.customerEmail().trim().toLowerCase());
-        order.setShippingAddress(request.shippingAddress().trim());
+        validateCheckoutDetails(
+                order.getFulfillmentMethod(),
+                request.shippingAddress(),
+                order.getPickupLocation(),
+                order.getPaymentMethod()
+        );
+        if (order.getFulfillmentMethod() == FulfillmentMethod.DELIVERY) {
+            order.setShippingAddress(request.shippingAddress().trim());
+        }
         List<PricedLine> pricedLines = priceLines(request.lines());
         BigDecimal subtotal = calculateTotal(pricedLines);
         BigDecimal discountAmount = calculateDiscount(request.discountCode(), subtotal);
-        BigDecimal total = subtotal.subtract(discountAmount);
+        BigDecimal shippingAmount = calculateShipping(order.getFulfillmentMethod(), subtotal);
+        BigDecimal total = subtotal.subtract(discountAmount).add(shippingAmount);
 
         order.setSubtotalAmount(subtotal);
         order.setDiscountAmount(discountAmount);
+        order.setShippingAmount(shippingAmount);
         order.setTotalAmount(total);
         order.setDiscountCode(
                 request.discountCode() == null || request.discountCode().isBlank()
@@ -335,7 +424,8 @@ public class OrderService {
     }
 
     private void syncShipmentDestination(PurchaseOrder order) {
-        if (order.getTrackingCode() == null || order.getTrackingCode().isBlank()) {
+        if (order.getFulfillmentMethod() != FulfillmentMethod.DELIVERY
+                || order.getTrackingCode() == null || order.getTrackingCode().isBlank()) {
             return;
         }
 

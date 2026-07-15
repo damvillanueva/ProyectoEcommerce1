@@ -32,6 +32,20 @@ public class SecurityConfig {
                         .permitAll()
 
                         .requestMatchers(HttpMethod.POST,
+                                "/api/catalog/products/*/reviews",
+                                "/api/catalog/products/*/questions")
+                        .hasAuthority("ROLE_CUSTOMER")
+
+                        .requestMatchers(HttpMethod.DELETE,
+                                "/api/catalog/products/*/reviews/*",
+                                "/api/catalog/products/*/questions/*")
+                        .hasAuthority("ROLE_CUSTOMER")
+
+                        .requestMatchers(HttpMethod.PUT,
+                                "/api/catalog/products/*/questions/*/answer")
+                        .hasAnyAuthority("ROLE_ADMIN", "ROLE_USER", "ROLE_WAREHOUSE_MANAGER")
+
+                        .requestMatchers(HttpMethod.POST,
                                 "/api/inventory/items/*/reserve",
                                 "/api/inventory/items/*/release",
                                 "/api/inventory/items/*/dispatch")

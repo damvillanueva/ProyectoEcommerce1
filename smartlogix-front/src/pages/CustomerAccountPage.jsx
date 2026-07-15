@@ -7,6 +7,7 @@ import {
   FiChevronRight,
   FiEdit2,
   FiHome,
+  FiHeart,
   FiLogOut,
   FiMapPin,
   FiPackage,
@@ -25,7 +26,9 @@ import { clearLogin } from "../services/authService";
 import {
   createCustomerAddress,
   deleteCustomerAddress,
+  loadCustomerFavorites,
   loadCustomerProfile,
+  removeCustomerFavorite,
   saveCustomerProfile,
   updateCustomerAddress,
 } from "../services/customerAccountService";
@@ -62,6 +65,12 @@ const TRACKING_STEPS = [
   { icon: FiHome, label: "Entregado" },
 ];
 
+const PICKUP_STEPS = [
+  { icon: FiShoppingBag, label: "Recibido" },
+  { icon: FiPackage, label: "Preparando" },
+  { icon: FiMapPin, label: "Listo retiro" },
+];
+
 function formatCurrency(value) {
   return new Intl.NumberFormat("es-CL", {
     currency: "CLP",
@@ -78,8 +87,24 @@ function formatDate(value) {
   }).format(new Date(value));
 }
 
-function statusMeta(status) {
-  return STATUS_META[status] || { label: status || "Sin estado", tone: "slate", step: 0 };
+function statusMeta(order) {
+  const fallback = STATUS_META[order?.status]
+    || { label: order?.status || "Sin estado", tone: "slate", step: 0 };
+  if (order?.status === "APPROVED" && order?.fulfillmentMethod === "PICKUP") {
+    return order.paymentStatus === "PENDING"
+      ? { label: "Pago al retirar", tone: "amber", step: 1 }
+      : { label: "Preparando retiro", tone: "sky", step: 1 };
+  }
+  return fallback;
+}
+
+function paymentMethodLabel(paymentMethod) {
+  const labels = {
+    BANK_TRANSFER_SIMULATED: "Transferencia simulada",
+    PAY_ON_PICKUP: "Pago al retirar",
+    WEBPAY_SIMULATED: "Webpay simulado",
+  };
+  return labels[paymentMethod] || paymentMethod || "Sin informacion";
 }
 
 function CustomerAccountPage() {
@@ -89,6 +114,7 @@ function CustomerAccountPage() {
   const [profileForm, setProfileForm] = useState(null);
   const [orders, setOrders] = useState([]);
   const [catalog, setCatalog] = useState([]);
+  const [favoriteSkus, setFavoriteSkus] = useState([]);
   const [selectedOrderNumber, setSelectedOrderNumber] = useState(null);
   const [addressForm, setAddressForm] = useState(EMPTY_ADDRESS);
   const [editingAddressId, setEditingAddressId] = useState(null);
@@ -103,10 +129,11 @@ function CustomerAccountPage() {
 
     async function fetchAccount() {
       try {
-        const [profileData, orderData, catalogData] = await Promise.all([
+        const [profileData, orderData, catalogData, favoriteData] = await Promise.all([
           loadCustomerProfile(),
           loadMyOrders(),
           getPublicCatalogProducts(),
+          loadCustomerFavorites(),
         ]);
         if (!active) return;
 
@@ -119,6 +146,7 @@ function CustomerAccountPage() {
         });
         setOrders(Array.isArray(orderData) ? orderData : []);
         setCatalog(Array.isArray(catalogData) ? catalogData : []);
+        setFavoriteSkus((favoriteData || []).map((favorite) => favorite.sku));
         setSelectedOrderNumber(orderData?.[0]?.orderNumber || null);
         setError("");
       } catch (loadError) {
@@ -145,6 +173,9 @@ function CustomerAccountPage() {
   );
 
   const selectedOrder = orders.find((order) => order.orderNumber === selectedOrderNumber) || null;
+  const favoriteProducts = favoriteSkus
+    .map((sku) => productsBySku.get(sku))
+    .filter(Boolean);
   const completedOrders = orders.filter((order) => order.status === "DELIVERED").length;
   const activeOrders = orders.filter((order) =>
     ["PENDING", "APPROVED", "SHIPMENT_REQUESTED", "SHIPPED"].includes(order.status)
@@ -275,6 +306,20 @@ function CustomerAccountPage() {
     }
   }
 
+  async function handleRemoveFavorite(sku) {
+    try {
+      setSaving(true);
+      await removeCustomerFavorite(sku);
+      setFavoriteSkus((current) => current.filter((value) => value !== sku));
+      showMessage("Producto eliminado de tus favoritos.");
+    } catch (removeError) {
+      console.error(removeError);
+      setError(removeError.response?.data?.message || "No se pudo eliminar el favorito.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   function reorder(order) {
     const nextCart = order.lines
       .map((line) => {
@@ -313,6 +358,7 @@ function CustomerAccountPage() {
         <AccountSidebar
           activeView={activeView}
           onChange={setActiveView}
+          favoriteCount={favoriteSkus.length}
           orderCount={orders.length}
           profile={profile}
         />
@@ -336,6 +382,7 @@ function CustomerAccountPage() {
               activeOrders={activeOrders}
               addresses={profile?.addresses || []}
               completedOrders={completedOrders}
+              favoriteCount={favoriteSkus.length}
               onOpenOrders={() => setActiveView("orders")}
               orders={orders}
               productsBySku={productsBySku}
@@ -351,6 +398,14 @@ function CustomerAccountPage() {
               orders={orders}
               productsBySku={productsBySku}
               selectedOrder={selectedOrder}
+            />
+          )}
+
+          {activeView === "favorites" && (
+            <FavoritesView
+              onRemove={handleRemoveFavorite}
+              products={favoriteProducts}
+              saving={saving}
             />
           )}
 
@@ -420,10 +475,11 @@ function AccountHeader({ onLogout, profile }) {
   );
 }
 
-function AccountSidebar({ activeView, onChange, orderCount, profile }) {
+function AccountSidebar({ activeView, favoriteCount, onChange, orderCount, profile }) {
   const items = [
     { id: "summary", icon: FiHome, label: "Resumen" },
     { id: "orders", icon: FiShoppingBag, label: "Mis compras", count: orderCount },
+    { id: "favorites", icon: FiHeart, label: "Favoritos", count: favoriteCount },
     { id: "addresses", icon: FiMapPin, label: "Direcciones" },
     { id: "profile", icon: FiUser, label: "Mi perfil" },
   ];
@@ -435,7 +491,7 @@ function AccountSidebar({ activeView, onChange, orderCount, profile }) {
         <p className="mt-3 truncate font-black">{profile?.displayName}</p>
         <p className="mt-1 truncate text-xs font-bold text-slate-500">{profile?.email}</p>
       </div>
-      <nav className="grid grid-cols-2 p-2 sm:grid-cols-4 lg:grid-cols-1">
+      <nav className="grid grid-cols-2 p-2 sm:grid-cols-5 lg:grid-cols-1">
         {items.map(({ count, icon: Icon, id, label }) => (
           <button
             key={id}
@@ -457,7 +513,7 @@ function AccountSidebar({ activeView, onChange, orderCount, profile }) {
   );
 }
 
-function SummaryView({ activeOrders, addresses, completedOrders, onOpenOrders, orders, productsBySku, profile, totalSpent }) {
+function SummaryView({ activeOrders, addresses, completedOrders, favoriteCount, onOpenOrders, orders, productsBySku, profile, totalSpent }) {
   return (
     <div>
       <div className="mb-6">
@@ -466,10 +522,11 @@ function SummaryView({ activeOrders, addresses, completedOrders, onOpenOrders, o
         <p className="mt-2 font-semibold text-slate-400">Revisa tus compras, despachos y datos personales.</p>
       </div>
 
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         <AccountMetric icon={FiTruck} label="Pedidos activos" tone="sky" value={activeOrders} />
         <AccountMetric icon={FiCheck} label="Entregados" tone="emerald" value={completedOrders} />
         <AccountMetric icon={FiMapPin} label="Direcciones" tone="amber" value={addresses.length} />
+        <AccountMetric icon={FiHeart} label="Favoritos" tone="red" value={favoriteCount} />
         <AccountMetric icon={FiShoppingBag} label="Total comprado" tone="violet" value={formatCurrency(totalSpent)} />
       </section>
 
@@ -504,6 +561,7 @@ function AccountMetric({ icon: Icon, label, tone, value }) {
     emerald: "bg-emerald-500/15 text-emerald-300",
     sky: "bg-sky-500/15 text-sky-300",
     violet: "bg-violet-500/15 text-violet-300",
+    red: "bg-red-500/15 text-red-300",
   };
   return (
     <div className="flex min-h-28 items-center gap-4 rounded-md border border-white/10 bg-slate-900 p-4">
@@ -517,7 +575,7 @@ function AccountMetric({ icon: Icon, label, tone, value }) {
 }
 
 function CompactOrder({ order, productsBySku }) {
-  const meta = statusMeta(order.status);
+  const meta = statusMeta(order);
   const firstLine = order.lines?.[0];
   const firstProduct = firstLine ? productsBySku.get(firstLine.sku) : null;
   return (
@@ -532,6 +590,58 @@ function CompactOrder({ order, productsBySku }) {
         <p className="mt-2 text-sm font-black text-sky-200">{formatCurrency(order.totalAmount)}</p>
       </div>
     </article>
+  );
+}
+
+function FavoritesView({ onRemove, products, saving }) {
+  return (
+    <div>
+      <div className="mb-6">
+        <p className="text-sm font-black uppercase text-sky-300">Tu seleccion</p>
+        <h1 className="mt-1 text-3xl font-black">Productos favoritos</h1>
+        <p className="mt-2 font-semibold text-slate-400">Guarda productos para revisarlos o comprarlos mas adelante.</p>
+      </div>
+
+      {products.length === 0 ? (
+        <div className="rounded-md border border-dashed border-white/15 p-10 text-center">
+          <FiHeart className="mx-auto text-slate-600" size={34} />
+          <p className="mt-4 font-black text-slate-300">Todavia no tienes productos favoritos.</p>
+          <Link to="/shop" className="mt-5 inline-flex h-10 items-center rounded-md bg-sky-500 px-4 text-sm font-black hover:bg-sky-400">Explorar la tienda</Link>
+        </div>
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          {products.map((product) => {
+            const available = Number(product.availableQuantity || 0) > 0;
+            return (
+              <article key={product.sku} className="overflow-hidden rounded-md border border-white/10 bg-slate-900">
+                <Link to={`/shop/product/${encodeURIComponent(product.sku)}`} className="block h-48 bg-white">
+                  {product.imageUrl ? (
+                    <img src={product.imageUrl} alt={product.productName} className="h-full w-full object-cover" />
+                  ) : (
+                    <div className="flex h-full items-center justify-center text-5xl font-black text-slate-300">{product.productName.charAt(0)}</div>
+                  )}
+                </Link>
+                <div className="p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-black uppercase text-sky-300">{product.brand || "SmartLogix"}</p>
+                      <Link to={`/shop/product/${encodeURIComponent(product.sku)}`} className="mt-2 block line-clamp-2 min-h-12 font-black leading-6 hover:text-sky-300">{product.productName}</Link>
+                    </div>
+                    <button type="button" disabled={saving} onClick={() => onRemove(product.sku)} title="Quitar de favoritos" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-red-400/25 text-red-300 hover:bg-red-500/10 disabled:opacity-50"><FiTrash2 /></button>
+                  </div>
+                  <p className="mt-2 line-clamp-2 min-h-10 text-xs font-semibold leading-5 text-slate-500">{product.shortDescription}</p>
+                  <div className="mt-4 flex items-end justify-between gap-3">
+                    <p className="text-xl font-black text-white">{formatCurrency(product.salePrice)}</p>
+                    <span className={`rounded-full px-2.5 py-1 text-[10px] font-black uppercase ${available ? "bg-emerald-500/15 text-emerald-300" : "bg-red-500/15 text-red-300"}`}>{available ? "En stock" : "Agotado"}</span>
+                  </div>
+                  <Link to={`/shop/product/${encodeURIComponent(product.sku)}`} className="mt-4 flex h-10 w-full items-center justify-center gap-2 rounded-md bg-sky-500 text-sm font-black hover:bg-sky-400">Ver producto <FiChevronRight /></Link>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -550,7 +660,7 @@ function OrdersView({ onReorder, onSelect, orders, productsBySku, selectedOrder 
         <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
           <div className="space-y-3">
             {orders.map((order) => {
-              const meta = statusMeta(order.status);
+              const meta = statusMeta(order);
               const selected = selectedOrder?.orderNumber === order.orderNumber;
               return (
                 <button
@@ -593,7 +703,7 @@ function OrdersView({ onReorder, onSelect, orders, productsBySku, selectedOrder 
 }
 
 function OrderDetail({ onReorder, order, productsBySku }) {
-  const meta = statusMeta(order.status);
+  const meta = statusMeta(order);
   const failed = ["REJECTED", "FAILED"].includes(order.status);
   return (
     <aside className="overflow-hidden rounded-md border border-white/10 bg-slate-900 xl:sticky xl:top-6">
@@ -614,7 +724,7 @@ function OrderDetail({ onReorder, order, productsBySku }) {
             {order.rejectionReason || "Este pedido necesita revision del equipo."}
           </div>
         ) : (
-          <TrackingTimeline currentStep={meta.step} />
+          <TrackingTimeline currentStep={meta.step} pickup={order.fulfillmentMethod === "PICKUP"} />
         )}
 
         <div className="mt-6 space-y-3 border-t border-white/10 pt-5">
@@ -636,15 +746,23 @@ function OrderDetail({ onReorder, order, productsBySku }) {
         <div className="mt-5 space-y-2 border-t border-white/10 pt-5 text-sm">
           <SummaryLine label="Subtotal" value={formatCurrency(order.subtotalAmount)} />
           <SummaryLine label="Descuento" value={`-${formatCurrency(order.discountAmount)}`} />
+          <SummaryLine label={order.fulfillmentMethod === "PICKUP" ? "Retiro" : "Despacho"} value={Number(order.shippingAmount || 0) > 0 ? formatCurrency(order.shippingAmount) : "Gratis"} />
           <SummaryLine label="Total" value={formatCurrency(order.totalAmount)} strong />
         </div>
 
         <div className="mt-5 border-t border-white/10 pt-5">
-          <p className="text-xs font-black uppercase text-slate-500">Entrega</p>
-          <p className="mt-2 text-sm font-bold text-slate-300">{order.shippingAddress}</p>
+          <p className="text-xs font-black uppercase text-slate-500">{order.fulfillmentMethod === "PICKUP" ? "Retiro en tienda" : "Despacho"}</p>
+          <p className="mt-2 text-sm font-bold text-slate-300">{order.fulfillmentMethod === "PICKUP" ? order.pickupLocation : order.shippingAddress}</p>
           {order.trackingCode && (
             <p className="mt-2 text-xs font-black text-sky-300">Seguimiento: {order.trackingCode}</p>
           )}
+        </div>
+
+        <div className="mt-5 border-t border-white/10 pt-5">
+          <p className="text-xs font-black uppercase text-slate-500">Pago</p>
+          <p className="mt-2 text-sm font-bold text-slate-300">{paymentMethodLabel(order.paymentMethod)}</p>
+          <p className={`mt-2 text-xs font-black ${order.paymentStatus === "PAID" ? "text-emerald-300" : "text-amber-300"}`}>{order.paymentStatus === "PAID" ? "Pago confirmado" : "Pago pendiente"}</p>
+          {order.transactionReference && <p className="mt-2 break-all text-xs font-bold text-slate-500">Referencia: {order.transactionReference}</p>}
         </div>
 
         <button
@@ -660,10 +778,11 @@ function OrderDetail({ onReorder, order, productsBySku }) {
   );
 }
 
-function TrackingTimeline({ currentStep }) {
+function TrackingTimeline({ currentStep, pickup }) {
+  const steps = pickup ? PICKUP_STEPS : TRACKING_STEPS;
   return (
-    <div className="grid grid-cols-5 gap-1">
-      {TRACKING_STEPS.map(({ icon: Icon, label }, index) => {
+    <div className={`grid gap-1 ${pickup ? "grid-cols-3" : "grid-cols-5"}`}>
+      {steps.map(({ icon: Icon, label }, index) => {
         const done = index <= currentStep;
         return (
           <div key={label} className="min-w-0 text-center">

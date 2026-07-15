@@ -1,15 +1,19 @@
 package com.smartlogix.auth.service;
 
 import com.smartlogix.auth.domain.CustomerAddress;
+import com.smartlogix.auth.domain.CustomerFavorite;
 import com.smartlogix.auth.domain.UserEntity;
 import com.smartlogix.auth.dto.CustomerAddressRequest;
 import com.smartlogix.auth.dto.CustomerAddressResponse;
+import com.smartlogix.auth.dto.CustomerFavoriteResponse;
 import com.smartlogix.auth.dto.CustomerProfileRequest;
 import com.smartlogix.auth.dto.CustomerProfileResponse;
 import com.smartlogix.auth.exception.AuthException;
 import com.smartlogix.auth.repository.CustomerAddressRepository;
+import com.smartlogix.auth.repository.CustomerFavoriteRepository;
 import com.smartlogix.auth.repository.UserRepository;
 import java.util.List;
+import java.util.Locale;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,13 +25,16 @@ public class CustomerAccountService {
 
     private final UserRepository userRepository;
     private final CustomerAddressRepository addressRepository;
+    private final CustomerFavoriteRepository favoriteRepository;
 
     public CustomerAccountService(
             UserRepository userRepository,
-            CustomerAddressRepository addressRepository
+            CustomerAddressRepository addressRepository,
+            CustomerFavoriteRepository favoriteRepository
     ) {
         this.userRepository = userRepository;
         this.addressRepository = addressRepository;
+        this.favoriteRepository = favoriteRepository;
     }
 
     @Transactional(readOnly = true)
@@ -96,6 +103,37 @@ public class CustomerAccountService {
         }
     }
 
+    @Transactional(readOnly = true)
+    public List<CustomerFavoriteResponse> listFavorites(String username) {
+        findUser(username);
+        return favoriteRepository.findAllByUserUsernameOrderByCreatedAtDesc(username)
+                .stream()
+                .map(this::toResponse)
+                .toList();
+    }
+
+    public CustomerFavoriteResponse addFavorite(String username, String sku) {
+        UserEntity user = findUser(username);
+        String normalizedSku = normalizeSku(sku);
+
+        return favoriteRepository.findByUserUsernameAndSku(username, normalizedSku)
+                .map(this::toResponse)
+                .orElseGet(() -> {
+                    CustomerFavorite favorite = new CustomerFavorite();
+                    favorite.setUser(user);
+                    favorite.setSku(normalizedSku);
+                    return toResponse(favoriteRepository.save(favorite));
+                });
+    }
+
+    public void removeFavorite(String username, String sku) {
+        String normalizedSku = normalizeSku(sku);
+        CustomerFavorite favorite = favoriteRepository
+                .findByUserUsernameAndSku(username, normalizedSku)
+                .orElseThrow(() -> new AuthException("El producto no esta en tus favoritos."));
+        favoriteRepository.delete(favorite);
+    }
+
     private void applyAddress(
             CustomerAddress address,
             CustomerAddressRequest request,
@@ -148,6 +186,17 @@ public class CustomerAccountService {
         return value.trim();
     }
 
+    private String normalizeSku(String sku) {
+        if (sku == null || sku.isBlank()) {
+            throw new AuthException("El SKU es obligatorio.");
+        }
+        String normalizedSku = sku.trim().toUpperCase(Locale.ROOT);
+        if (normalizedSku.length() > 60 || !normalizedSku.matches("[A-Z0-9_-]+")) {
+            throw new AuthException("El SKU no tiene un formato valido.");
+        }
+        return normalizedSku;
+    }
+
     private CustomerProfileResponse toResponse(UserEntity user) {
         String displayName = user.getDisplayName() == null || user.getDisplayName().isBlank()
                 ? user.getUsername()
@@ -180,5 +229,9 @@ public class CustomerAccountService {
                 address.getPhone(),
                 address.isDefaultAddress()
         );
+    }
+
+    private CustomerFavoriteResponse toResponse(CustomerFavorite favorite) {
+        return new CustomerFavoriteResponse(favorite.getSku(), favorite.getCreatedAt());
     }
 }

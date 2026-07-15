@@ -2,10 +2,12 @@ package com.smartlogix.auth.controller;
 
 import com.smartlogix.auth.dto.CustomerAddressRequest;
 import com.smartlogix.auth.dto.CustomerAddressResponse;
+import com.smartlogix.auth.dto.CustomerFavoriteResponse;
 import com.smartlogix.auth.dto.CustomerProfileRequest;
 import com.smartlogix.auth.dto.CustomerProfileResponse;
 import com.smartlogix.auth.service.CustomerAccountService;
 import jakarta.validation.Valid;
+import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -63,5 +65,25 @@ public class CustomerAccountController {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteAddress(Authentication authentication, @PathVariable Long addressId) {
         accountService.deleteAddress(authentication.getName(), addressId);
+    }
+
+    @GetMapping("/favorites")
+    public List<CustomerFavoriteResponse> listFavorites(Authentication authentication) {
+        return accountService.listFavorites(authentication.getName());
+    }
+
+    @PostMapping("/favorites/{sku}")
+    @ResponseStatus(HttpStatus.CREATED)
+    public CustomerFavoriteResponse addFavorite(
+            Authentication authentication,
+            @PathVariable String sku
+    ) {
+        return accountService.addFavorite(authentication.getName(), sku);
+    }
+
+    @DeleteMapping("/favorites/{sku}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void removeFavorite(Authentication authentication, @PathVariable String sku) {
+        accountService.removeFavorite(authentication.getName(), sku);
     }
 }
