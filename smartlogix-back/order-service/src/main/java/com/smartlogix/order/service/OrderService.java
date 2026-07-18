@@ -20,6 +20,8 @@ import com.smartlogix.order.dto.OrderLineRequest;
 import com.smartlogix.order.dto.OrderLineResponse;
 import com.smartlogix.order.dto.OrderResponse;
 import com.smartlogix.order.dto.OrderTrackingResponse;
+import com.smartlogix.order.dto.ShippingQuoteRequest;
+import com.smartlogix.order.dto.ShippingQuoteResponse;
 import com.smartlogix.order.exception.OrderNotFoundException;
 import com.smartlogix.order.exception.OrderProcessingException;
 import com.smartlogix.order.repository.PurchaseOrderRepository;
@@ -37,25 +39,24 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional
 public class OrderService {
 
-    private static final BigDecimal DELIVERY_FEE = BigDecimal.valueOf(4990);
-    private static final BigDecimal EXPRESS_DELIVERY_FEE = BigDecimal.valueOf(8990);
-    private static final BigDecimal FREE_SHIPPING_THRESHOLD = BigDecimal.valueOf(150000);
-
     private final PurchaseOrderRepository repository;
     private final InventoryClient inventoryClient;
     private final ShipmentClient shipmentClient;
     private final DiscountRepository discountRepository;
+    private final ShippingRateService shippingRateService;
 
     public OrderService(
             PurchaseOrderRepository repository,
             InventoryClient inventoryClient,
             ShipmentClient shipmentClient,
-            DiscountRepository discountRepository
+            DiscountRepository discountRepository,
+            ShippingRateService shippingRateService
     ) {
         this.repository = repository;
         this.inventoryClient = inventoryClient;
         this.shipmentClient = shipmentClient;
         this.discountRepository = discountRepository;
+        this.shippingRateService = shippingRateService;
     }
 
     public OrderResponse createOrder(CreateOrderRequest request) {
@@ -179,6 +180,12 @@ public class OrderService {
         );
     }
 
+    @Transactional(readOnly = true)
+    public ShippingQuoteResponse quoteShipping(ShippingQuoteRequest request) {
+        BigDecimal subtotal = calculateTotal(priceLines(request.lines()));
+        return shippingRateService.quote(request.region(), request.commune(), subtotal);
+    }
+
     private PurchaseOrder buildOrder(
             CreateOrderRequest request,
             List<PricedLine> pricedLines,
@@ -206,9 +213,17 @@ public class OrderService {
         ShippingMethod shippingMethod = fulfillmentMethod == FulfillmentMethod.DELIVERY
                 ? (request.shippingMethod() == null ? ShippingMethod.STANDARD : request.shippingMethod())
                 : null;
+        String shippingRegion = fulfillmentMethod == FulfillmentMethod.DELIVERY
+                ? cleanOptional(request.shippingRegion())
+                : null;
+        String shippingCommune = fulfillmentMethod == FulfillmentMethod.DELIVERY
+                ? cleanOptional(request.shippingCommune())
+                : null;
         validateCheckoutDetails(
                 fulfillmentMethod,
                 request.shippingAddress(),
+                shippingRegion,
+                shippingCommune,
                 request.pickupLocation(),
                 paymentMethod
         );
@@ -216,6 +231,8 @@ public class OrderService {
         order.setShippingAddress(fulfillmentMethod == FulfillmentMethod.DELIVERY
                 ? request.shippingAddress().trim()
                 : null);
+        order.setShippingRegion(shippingRegion);
+        order.setShippingCommune(shippingCommune);
         order.setBillingAddress(cleanOptional(request.billingAddress()));
         order.setDeliveryInstructions(cleanOptional(request.deliveryInstructions()));
         order.setPickupLocation(fulfillmentMethod == FulfillmentMethod.PICKUP
@@ -227,7 +244,13 @@ public class OrderService {
         order.setStatus(OrderStatus.PENDING);
         BigDecimal subtotal = calculateTotal(pricedLines);
         BigDecimal discountAmount = calculateDiscount(request.discountCode(), subtotal);
-        BigDecimal shippingAmount = calculateShipping(fulfillmentMethod, shippingMethod, subtotal);
+        BigDecimal shippingAmount = calculateShipping(
+                fulfillmentMethod,
+                shippingMethod,
+                shippingRegion,
+                shippingCommune,
+                subtotal
+        );
         BigDecimal total = subtotal.subtract(discountAmount).add(shippingAmount);
 
         order.setSubtotalAmount(subtotal);
@@ -254,12 +277,22 @@ public class OrderService {
     private void validateCheckoutDetails(
             FulfillmentMethod fulfillmentMethod,
             String shippingAddress,
+            String shippingRegion,
+            String shippingCommune,
             String pickupLocation,
             PaymentMethod paymentMethod
     ) {
         if (fulfillmentMethod == FulfillmentMethod.DELIVERY
                 && (shippingAddress == null || shippingAddress.isBlank())) {
             throw new IllegalArgumentException("La direccion de despacho es obligatoria.");
+        }
+        if (fulfillmentMethod == FulfillmentMethod.DELIVERY
+                && (shippingRegion == null || shippingRegion.isBlank())) {
+            throw new IllegalArgumentException("La region de despacho es obligatoria.");
+        }
+        if (fulfillmentMethod == FulfillmentMethod.DELIVERY
+                && (shippingCommune == null || shippingCommune.isBlank())) {
+            throw new IllegalArgumentException("La comuna de despacho es obligatoria.");
         }
         if (fulfillmentMethod == FulfillmentMethod.PICKUP
                 && (pickupLocation == null || pickupLocation.isBlank())) {
@@ -274,18 +307,19 @@ public class OrderService {
     private BigDecimal calculateShipping(
             FulfillmentMethod fulfillmentMethod,
             ShippingMethod shippingMethod,
+            String shippingRegion,
+            String shippingCommune,
             BigDecimal subtotal
     ) {
         if (fulfillmentMethod == FulfillmentMethod.PICKUP) {
             return BigDecimal.ZERO;
         }
-        if (shippingMethod == ShippingMethod.EXPRESS) {
-            return EXPRESS_DELIVERY_FEE;
-        }
-        if (subtotal.compareTo(FREE_SHIPPING_THRESHOLD) >= 0) {
-            return BigDecimal.ZERO;
-        }
-        return DELIVERY_FEE;
+        return shippingRateService.amountFor(
+                shippingMethod,
+                shippingRegion,
+                shippingCommune,
+                subtotal
+        );
     }
 
     private String cleanOptional(String value) {
@@ -389,6 +423,8 @@ public class OrderService {
                 order.isMarketingOptIn(),
                 order.getSalesChannel(),
                 order.getShippingAddress(),
+                order.getShippingRegion(),
+                order.getShippingCommune(),
                 order.getBillingAddress(),
                 order.getDeliveryInstructions(),
                 order.getFulfillmentMethod(),
@@ -419,11 +455,15 @@ public class OrderService {
         validateCheckoutDetails(
                 order.getFulfillmentMethod(),
                 request.shippingAddress(),
+                request.shippingRegion(),
+                request.shippingCommune(),
                 order.getPickupLocation(),
                 order.getPaymentMethod()
         );
         if (order.getFulfillmentMethod() == FulfillmentMethod.DELIVERY) {
             order.setShippingAddress(request.shippingAddress().trim());
+            order.setShippingRegion(request.shippingRegion().trim());
+            order.setShippingCommune(request.shippingCommune().trim());
         }
         List<PricedLine> pricedLines = priceLines(request.lines());
         BigDecimal subtotal = calculateTotal(pricedLines);
@@ -431,6 +471,8 @@ public class OrderService {
         BigDecimal shippingAmount = calculateShipping(
                 order.getFulfillmentMethod(),
                 order.getShippingMethod(),
+                order.getShippingRegion(),
+                order.getShippingCommune(),
                 subtotal
         );
         BigDecimal total = subtotal.subtract(discountAmount).add(shippingAmount);

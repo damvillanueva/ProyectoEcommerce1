@@ -58,6 +58,12 @@ public class PurchaseOrder {
     @Column(length = 255)
     private String shippingAddress;
 
+    @Column(length = 80)
+    private String shippingRegion;
+
+    @Column(length = 80)
+    private String shippingCommune;
+
     @Column(length = 255)
     private String billingAddress;
 
@@ -198,6 +204,22 @@ public class PurchaseOrder {
 
     public void setShippingAddress(String shippingAddress) {
         this.shippingAddress = shippingAddress;
+    }
+
+    public String getShippingRegion() {
+        return shippingRegion;
+    }
+
+    public void setShippingRegion(String shippingRegion) {
+        this.shippingRegion = shippingRegion;
+    }
+
+    public String getShippingCommune() {
+        return shippingCommune;
+    }
+
+    public void setShippingCommune(String shippingCommune) {
+        this.shippingCommune = shippingCommune;
     }
 
     public String getBillingAddress() {

@@ -4,6 +4,8 @@ import com.smartlogix.order.dto.CreateOrderRequest;
 import com.smartlogix.order.dto.UpdateOrderRequest;
 import com.smartlogix.order.dto.OrderResponse;
 import com.smartlogix.order.dto.OrderTrackingResponse;
+import com.smartlogix.order.dto.ShippingQuoteRequest;
+import com.smartlogix.order.dto.ShippingQuoteResponse;
 import com.smartlogix.order.domain.OrderChannel;
 import com.smartlogix.order.security.AuthenticatedUser;
 import com.smartlogix.order.service.OrderService;
@@ -40,6 +42,11 @@ public class OrderController {
                 customer ? principal.email() : null,
                 customer ? OrderChannel.ONLINE : OrderChannel.STORE
         );
+    }
+
+    @PostMapping("/shipping-quote")
+    public ShippingQuoteResponse quoteShipping(@Valid @RequestBody ShippingQuoteRequest request) {
+        return orderService.quoteShipping(request);
     }
 
     @GetMapping("/mine")

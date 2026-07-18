@@ -6,6 +6,7 @@ import {
   getMyOrders,
   getMyOrder,
   getMyOrderTracking,
+  quoteShipping,
   validateDiscount,
 } from "../api/orderApi";
 
@@ -15,6 +16,10 @@ export async function loadOrderService() {
 
 export async function saveOrder(orderData) {
     return await createOrder(orderData);
+}
+
+export function loadShippingQuote(quoteData) {
+  return quoteShipping(quoteData);
 }
 
 export function validateOrderDiscount(code, subtotal) {

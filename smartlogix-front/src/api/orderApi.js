@@ -19,6 +19,14 @@ export async function createOrder(orderData) {
   return response.data;
 }
 
+export async function quoteShipping(quoteData) {
+  const response = await axios.post(`${API_URL}/api/orders/shipping-quote`, quoteData, {
+    headers: getAuthHeaders(),
+  });
+
+  return response.data;
+}
+
 export async function updateOrder(orderNumber, orderData) {
   const response = await axios.put(`${API_URL}/api/orders/${orderNumber}`, orderData, {
     headers: getAuthHeaders(),

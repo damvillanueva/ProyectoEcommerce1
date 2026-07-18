@@ -15,9 +15,28 @@ const DEFAULT_CUSTOMER_NAME = "Cliente Demo";
 const DEFAULT_CUSTOMER_EMAIL = "cliente@smartlogix.com";
 const DEFAULT_SHIPPING_STREET = "Av. Principal 123";
 const DEFAULT_SHIPPING_COMMUNE = "Puente Alto";
+const DEFAULT_SHIPPING_REGION = "Region Metropolitana";
 const DEFAULT_SKU = "SKU-1001";
 const DEFAULT_QUANTITY = 1;
 const DEFAULT_UNIT_PRICE = 29990;
+const CHILEAN_REGIONS = [
+  "Arica y Parinacota",
+  "Tarapaca",
+  "Antofagasta",
+  "Atacama",
+  "Coquimbo",
+  "Valparaiso",
+  "Region Metropolitana",
+  "O'Higgins",
+  "Maule",
+  "Nuble",
+  "Biobio",
+  "La Araucania",
+  "Los Rios",
+  "Los Lagos",
+  "Aysen",
+  "Magallanes",
+];
 
 const ORDER_STATUS_META = {
   PENDING: {
@@ -42,14 +61,11 @@ const ORDER_STATUS_META = {
   },
 };
 
-function composeShippingAddress(street, commune) {
+function composeShippingAddress(street, commune, region) {
   const cleanStreet = (street || "").trim();
   const cleanCommune = (commune || "").trim();
-
-  if (!cleanStreet) return cleanCommune;
-  if (!cleanCommune) return cleanStreet;
-
-  return `${cleanStreet}, ${cleanCommune}`;
+  const cleanRegion = (region || "").trim();
+  return [cleanStreet, cleanCommune, cleanRegion].filter(Boolean).join(", ");
 }
 
 function splitShippingAddress(address) {
@@ -59,14 +75,16 @@ function splitShippingAddress(address) {
     return {
       street: DEFAULT_SHIPPING_STREET,
       commune: DEFAULT_SHIPPING_COMMUNE,
+      region: DEFAULT_SHIPPING_REGION,
     };
   }
 
-  const [street, ...rest] = cleanAddress.split(",");
+  const [street, commune, ...regionParts] = cleanAddress.split(",");
 
   return {
     street: street?.trim() || DEFAULT_SHIPPING_STREET,
-    commune: rest.join(",").trim() || "",
+    commune: commune?.trim() || "",
+    region: regionParts.join(",").trim() || DEFAULT_SHIPPING_REGION,
   };
 }
 
@@ -101,6 +119,7 @@ function OrdersPage() {
   const [customerEmail, setCustomerEmail] = useState(DEFAULT_CUSTOMER_EMAIL);
   const [shippingStreet, setShippingStreet] = useState(DEFAULT_SHIPPING_STREET);
   const [shippingCommune, setShippingCommune] = useState(DEFAULT_SHIPPING_COMMUNE);
+  const [shippingRegion, setShippingRegion] = useState(DEFAULT_SHIPPING_REGION);
   const [productSearch, setProductSearch] = useState("");
   const [sku, setSku] = useState(DEFAULT_SKU);
   const [quantity, setQuantity] = useState(DEFAULT_QUANTITY);
@@ -175,6 +194,7 @@ function OrdersPage() {
     setCustomerEmail(DEFAULT_CUSTOMER_EMAIL);
     setShippingStreet(DEFAULT_SHIPPING_STREET);
     setShippingCommune(DEFAULT_SHIPPING_COMMUNE);
+    setShippingRegion(DEFAULT_SHIPPING_REGION);
     setProductSearch("");
     setSku(DEFAULT_SKU);
     setQuantity(DEFAULT_QUANTITY);
@@ -199,6 +219,7 @@ function OrdersPage() {
     const cleanCustomerEmail = customerEmail.trim();
     const cleanStreet = shippingStreet.trim();
     const cleanCommune = shippingCommune.trim();
+    const cleanRegion = shippingRegion.trim();
     const cleanSku = sku.trim();
     const parsedQuantity = Number(quantity);
 
@@ -219,6 +240,11 @@ function OrdersPage() {
 
     if (!cleanCommune) {
       setError("Ingresa la comuna de envio.");
+      return;
+    }
+
+    if (!cleanRegion) {
+      setError("Selecciona la region de envio.");
       return;
     }
 
@@ -250,7 +276,9 @@ function OrdersPage() {
     const orderData = {
       customerName: cleanCustomerName,
       customerEmail: cleanCustomerEmail,
-      shippingAddress: composeShippingAddress(cleanStreet, cleanCommune),
+      shippingAddress: composeShippingAddress(cleanStreet, cleanCommune, cleanRegion),
+      shippingCommune: cleanCommune,
+      shippingRegion: cleanRegion,
       discountCode: discountCode.trim() || null,
       lines: [
         {
@@ -288,7 +316,8 @@ function OrdersPage() {
     setCustomerName(order.customerName || DEFAULT_CUSTOMER_NAME);
     setCustomerEmail(order.customerEmail || DEFAULT_CUSTOMER_EMAIL);
     setShippingStreet(parsedAddress.street);
-    setShippingCommune(parsedAddress.commune);
+    setShippingCommune(order.shippingCommune || parsedAddress.commune);
+    setShippingRegion(order.shippingRegion || parsedAddress.region);
     setDiscountCode(order.discountCode || "");
 
     if (firstLine) {
@@ -388,6 +417,15 @@ function OrdersPage() {
                   onChange={(event) => setShippingCommune(event.target.value)}
                   placeholder="Comuna envio"
                 />
+
+                <select
+                  aria-label="Region de envio"
+                  className="rounded-xl border border-white/10 bg-slate-950/80 px-4 py-3 text-white outline-none focus:ring-2 focus:ring-indigo-400"
+                  value={shippingRegion}
+                  onChange={(event) => setShippingRegion(event.target.value)}
+                >
+                  {CHILEAN_REGIONS.map((region) => <option key={region}>{region}</option>)}
+                </select>
 
                 <input
                   className="rounded-xl border border-white/10 bg-slate-950/80 px-4 py-3 text-white outline-none placeholder:text-slate-500 focus:ring-2 focus:ring-indigo-400"
@@ -494,7 +532,7 @@ function OrdersPage() {
 
                             <td className="p-4">
                               <span className="rounded-full bg-sky-500/20 px-3 py-1 font-bold text-sky-200">
-                                {parsedAddress.commune || "Sin comuna"}
+                                {order.shippingCommune || parsedAddress.commune || "Sin comuna"}
                               </span>
                             </td>
 

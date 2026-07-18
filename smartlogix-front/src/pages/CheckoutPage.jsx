@@ -20,12 +20,13 @@ import {
   loadCustomerProfile,
 } from "../services/customerAccountService";
 import { getPublicCatalogProducts } from "../services/inventoryService";
-import { saveOrder, validateOrderDiscount } from "../services/orderService";
+import {
+  loadShippingQuote,
+  saveOrder,
+  validateOrderDiscount,
+} from "../services/orderService";
 
 const CART_STORAGE_KEY = "smartlogix-store-cart";
-const DELIVERY_FEE = 4990;
-const EXPRESS_DELIVERY_FEE = 8990;
-const FREE_SHIPPING_THRESHOLD = 150000;
 const PICKUP_LOCATIONS = [
   "Sucursal Santiago Centro - Alameda 1234",
   "Sucursal Providencia - Nueva Providencia 2040",
@@ -93,6 +94,22 @@ function formatCurrency(value) {
   }).format(Number(value) || 0);
 }
 
+function shippingOptionNote(option, fallback) {
+  if (!option) return fallback;
+  if (!option.available) return option.note || "No disponible para esta comuna";
+  const days = option.estimatedDaysMin === option.estimatedDaysMax
+    ? `${option.estimatedDaysMin} dia habil`
+    : `${option.estimatedDaysMin} a ${option.estimatedDaysMax} dias habiles`;
+  return `${days}. ${option.note}`;
+}
+
+function shippingOptionPrice(option, loading) {
+  if (loading) return "Calculando...";
+  if (!option) return "Por calcular";
+  if (!option.available) return "No disponible";
+  return Number(option.amount || 0) > 0 ? formatCurrency(option.amount) : "Gratis";
+}
+
 function splitName(value = "") {
   const parts = value.trim().split(/\s+/).filter(Boolean);
   return {
@@ -143,6 +160,9 @@ function CheckoutPage() {
   const [discountError, setDiscountError] = useState("");
   const [fulfillmentMethod, setFulfillmentMethod] = useState("DELIVERY");
   const [shippingMethod, setShippingMethod] = useState("STANDARD");
+  const [shippingQuote, setShippingQuote] = useState(null);
+  const [shippingQuoteError, setShippingQuoteError] = useState("");
+  const [shippingQuoteLoading, setShippingQuoteLoading] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState("WEBPAY_SIMULATED");
   const [pickupLocation, setPickupLocation] = useState(PICKUP_LOCATIONS[0]);
   const [customer, setCustomer] = useState(EMPTY_CUSTOMER);
@@ -204,17 +224,77 @@ function CheckoutPage() {
     [cart, products]
   );
 
+  const shippingLines = useMemo(
+    () => cartProducts.map((product) => ({
+      quantity: product.cartQuantity,
+      sku: product.sku,
+    })),
+    [cartProducts]
+  );
+
+  useEffect(() => {
+    if (fulfillmentMethod !== "DELIVERY") {
+      setShippingQuote(null);
+      setShippingQuoteError("");
+      setShippingQuoteLoading(false);
+      return undefined;
+    }
+    if (!customer.region.trim() || !customer.commune.trim() || shippingLines.length === 0) {
+      setShippingQuote(null);
+      setShippingQuoteError("");
+      setShippingQuoteLoading(false);
+      return undefined;
+    }
+
+    let active = true;
+    const timeoutId = window.setTimeout(async () => {
+      try {
+        setShippingQuoteLoading(true);
+        setShippingQuoteError("");
+        const quote = await loadShippingQuote({
+          commune: customer.commune.trim(),
+          lines: shippingLines,
+          region: customer.region.trim(),
+        });
+        if (!active) return;
+        setShippingQuote(quote);
+        setShippingMethod((currentMethod) => {
+          const selectedOption = quote.options?.find((option) => option.method === currentMethod);
+          return selectedOption?.available ? currentMethod : "STANDARD";
+        });
+      } catch (quoteError) {
+        console.error(quoteError);
+        if (!active) return;
+        setShippingQuote(null);
+        setShippingQuoteError(quoteError.response?.data?.message
+          || "No se pudo calcular el despacho para esta ubicacion.");
+      } finally {
+        if (active) setShippingQuoteLoading(false);
+      }
+    }, 350);
+
+    return () => {
+      active = false;
+      window.clearTimeout(timeoutId);
+    };
+  }, [customer.commune, customer.region, fulfillmentMethod, shippingLines]);
+
   const subtotal = cartProducts.reduce((total, product) => total + product.lineTotal, 0);
+  const standardShippingOption = shippingQuote?.options?.find((option) => option.method === "STANDARD");
+  const expressShippingOption = shippingQuote?.options?.find((option) => option.method === "EXPRESS");
+  const selectedShippingOption = shippingQuote?.options?.find((option) => option.method === shippingMethod);
   const shippingAmount = fulfillmentMethod === "PICKUP"
     ? 0
-    : shippingMethod === "EXPRESS"
-      ? EXPRESS_DELIVERY_FEE
-      : subtotal >= FREE_SHIPPING_THRESHOLD ? 0 : DELIVERY_FEE;
+    : Number(selectedShippingOption?.amount || 0);
   const discountAmount = Number(discountPreview?.discountAmount || 0);
   const estimatedTotal = Math.max(0, subtotal - discountAmount + shippingAmount);
 
   function updateCustomer(event) {
     const { name, value } = event.target;
+    if (name === "region" || name === "commune") {
+      setShippingQuote(null);
+      setShippingQuoteError("");
+    }
     setCustomer((current) => ({ ...current, [name]: value }));
   }
 
@@ -228,6 +308,8 @@ function CheckoutPage() {
     setSelectedAddressId(addressId);
     const address = addresses.find((item) => String(item.id) === addressId);
     if (!address) return;
+    setShippingQuote(null);
+    setShippingQuoteError("");
     const recipient = splitName(address.recipientName);
     setCustomer((current) => ({
       ...current,
@@ -258,6 +340,10 @@ function CheckoutPage() {
     if (fulfillmentMethod === "DELIVERY") {
       if (!customer.street.trim() || !customer.commune.trim() || !customer.region.trim()) {
         return "Completa direccion, comuna y region para el despacho.";
+      }
+      if (shippingQuoteLoading) return "Espera mientras calculamos el costo de despacho.";
+      if (shippingQuoteError || !shippingQuote) {
+        return shippingQuoteError || "No fue posible cotizar el despacho.";
       }
     } else if (!pickupLocation) {
       return "Selecciona una sucursal de retiro.";
@@ -344,7 +430,9 @@ function CheckoutPage() {
         paymentMethod,
         pickupLocation: fulfillmentMethod === "PICKUP" ? pickupLocation : null,
         shippingAddress,
+        shippingCommune: fulfillmentMethod === "DELIVERY" ? customer.commune.trim() : null,
         shippingMethod: fulfillmentMethod === "DELIVERY" ? shippingMethod : null,
+        shippingRegion: fulfillmentMethod === "DELIVERY" ? customer.region.trim() : null,
       });
       await saveAddressIfNeeded();
       setCart([]);
@@ -425,8 +513,31 @@ function CheckoutPage() {
             <CheckoutSection icon={FiPackage} title="Metodo de entrega">
               {fulfillmentMethod === "DELIVERY" ? (
                 <div className="space-y-3">
-                  <DeliveryOption active={shippingMethod === "STANDARD"} label="Despacho estandar" note="Entrega estimada en 3 a 5 dias habiles" onClick={() => setShippingMethod("STANDARD")} price={subtotal >= FREE_SHIPPING_THRESHOLD ? "Gratis" : formatCurrency(DELIVERY_FEE)} />
-                  <DeliveryOption active={shippingMethod === "EXPRESS"} label="Despacho express" note="Entrega estimada en 1 a 2 dias habiles" onClick={() => setShippingMethod("EXPRESS")} price={formatCurrency(EXPRESS_DELIVERY_FEE)} />
+                  <DeliveryOption
+                    active={shippingMethod === "STANDARD"}
+                    disabled={!standardShippingOption || shippingQuoteLoading}
+                    label="Despacho estandar"
+                    note={shippingOptionNote(standardShippingOption, "Completa region y comuna para cotizar")}
+                    onClick={() => setShippingMethod("STANDARD")}
+                    price={shippingOptionPrice(standardShippingOption, shippingQuoteLoading)}
+                  />
+                  <DeliveryOption
+                    active={shippingMethod === "EXPRESS"}
+                    disabled={!expressShippingOption?.available || shippingQuoteLoading}
+                    label="Despacho express"
+                    note={shippingOptionNote(expressShippingOption, "Completa region y comuna para cotizar")}
+                    onClick={() => setShippingMethod("EXPRESS")}
+                    price={shippingOptionPrice(expressShippingOption, shippingQuoteLoading)}
+                  />
+                  {shippingQuote && (
+                    <div className="flex flex-wrap items-center justify-between gap-2 border border-emerald-400/20 bg-emerald-500/10 px-4 py-3 text-xs font-bold text-emerald-200">
+                      <span><FiMapPin className="mr-2 inline" />{shippingQuote.zoneName}: {shippingQuote.commune}</span>
+                      {Number(shippingQuote.remainingForFreeShipping || 0) > 0
+                        ? <span>Faltan {formatCurrency(shippingQuote.remainingForFreeShipping)} para despacho estandar gratis</span>
+                        : <span>Tu compra alcanza el beneficio de despacho gratis</span>}
+                    </div>
+                  )}
+                  {shippingQuoteError && <p className="flex items-center gap-2 border border-red-400/30 bg-red-500/10 p-3 text-xs font-bold text-red-200"><FiInfo />{shippingQuoteError}</p>}
                 </div>
               ) : (
                 <DeliveryOption active label="Retiro en sucursal" note={pickupLocation} price="Gratis" />
@@ -485,6 +596,7 @@ function CheckoutPage() {
               setDiscountError("");
             }}
             shippingAmount={shippingAmount}
+            shippingLoading={shippingQuoteLoading}
             shippingMethod={shippingMethod}
             subtotal={subtotal}
             total={estimatedTotal}
@@ -515,7 +627,7 @@ function CheckoutSection({ children, description, icon: Icon, title }) {
   );
 }
 
-function OrderSummary({ cartProducts, discountAmount, discountChecking, discountCode, discountError, discountPreview, fulfillmentMethod, onApplyDiscount, onDiscountChange, shippingAmount, shippingMethod, subtotal, total }) {
+function OrderSummary({ cartProducts, discountAmount, discountChecking, discountCode, discountError, discountPreview, fulfillmentMethod, onApplyDiscount, onDiscountChange, shippingAmount, shippingLoading, shippingMethod, subtotal, total }) {
   return (
     <aside className="border-l border-white/10 bg-slate-900 px-4 py-8 sm:px-8 lg:sticky lg:top-0 lg:min-h-[calc(100vh-80px)] lg:self-start lg:px-10 lg:py-10">
       <h2 className="text-xl font-black">Resumen del pedido</h2>
@@ -531,7 +643,7 @@ function OrderSummary({ cartProducts, discountAmount, discountChecking, discount
       {discountError && <p className="mt-3 flex items-center gap-2 text-xs font-bold text-rose-300"><FiInfo /> {discountError}</p>}
       <div className="mt-6 space-y-3 text-sm font-bold">
         <SummaryLine label="Subtotal" value={formatCurrency(subtotal)} />
-        <SummaryLine label={fulfillmentMethod === "PICKUP" ? "Retiro" : shippingMethod === "EXPRESS" ? "Envio express" : "Envio estandar"} value={shippingAmount ? formatCurrency(shippingAmount) : "Gratis"} />
+        <SummaryLine label={fulfillmentMethod === "PICKUP" ? "Retiro" : shippingMethod === "EXPRESS" ? "Envio express" : "Envio estandar"} value={shippingLoading ? "Calculando..." : shippingAmount ? formatCurrency(shippingAmount) : "Gratis"} />
         <SummaryLine label="Descuento" value={discountAmount > 0 ? `-${formatCurrency(discountAmount)}` : "-"} />
       </div>
       <div className="mt-5 flex items-end justify-between gap-4 border-t border-white/10 pt-5"><div><p className="font-black">Total estimado</p><p className="mt-1 text-xs font-bold text-slate-500">CLP</p></div><p className="text-3xl font-black text-sky-200">{formatCurrency(total)}</p></div>
@@ -554,8 +666,8 @@ function ChoiceButton({ active, icon: Icon, label, note, onClick }) {
   return <button type="button" onClick={onClick} className={`flex min-h-20 items-center gap-3 rounded-md border p-4 text-left ${active ? "border-sky-400 bg-sky-500/10" : "border-white/10 bg-slate-900 hover:border-white/25"}`}><span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-md ${active ? "bg-sky-500 text-white" : "bg-slate-800 text-slate-500"}`}><Icon /></span><span className="min-w-0 flex-1"><strong className="block text-sm">{label}</strong><span className="mt-1 block text-xs font-bold text-slate-500">{note}</span></span><RadioDot active={active} /></button>;
 }
 
-function DeliveryOption({ active, label, note, onClick, price }) {
-  return <button type="button" onClick={onClick} className={`flex min-h-16 w-full items-center gap-3 rounded-md border px-4 py-3 text-left ${active ? "border-sky-400 bg-sky-500/10" : "border-white/10 bg-slate-900 hover:border-white/25"}`}><RadioDot active={active} /><span className="min-w-0 flex-1"><strong className="block text-sm">{label}</strong><span className="mt-1 block text-xs font-bold text-slate-500">{note}</span></span><strong className={price === "Gratis" ? "text-emerald-300" : "text-slate-200"}>{price}</strong></button>;
+function DeliveryOption({ active, disabled, label, note, onClick, price }) {
+  return <button type="button" disabled={disabled} onClick={onClick} className={`flex min-h-16 w-full items-center gap-3 rounded-md border px-4 py-3 text-left disabled:cursor-not-allowed disabled:opacity-50 ${active ? "border-sky-400 bg-sky-500/10" : "border-white/10 bg-slate-900 hover:border-white/25"}`}><RadioDot active={active} /><span className="min-w-0 flex-1"><strong className="block text-sm">{label}</strong><span className="mt-1 block text-xs font-bold text-slate-500">{note}</span></span><strong className={price === "Gratis" ? "text-emerald-300" : "text-slate-200"}>{price}</strong></button>;
 }
 
 function PaymentOption({ active, badges, label, note, onClick }) {

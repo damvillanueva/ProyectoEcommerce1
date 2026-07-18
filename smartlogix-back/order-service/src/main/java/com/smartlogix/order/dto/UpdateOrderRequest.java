@@ -10,6 +10,8 @@ public record UpdateOrderRequest(
         @NotBlank String customerName,
         @NotBlank @Email String customerEmail,
         String shippingAddress,
+        String shippingRegion,
+        String shippingCommune,
         String discountCode,
         @NotEmpty List<@Valid OrderLineRequest> lines
 ) {

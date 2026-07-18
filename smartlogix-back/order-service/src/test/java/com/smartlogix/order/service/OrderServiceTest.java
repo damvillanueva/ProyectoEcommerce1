@@ -22,6 +22,8 @@ import com.smartlogix.order.dto.CreateOrderRequest;
 import com.smartlogix.order.dto.OrderLineRequest;
 import com.smartlogix.order.dto.OrderResponse;
 import com.smartlogix.order.dto.OrderTrackingResponse;
+import com.smartlogix.order.dto.ShippingQuoteRequest;
+import com.smartlogix.order.dto.ShippingQuoteResponse;
 import com.smartlogix.order.repository.DiscountRepository;
 import com.smartlogix.order.repository.PurchaseOrderRepository;
 import com.smartlogix.order.security.InternalServiceTokenProvider;
@@ -52,7 +54,8 @@ class OrderServiceTest {
                 store.repository(),
                 inventoryClient,
                 shipmentClient,
-                emptyDiscountRepository()
+                emptyDiscountRepository(),
+                new ShippingRateService()
         );
     }
 
@@ -70,7 +73,7 @@ class OrderServiceTest {
 
         assertThat(response.status()).isEqualTo(OrderStatus.SHIPMENT_REQUESTED);
         assertThat(response.trackingCode()).isEqualTo("SLX-TEST-1");
-        assertThat(response.shippingAmount()).isEqualByComparingTo("4990");
+        assertThat(response.shippingAmount()).isEqualByComparingTo("3990");
         assertThat(response.paymentStatus()).isEqualTo(PaymentStatus.PAID);
         assertThat(response.orderNumber()).startsWith("ORD-");
         assertThat(inventoryClient.available("SKU-3001")).isEqualTo(44);
@@ -104,7 +107,8 @@ class OrderServiceTest {
                 store.repository(),
                 inventoryClient,
                 shipmentClient,
-                discountRepository(activeDiscount("TEST10", 10))
+                discountRepository(activeDiscount("TEST10", 10)),
+                new ShippingRateService()
         );
 
         OrderResponse response = orderService.createOrder(new CreateOrderRequest(
@@ -119,8 +123,8 @@ class OrderServiceTest {
         assertThat(response.discountCode()).isEqualTo("TEST10");
         assertThat(response.subtotalAmount()).isEqualByComparingTo("10000");
         assertThat(response.discountAmount()).isEqualByComparingTo("1000");
-        assertThat(response.shippingAmount()).isEqualByComparingTo("4990");
-        assertThat(response.totalAmount()).isEqualByComparingTo("13990");
+        assertThat(response.shippingAmount()).isEqualByComparingTo("3990");
+        assertThat(response.totalAmount()).isEqualByComparingTo("12990");
     }
 
     @Test
@@ -132,7 +136,8 @@ class OrderServiceTest {
                 store.repository(),
                 inventoryClient,
                 shipmentClient,
-                discountRepository(expiredDiscount)
+                discountRepository(expiredDiscount),
+                new ShippingRateService()
         );
 
         assertThatThrownBy(() -> orderService.createOrder(new CreateOrderRequest(
@@ -181,6 +186,8 @@ class OrderServiceTest {
                 "18.406.158-9",
                 true,
                 "Argentina 8577, La Florida, Region Metropolitana",
+                "Region Metropolitana",
+                "La Florida",
                 "Argentina 8577, La Florida, Region Metropolitana",
                 "Departamento 609",
                 null,
@@ -192,12 +199,29 @@ class OrderServiceTest {
         ));
 
         assertThat(response.shippingMethod()).isEqualTo(ShippingMethod.EXPRESS);
-        assertThat(response.shippingAmount()).isEqualByComparingTo("8990");
+        assertThat(response.shippingAmount()).isEqualByComparingTo("6990");
         assertThat(response.customerPhone()).isEqualTo("+56 9 1234 5678");
         assertThat(response.customerDocument()).isEqualTo("18.406.158-9");
         assertThat(response.marketingOptIn()).isTrue();
         assertThat(response.billingAddress()).contains("La Florida");
         assertThat(response.deliveryInstructions()).isEqualTo("Departamento 609");
+    }
+
+    @Test
+    void quoteShippingUsesRegionCommuneAndBackendCatalogPrices() {
+        inventoryClient.setProduct("SKU-5001", 10, BigDecimal.valueOf(20000));
+
+        ShippingQuoteResponse quote = orderService.quoteShipping(new ShippingQuoteRequest(
+                "Region Metropolitana",
+                "Colina",
+                List.of(new OrderLineRequest("SKU-5001", 2))
+        ));
+
+        assertThat(quote.zoneCode()).isEqualTo("RM");
+        assertThat(quote.subtotal()).isEqualByComparingTo("40000");
+        assertThat(quote.options()).extracting(option -> option.amount().toPlainString())
+                .containsExactly("5490", "8990");
+        assertThat(quote.options()).allMatch(option -> option.available());
     }
 
     @Test

@@ -20,6 +20,8 @@ public record OrderResponse(
         boolean marketingOptIn,
         OrderChannel salesChannel,
         String shippingAddress,
+        String shippingRegion,
+        String shippingCommune,
         String billingAddress,
         String deliveryInstructions,
         FulfillmentMethod fulfillmentMethod,
