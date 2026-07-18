@@ -15,6 +15,7 @@ import {
   FiShield,
   FiShoppingBag,
   FiTruck,
+  FiXCircle,
 } from "react-icons/fi";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import logo from "../assets/logo-smartlogix.png";
@@ -61,6 +62,20 @@ function paymentMethodLabel(value) {
   }[value] || value || "Sin informacion";
 }
 
+function paymentStatusLabel(value) {
+  return {
+    PAID: "Pago confirmado",
+    PENDING: "Pago pendiente",
+    REJECTED: "Pago rechazado",
+  }[value] || value || "Sin informacion";
+}
+
+function paymentStatusTone(value) {
+  if (value === "PAID") return "text-emerald-300";
+  if (value === "REJECTED") return "text-red-300";
+  return "text-amber-300";
+}
+
 function deliveryLabel(order) {
   if (order.fulfillmentMethod === "PICKUP") return "Retiro en sucursal";
   return order.shippingMethod === "EXPRESS" ? "Despacho express" : "Despacho estandar";
@@ -79,6 +94,13 @@ function currentTrackingStep(order, tracking) {
 }
 
 function statusMeta(order, tracking) {
+  if (order.paymentStatus === "REJECTED") {
+    return {
+      label: "Pago rechazado",
+      tone: "red",
+      detail: order.paymentFailureReason || order.rejectionReason,
+    };
+  }
   if (order.status === "REJECTED") {
     return { label: "Pedido rechazado", tone: "red", detail: order.rejectionReason };
   }
@@ -196,6 +218,7 @@ function OrderSuccessPage() {
 
   const meta = statusMeta(order, tracking);
   const newOrder = Boolean(location.state?.newOrder);
+  const paymentRejected = order.paymentStatus === "REJECTED";
 
   return (
     <div className="min-h-screen bg-slate-950 text-white">
@@ -204,9 +227,12 @@ function OrderSuccessPage() {
         <div className="no-print">
           <Link to="/shop/account" className="inline-flex items-center gap-2 text-sm font-black text-slate-400 hover:text-white"><FiArrowLeft /> Volver a mis compras</Link>
           {newOrder && (
-            <div className="mt-6 flex items-start gap-3 rounded-md border border-emerald-400/25 bg-emerald-500/10 p-4 text-emerald-200">
-              <FiCheck className="mt-0.5 shrink-0" size={20} />
-              <div><p className="font-black">Compra confirmada correctamente</p><p className="mt-1 text-sm font-semibold text-emerald-200/75">Guardamos tu pedido y ya puedes revisar su avance desde esta pagina.</p></div>
+            <div className={`mt-6 flex items-start gap-3 rounded-md border p-4 ${paymentRejected ? "border-red-400/25 bg-red-500/10 text-red-200" : "border-emerald-400/25 bg-emerald-500/10 text-emerald-200"}`}>
+              {paymentRejected ? <FiXCircle className="mt-0.5 shrink-0" size={20} /> : <FiCheck className="mt-0.5 shrink-0" size={20} />}
+              <div>
+                <p className="font-black">{paymentRejected ? "El pago fue rechazado" : "Compra confirmada correctamente"}</p>
+                <p className="mt-1 text-sm font-semibold opacity-75">{paymentRejected ? "No descontamos stock y conservamos tu carrito para que puedas intentarlo nuevamente." : "Guardamos tu pedido y ya puedes revisar su avance desde esta pagina."}</p>
+              </div>
             </div>
           )}
           <div className="mt-7 flex flex-col gap-5 border-b border-white/10 pb-7 lg:flex-row lg:items-end lg:justify-between">
@@ -232,7 +258,11 @@ function OrderSuccessPage() {
           <div className="xl:sticky xl:top-6">
             <Receipt order={order} productsBySku={productsBySku} tracking={tracking} />
             <div className="mt-4 grid gap-3 no-print sm:grid-cols-2 xl:grid-cols-1">
-              <button type="button" onClick={() => window.print()} className="flex h-12 items-center justify-center gap-2 rounded-md bg-sky-500 px-5 text-sm font-black hover:bg-sky-400"><FiPrinter /> Imprimir o guardar PDF</button>
+              {paymentRejected ? (
+                <Link to="/shop/checkout" className="flex h-12 items-center justify-center gap-2 rounded-md bg-emerald-500 px-5 text-sm font-black text-slate-950 hover:bg-emerald-400"><FiRefreshCw /> Intentar el pago nuevamente</Link>
+              ) : (
+                <button type="button" onClick={() => window.print()} className="flex h-12 items-center justify-center gap-2 rounded-md bg-sky-500 px-5 text-sm font-black hover:bg-sky-400"><FiPrinter /> Imprimir o guardar PDF</button>
+              )}
               <Link to="/shop" className="flex h-12 items-center justify-center gap-2 rounded-md border border-white/15 px-5 text-sm font-black text-slate-200 hover:bg-white/5"><FiShoppingBag /> Seguir comprando</Link>
             </div>
           </div>
@@ -319,7 +349,15 @@ function OrderInformation({ order, tracking }) {
   return (
     <section className="grid gap-4 md:grid-cols-2">
       <div className="rounded-md border border-white/10 bg-slate-900 p-5"><InfoHeading icon={pickup ? FiMapPin : FiTruck} title="Entrega" /><p className="mt-4 text-sm font-black text-slate-200">{deliveryLabel(order)}</p><p className="mt-2 text-sm font-semibold leading-6 text-slate-500">{pickup ? order.pickupLocation : order.shippingAddress}</p>{order.deliveryInstructions && <p className="mt-3 text-xs font-bold text-slate-500">Indicaciones: {order.deliveryInstructions}</p>}{tracking?.routeCode && <p className="mt-3 text-xs font-black text-sky-300">Ruta {tracking.routeCode}</p>}</div>
-      <div className="rounded-md border border-white/10 bg-slate-900 p-5"><InfoHeading icon={FiCreditCard} title="Pago" /><p className="mt-4 text-sm font-black text-slate-200">{paymentMethodLabel(order.paymentMethod)}</p><p className={`mt-2 text-xs font-black ${order.paymentStatus === "PAID" ? "text-emerald-300" : "text-amber-300"}`}>{order.paymentStatus === "PAID" ? "Pago confirmado" : "Pago pendiente al retirar"}</p>{order.transactionReference && <p className="mt-3 break-all text-xs font-bold text-slate-500">Referencia {order.transactionReference}</p>}</div>
+      <div className="rounded-md border border-white/10 bg-slate-900 p-5">
+        <InfoHeading icon={FiCreditCard} title="Pago" />
+        <p className="mt-4 text-sm font-black text-slate-200">{paymentMethodLabel(order.paymentMethod)}</p>
+        <p className={`mt-2 text-xs font-black ${paymentStatusTone(order.paymentStatus)}`}>{paymentStatusLabel(order.paymentStatus)}</p>
+        {order.paymentFailureReason && <p className="mt-3 text-xs font-bold leading-5 text-red-200">{order.paymentFailureReason}</p>}
+        {order.transactionReference && <p className="mt-3 break-all text-xs font-bold text-slate-500">Referencia {order.transactionReference}</p>}
+        {order.paymentAuthorizationCode && <p className="mt-2 text-xs font-bold text-slate-500">Autorizacion {order.paymentAuthorizationCode}</p>}
+        {order.paymentProcessedAt && <p className="mt-2 text-xs font-bold text-slate-500">Procesado {formatDate(order.paymentProcessedAt)}</p>}
+      </div>
     </section>
   );
 }
@@ -328,7 +366,7 @@ function Receipt({ order, productsBySku, tracking }) {
   return (
     <section className="receipt-print rounded-md border border-white/10 bg-slate-900 p-5 sm:p-7">
       <div className="flex items-start justify-between gap-4 border-b border-white/10 pb-5 receipt-divider">
-        <div><img src={logo} alt="SmartLogix" className="h-8 w-auto" /><p className="mt-3 text-xs font-black uppercase text-sky-300 receipt-accent">Comprobante de compra</p></div>
+        <div><img src={logo} alt="SmartLogix" className="h-8 w-auto" /><p className="mt-3 text-xs font-black uppercase text-sky-300 receipt-accent">{order.paymentStatus === "REJECTED" ? "Comprobante de intento de pago" : "Comprobante de compra"}</p></div>
         <div className="text-right"><p className="text-xs font-black text-slate-500 receipt-muted">Documento no tributario</p><p className="mt-2 font-black">{order.orderNumber}</p></div>
       </div>
 
@@ -352,12 +390,15 @@ function Receipt({ order, productsBySku, tracking }) {
 
       <div className="space-y-4 py-5 text-sm">
         <ReceiptFact label="Entrega" value={order.fulfillmentMethod === "PICKUP" ? order.pickupLocation : order.shippingAddress} />
-        <ReceiptFact label="Pago" value={`${paymentMethodLabel(order.paymentMethod)} | ${order.paymentStatus === "PAID" ? "Pagado" : "Pendiente"}`} />
+        <ReceiptFact label="Pago" value={`${paymentMethodLabel(order.paymentMethod)} | ${paymentStatusLabel(order.paymentStatus)}`} />
         {tracking?.trackingCode && <ReceiptFact label="Seguimiento" value={`${tracking.trackingCode}${tracking.carrier ? ` | ${tracking.carrier}` : ""}`} />}
         {order.transactionReference && <ReceiptFact label="Referencia de transaccion" value={order.transactionReference} />}
+        {order.paymentAuthorizationCode && <ReceiptFact label="Codigo de autorizacion" value={order.paymentAuthorizationCode} />}
+        {order.paymentProcessedAt && <ReceiptFact label="Fecha del pago" value={formatDate(order.paymentProcessedAt)} />}
+        {order.paymentFailureReason && <ReceiptFact label="Motivo del rechazo" value={order.paymentFailureReason} />}
       </div>
 
-      <p className="border-t border-white/10 pt-4 text-[11px] font-semibold leading-5 text-slate-500 receipt-divider receipt-muted">Este comprobante confirma el registro de la compra en SmartLogix. No reemplaza una boleta o factura tributaria.</p>
+      <p className="border-t border-white/10 pt-4 text-[11px] font-semibold leading-5 text-slate-500 receipt-divider receipt-muted">Este comprobante registra el pedido y el resultado de su pago en SmartLogix. No reemplaza una boleta o factura tributaria.</p>
     </section>
   );
 }

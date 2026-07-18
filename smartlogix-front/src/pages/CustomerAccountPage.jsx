@@ -5,6 +5,7 @@ import {
   FiCamera,
   FiCheck,
   FiChevronRight,
+  FiCreditCard,
   FiEdit2,
   FiFileText,
   FiHome,
@@ -89,6 +90,9 @@ function formatDate(value) {
 }
 
 function statusMeta(order, tracking) {
+  if (order?.paymentStatus === "REJECTED") {
+    return { label: "Pago rechazado", tone: "red", step: -1 };
+  }
   if (tracking?.shipmentStatus === "DELIVERED") {
     return { label: "Entregado", tone: "emerald", step: 4 };
   }
@@ -112,6 +116,12 @@ function paymentMethodLabel(paymentMethod) {
     WEBPAY_SIMULATED: "Webpay simulado",
   };
   return labels[paymentMethod] || paymentMethod || "Sin informacion";
+}
+
+function paymentStatusMeta(paymentStatus) {
+  if (paymentStatus === "PAID") return { label: "Pago confirmado", classes: "text-emerald-300" };
+  if (paymentStatus === "REJECTED") return { label: "Pago rechazado", classes: "text-red-300" };
+  return { label: "Pago pendiente", classes: "text-amber-300" };
 }
 
 function CustomerAccountPage() {
@@ -199,7 +209,7 @@ function CustomerAccountPage() {
     && trackingByOrder[order.orderNumber]?.shipmentStatus !== "DELIVERED"
   ).length;
   const totalSpent = orders
-    .filter((order) => !["REJECTED", "FAILED"].includes(order.status))
+    .filter((order) => order.paymentStatus === "PAID")
     .reduce((total, order) => total + Number(order.totalAmount || 0), 0);
 
   function showMessage(nextMessage) {
@@ -725,6 +735,7 @@ function OrdersView({ onReorder, onSelect, orders, productsBySku, selectedOrder,
 
 function OrderDetail({ onReorder, order, productsBySku, tracking }) {
   const meta = statusMeta(order, tracking);
+  const paymentMeta = paymentStatusMeta(order.paymentStatus);
   const failed = ["REJECTED", "FAILED"].includes(order.status);
   return (
     <aside className="overflow-hidden rounded-md border border-white/10 bg-slate-900 xl:sticky xl:top-6">
@@ -742,7 +753,7 @@ function OrderDetail({ onReorder, order, productsBySku, tracking }) {
       <div className="p-5">
         {failed ? (
           <div className="rounded-md border border-red-400/25 bg-red-500/10 p-4 text-sm font-bold text-red-200">
-            {order.rejectionReason || "Este pedido necesita revision del equipo."}
+            {order.paymentFailureReason || order.rejectionReason || "Este pedido necesita revision del equipo."}
           </div>
         ) : (
           <TrackingTimeline currentStep={meta.step} pickup={order.fulfillmentMethod === "PICKUP"} />
@@ -794,10 +805,13 @@ function OrderDetail({ onReorder, order, productsBySku, tracking }) {
         </div>
 
         <div className="mt-5 border-t border-white/10 pt-5">
-          <p className="text-xs font-black uppercase text-slate-500">Pago</p>
+          <p className="flex items-center gap-2 text-xs font-black uppercase text-slate-500"><FiCreditCard /> Pago</p>
           <p className="mt-2 text-sm font-bold text-slate-300">{paymentMethodLabel(order.paymentMethod)}</p>
-          <p className={`mt-2 text-xs font-black ${order.paymentStatus === "PAID" ? "text-emerald-300" : "text-amber-300"}`}>{order.paymentStatus === "PAID" ? "Pago confirmado" : "Pago pendiente"}</p>
+          <p className={`mt-2 text-xs font-black ${paymentMeta.classes}`}>{paymentMeta.label}</p>
+          {order.paymentFailureReason && <p className="mt-2 text-xs font-bold leading-5 text-red-200">{order.paymentFailureReason}</p>}
           {order.transactionReference && <p className="mt-2 break-all text-xs font-bold text-slate-500">Referencia: {order.transactionReference}</p>}
+          {order.paymentAuthorizationCode && <p className="mt-2 text-xs font-bold text-slate-500">Autorizacion: {order.paymentAuthorizationCode}</p>}
+          {order.paymentProcessedAt && <p className="mt-2 text-xs font-bold text-slate-500">Procesado: {formatDate(order.paymentProcessedAt)}</p>}
         </div>
 
         <button

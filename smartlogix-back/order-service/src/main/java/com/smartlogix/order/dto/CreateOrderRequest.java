@@ -2,6 +2,7 @@ package com.smartlogix.order.dto;
 
 import com.smartlogix.order.domain.FulfillmentMethod;
 import com.smartlogix.order.domain.PaymentMethod;
+import com.smartlogix.order.domain.PaymentSimulationScenario;
 import com.smartlogix.order.domain.ShippingMethod;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
@@ -26,6 +27,7 @@ public record CreateOrderRequest(
         String pickupLocation,
         ShippingMethod shippingMethod,
         PaymentMethod paymentMethod,
+        PaymentSimulationScenario paymentSimulationScenario,
         @NotEmpty List<@Valid OrderLineRequest> lines
 ) {
     public CreateOrderRequest(
@@ -47,6 +49,7 @@ public record CreateOrderRequest(
                 shippingAddress,
                 null,
                 discountCode,
+                null,
                 null,
                 null,
                 null,
@@ -81,6 +84,7 @@ public record CreateOrderRequest(
                 pickupLocation,
                 null,
                 paymentMethod,
+                null,
                 lines
         );
     }

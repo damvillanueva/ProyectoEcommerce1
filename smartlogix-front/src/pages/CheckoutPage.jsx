@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   FiArrowLeft,
   FiCheck,
+  FiCheckCircle,
   FiCreditCard,
   FiHome,
   FiInfo,
@@ -12,6 +13,7 @@ import {
   FiTag,
   FiTruck,
   FiUser,
+  FiXCircle,
 } from "react-icons/fi";
 import { Link, useNavigate } from "react-router-dom";
 import logo from "../assets/logo-smartlogix.png";
@@ -164,6 +166,7 @@ function CheckoutPage() {
   const [shippingQuoteError, setShippingQuoteError] = useState("");
   const [shippingQuoteLoading, setShippingQuoteLoading] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState("WEBPAY_SIMULATED");
+  const [paymentSimulationScenario, setPaymentSimulationScenario] = useState("APPROVED");
   const [pickupLocation, setPickupLocation] = useState(PICKUP_LOCATIONS[0]);
   const [customer, setCustomer] = useState(EMPTY_CUSTOMER);
   const [billingSame, setBillingSame] = useState(true);
@@ -288,6 +291,11 @@ function CheckoutPage() {
     : Number(selectedShippingOption?.amount || 0);
   const discountAmount = Number(discountPreview?.discountAmount || 0);
   const estimatedTotal = Math.max(0, subtotal - discountAmount + shippingAmount);
+  const paymentActionLabel = paymentMethod === "PAY_ON_PICKUP"
+    ? `Confirmar pedido ${formatCurrency(estimatedTotal)}`
+    : paymentSimulationScenario === "REJECTED"
+      ? `Probar pago rechazado ${formatCurrency(estimatedTotal)}`
+      : `Pagar ahora ${formatCurrency(estimatedTotal)}`;
 
   function updateCustomer(event) {
     const { name, value } = event.target;
@@ -428,18 +436,24 @@ function CheckoutPage() {
         })),
         marketingOptIn,
         paymentMethod,
+        paymentSimulationScenario: paymentMethod === "PAY_ON_PICKUP"
+          ? null
+          : paymentSimulationScenario,
         pickupLocation: fulfillmentMethod === "PICKUP" ? pickupLocation : null,
         shippingAddress,
         shippingCommune: fulfillmentMethod === "DELIVERY" ? customer.commune.trim() : null,
         shippingMethod: fulfillmentMethod === "DELIVERY" ? shippingMethod : null,
         shippingRegion: fulfillmentMethod === "DELIVERY" ? customer.region.trim() : null,
       });
-      await saveAddressIfNeeded();
-      setCart([]);
-      localStorage.setItem(CART_STORAGE_KEY, "[]");
+      const paymentRejected = response.paymentStatus === "REJECTED";
+      if (!paymentRejected) {
+        await saveAddressIfNeeded();
+        setCart([]);
+        localStorage.setItem(CART_STORAGE_KEY, "[]");
+      }
       navigate(`/shop/order/${encodeURIComponent(response.orderNumber)}`, {
         replace: true,
-        state: { newOrder: true },
+        state: { newOrder: true, paymentFailed: paymentRejected },
       });
     } catch (checkoutError) {
       console.error(checkoutError);
@@ -550,6 +564,12 @@ function CheckoutPage() {
                 <PaymentOption active={paymentMethod === "BANK_TRANSFER_SIMULATED"} badges={["Banco", "CLP"]} label="Transferencia simulada" note="Confirmacion inmediata para la demostracion" onClick={() => setPaymentMethod("BANK_TRANSFER_SIMULATED")} />
                 {fulfillmentMethod === "PICKUP" && <PaymentOption active={paymentMethod === "PAY_ON_PICKUP"} badges={["Local"]} label="Pagar al retirar" note="El pago quedara pendiente" onClick={() => setPaymentMethod("PAY_ON_PICKUP")} />}
               </div>
+              {paymentMethod !== "PAY_ON_PICKUP" && (
+                <PaymentSimulationControl
+                  onChange={setPaymentSimulationScenario}
+                  value={paymentSimulationScenario}
+                />
+              )}
               <div className="mt-4 flex gap-3 border border-sky-400/20 bg-sky-500/10 p-4 text-xs font-bold text-sky-100"><FiShield className="mt-0.5 shrink-0" /> No guardamos numeros de tarjeta, claves ni datos bancarios.</div>
             </CheckoutSection>
 
@@ -574,7 +594,7 @@ function CheckoutPage() {
               )}
             </CheckoutSection>
 
-            <button type="button" disabled={submitting || cartProducts.length === 0} onClick={confirmOrder} className="mt-8 flex h-14 w-full items-center justify-center gap-2 rounded-md bg-emerald-500 px-6 text-base font-black text-slate-950 hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-60"><FiLock /> {submitting ? "Procesando pedido..." : `Pagar ahora ${formatCurrency(estimatedTotal)}`}</button>
+            <button type="button" disabled={submitting || cartProducts.length === 0} onClick={confirmOrder} className="mt-8 flex h-14 w-full items-center justify-center gap-2 rounded-md bg-emerald-500 px-6 text-base font-black text-slate-950 hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-60"><FiLock /> {submitting ? "Procesando pago..." : paymentActionLabel}</button>
 
             <footer className="mt-10 flex flex-wrap gap-x-5 gap-y-2 border-t border-white/10 pt-5 text-xs font-bold text-slate-600">
               <span>Politica de reembolso</span><span>Envios</span><span>Privacidad</span><span>Terminos del servicio</span>
@@ -672,6 +692,18 @@ function DeliveryOption({ active, disabled, label, note, onClick, price }) {
 
 function PaymentOption({ active, badges, label, note, onClick }) {
   return <button type="button" onClick={onClick} className={`w-full overflow-hidden rounded-md border text-left ${active ? "border-sky-400 bg-sky-500/10" : "border-white/10 bg-slate-900 hover:border-white/25"}`}><span className="flex min-h-16 items-center gap-3 px-4 py-3"><RadioDot active={active} /><span className="min-w-0 flex-1"><strong className="block text-sm">{label}</strong><span className="mt-1 block text-xs font-bold text-slate-500">{note}</span></span><span className="flex shrink-0 gap-1">{badges.map((badge, index) => <span key={badge} className={`rounded px-1.5 py-1 text-[9px] font-black ${index % 2 === 0 ? "bg-sky-500 text-white" : "bg-amber-400 text-slate-950"}`}>{badge}</span>)}</span></span>{active && <span className="block border-t border-sky-400/20 bg-slate-950/40 px-11 py-3 text-xs font-bold text-slate-400">Se generara una referencia simulada y no se solicitaran credenciales bancarias.</span>}</button>;
+}
+
+function PaymentSimulationControl({ onChange, value }) {
+  return (
+    <div className="mt-5 border-t border-white/10 pt-5">
+      <p className="text-xs font-black uppercase text-slate-500">Resultado de prueba</p>
+      <div className="mt-3 grid grid-cols-2 gap-2" role="group" aria-label="Resultado del pago simulado">
+        <button type="button" onClick={() => onChange("APPROVED")} className={`flex min-h-11 items-center justify-center gap-2 rounded-md border px-3 text-sm font-black ${value === "APPROVED" ? "border-emerald-400 bg-emerald-500/15 text-emerald-200" : "border-white/10 bg-slate-900 text-slate-400 hover:border-white/25"}`}><FiCheckCircle /> Aprobar pago</button>
+        <button type="button" onClick={() => onChange("REJECTED")} className={`flex min-h-11 items-center justify-center gap-2 rounded-md border px-3 text-sm font-black ${value === "REJECTED" ? "border-red-400 bg-red-500/15 text-red-200" : "border-white/10 bg-slate-900 text-slate-400 hover:border-white/25"}`}><FiXCircle /> Rechazar pago</button>
+      </div>
+    </div>
+  );
 }
 
 function RadioRow({ active, label, onClick }) {

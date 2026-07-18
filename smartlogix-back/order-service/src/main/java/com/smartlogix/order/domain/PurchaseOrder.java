@@ -88,6 +88,14 @@ public class PurchaseOrder {
     @Column(length = 60)
     private String transactionReference;
 
+    @Column(length = 30)
+    private String paymentAuthorizationCode;
+
+    private OffsetDateTime paymentProcessedAt;
+
+    @Column(length = 250)
+    private String paymentFailureReason;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 30)
     private OrderStatus status;
@@ -276,6 +284,30 @@ public class PurchaseOrder {
 
     public void setTransactionReference(String transactionReference) {
         this.transactionReference = transactionReference;
+    }
+
+    public String getPaymentAuthorizationCode() {
+        return paymentAuthorizationCode;
+    }
+
+    public void setPaymentAuthorizationCode(String paymentAuthorizationCode) {
+        this.paymentAuthorizationCode = paymentAuthorizationCode;
+    }
+
+    public OffsetDateTime getPaymentProcessedAt() {
+        return paymentProcessedAt;
+    }
+
+    public void setPaymentProcessedAt(OffsetDateTime paymentProcessedAt) {
+        this.paymentProcessedAt = paymentProcessedAt;
+    }
+
+    public String getPaymentFailureReason() {
+        return paymentFailureReason;
+    }
+
+    public void setPaymentFailureReason(String paymentFailureReason) {
+        this.paymentFailureReason = paymentFailureReason;
     }
 
     public OrderStatus getStatus() {

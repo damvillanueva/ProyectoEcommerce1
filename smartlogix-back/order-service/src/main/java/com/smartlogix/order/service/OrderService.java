@@ -31,7 +31,6 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -44,19 +43,22 @@ public class OrderService {
     private final ShipmentClient shipmentClient;
     private final DiscountRepository discountRepository;
     private final ShippingRateService shippingRateService;
+    private final PaymentSimulationService paymentSimulationService;
 
     public OrderService(
             PurchaseOrderRepository repository,
             InventoryClient inventoryClient,
             ShipmentClient shipmentClient,
             DiscountRepository discountRepository,
-            ShippingRateService shippingRateService
+            ShippingRateService shippingRateService,
+            PaymentSimulationService paymentSimulationService
     ) {
         this.repository = repository;
         this.inventoryClient = inventoryClient;
         this.shipmentClient = shipmentClient;
         this.discountRepository = discountRepository;
         this.shippingRateService = shippingRateService;
+        this.paymentSimulationService = paymentSimulationService;
     }
 
     public OrderResponse createOrder(CreateOrderRequest request) {
@@ -102,8 +104,22 @@ public class OrderService {
             }
         }
 
+        PaymentResult paymentResult = paymentSimulationService.process(
+                order.getPaymentMethod(),
+                request.paymentSimulationScenario(),
+                order.getTotalAmount()
+        );
+        applyPaymentResult(order, paymentResult);
+
+        if (paymentResult.status() == PaymentStatus.REJECTED) {
+            releaseReservedLines(reservedLines);
+            order.setStatus(OrderStatus.REJECTED);
+            order.setRejectionReason(paymentResult.failureReason());
+            repository.save(order);
+            return toResponse(order);
+        }
+
         order.setStatus(OrderStatus.APPROVED);
-        processPayment(order);
 
         if (order.getFulfillmentMethod() == FulfillmentMethod.PICKUP) {
             repository.save(order);
@@ -326,14 +342,12 @@ public class OrderService {
         return value == null || value.isBlank() ? null : value.trim();
     }
 
-    private void processPayment(PurchaseOrder order) {
-        if (order.getPaymentMethod() == PaymentMethod.PAY_ON_PICKUP) {
-            order.setPaymentStatus(PaymentStatus.PENDING);
-            order.setTransactionReference(null);
-            return;
-        }
-        order.setPaymentStatus(PaymentStatus.PAID);
-        order.setTransactionReference("SIM-" + UUID.randomUUID().toString().substring(0, 12).toUpperCase());
+    private void applyPaymentResult(PurchaseOrder order, PaymentResult result) {
+        order.setPaymentStatus(result.status());
+        order.setTransactionReference(result.transactionReference());
+        order.setPaymentAuthorizationCode(result.authorizationCode());
+        order.setPaymentProcessedAt(result.processedAt());
+        order.setPaymentFailureReason(result.failureReason());
     }
 
     private BigDecimal calculateTotal(List<PricedLine> lines) {
@@ -433,6 +447,9 @@ public class OrderService {
                 order.getPaymentMethod(),
                 order.getPaymentStatus(),
                 order.getTransactionReference(),
+                order.getPaymentAuthorizationCode(),
+                order.getPaymentProcessedAt(),
+                order.getPaymentFailureReason(),
                 order.getStatus(),
                 order.getSubtotalAmount(),
                 order.getDiscountAmount(),

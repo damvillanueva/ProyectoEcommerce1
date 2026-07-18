@@ -61,6 +61,12 @@ const ORDER_STATUS_META = {
   },
 };
 
+const PAYMENT_STATUS_META = {
+  PAID: { label: "Pagado", classes: "bg-emerald-500/20 text-emerald-300" },
+  PENDING: { label: "Pendiente", classes: "bg-amber-500/20 text-amber-200" },
+  REJECTED: { label: "Rechazado", classes: "bg-red-500/20 text-red-200" },
+};
+
 function composeShippingAddress(street, commune, region) {
   const cleanStreet = (street || "").trim();
   const cleanCommune = (commune || "").trim();
@@ -95,6 +101,13 @@ function getOrderStatusMeta(status) {
       classes: "bg-white/10 text-slate-200",
     }
   );
+}
+
+function getPaymentStatusMeta(status) {
+  return PAYMENT_STATUS_META[status] || {
+    label: status || "Sin estado",
+    classes: "bg-white/10 text-slate-200",
+  };
 }
 
 function formatOrderDate(value) {
@@ -490,7 +503,7 @@ function OrdersPage() {
                 <h2 className="mb-6 text-2xl font-black">Listado de pedidos</h2>
 
                 <div className="overflow-x-auto">
-                  <table className="w-full min-w-[1180px] border-collapse">
+                  <table className="w-full min-w-[1320px] border-collapse">
                     <thead>
                       <tr className="bg-slate-900/80 text-sm uppercase text-slate-300">
                         <th className="rounded-l-xl p-4 text-left">Numero</th>
@@ -498,6 +511,7 @@ function OrdersPage() {
                         <th className="p-4 text-left">Comuna</th>
                         <th className="p-4 text-left">Direccion</th>
                         <th className="p-4 text-left">Estado</th>
+                        <th className="p-4 text-left">Pago</th>
                         <th className="p-4 text-left">Subtotal</th>
                         <th className="p-4 text-left">Descuento</th>
                         <th className="p-4 text-left">Código</th>
@@ -511,7 +525,7 @@ function OrdersPage() {
                     <tbody>
                       {orders.length === 0 && (
                         <tr>
-                          <td colSpan="12" className="p-8 text-center font-bold text-slate-400">
+                          <td colSpan="13" className="p-8 text-center font-bold text-slate-400">
                             No hay pedidos registrados todavia.
                           </td>
                         </tr>
@@ -519,6 +533,7 @@ function OrdersPage() {
 
                       {orders.map((order) => {
                         const statusMeta = getOrderStatusMeta(order.status);
+                        const paymentMeta = getPaymentStatusMeta(order.paymentStatus);
                         const parsedAddress = splitShippingAddress(order.shippingAddress);
 
                         return (
@@ -542,6 +557,13 @@ function OrdersPage() {
                               <span className={`rounded-full px-3 py-1 font-bold ${statusMeta.classes}`}>
                                 {statusMeta.label}
                               </span>
+                            </td>
+
+                            <td className="p-4">
+                              <span className={`rounded-full px-3 py-1 font-bold ${paymentMeta.classes}`}>
+                                {paymentMeta.label}
+                              </span>
+                              {order.transactionReference && <p className="mt-2 max-w-[150px] break-all text-xs font-semibold text-slate-500">{order.transactionReference}</p>}
                             </td>
 
                             <td className="p-4">

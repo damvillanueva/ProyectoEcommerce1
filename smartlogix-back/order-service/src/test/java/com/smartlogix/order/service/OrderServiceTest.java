@@ -15,6 +15,7 @@ import com.smartlogix.order.domain.OrderStatus;
 import com.smartlogix.order.domain.PurchaseOrder;
 import com.smartlogix.order.domain.FulfillmentMethod;
 import com.smartlogix.order.domain.PaymentMethod;
+import com.smartlogix.order.domain.PaymentSimulationScenario;
 import com.smartlogix.order.domain.PaymentStatus;
 import com.smartlogix.order.domain.ShippingMethod;
 import com.smartlogix.order.discount.Discount;
@@ -55,7 +56,8 @@ class OrderServiceTest {
                 inventoryClient,
                 shipmentClient,
                 emptyDiscountRepository(),
-                new ShippingRateService()
+                new ShippingRateService(),
+                new PaymentSimulationService()
         );
     }
 
@@ -75,10 +77,48 @@ class OrderServiceTest {
         assertThat(response.trackingCode()).isEqualTo("SLX-TEST-1");
         assertThat(response.shippingAmount()).isEqualByComparingTo("3990");
         assertThat(response.paymentStatus()).isEqualTo(PaymentStatus.PAID);
+        assertThat(response.transactionReference()).startsWith("WBP-");
+        assertThat(response.paymentAuthorizationCode()).hasSize(6);
+        assertThat(response.paymentProcessedAt()).isNotNull();
         assertThat(response.orderNumber()).startsWith("ORD-");
         assertThat(inventoryClient.available("SKU-3001")).isEqualTo(44);
         assertThat(inventoryClient.reserved("SKU-3001")).isEqualTo(1);
         assertThat(shipmentClient.createdTrackingCodes()).containsExactly("SLX-TEST-1");
+    }
+
+    @Test
+    void rejectedPaymentReleasesStockAndDoesNotRequestShipment() {
+        inventoryClient.setProduct("SKU-3001", 45, BigDecimal.valueOf(45990));
+
+        OrderResponse response = orderService.createOrder(new CreateOrderRequest(
+                "Cliente Rechazo",
+                "rechazo@smartlogix.cl",
+                "+56 9 1234 5678",
+                "18.406.158-9",
+                false,
+                "Av. Demo 123, Santiago, Region Metropolitana",
+                "Region Metropolitana",
+                "Santiago",
+                "Av. Demo 123, Santiago, Region Metropolitana",
+                null,
+                null,
+                FulfillmentMethod.DELIVERY,
+                null,
+                ShippingMethod.STANDARD,
+                PaymentMethod.WEBPAY_SIMULATED,
+                PaymentSimulationScenario.REJECTED,
+                List.of(new OrderLineRequest("SKU-3001", 1))
+        ));
+
+        assertThat(response.status()).isEqualTo(OrderStatus.REJECTED);
+        assertThat(response.paymentStatus()).isEqualTo(PaymentStatus.REJECTED);
+        assertThat(response.transactionReference()).startsWith("WBP-");
+        assertThat(response.paymentAuthorizationCode()).isNull();
+        assertThat(response.paymentProcessedAt()).isNotNull();
+        assertThat(response.paymentFailureReason()).contains("rechazo");
+        assertThat(inventoryClient.available("SKU-3001")).isEqualTo(45);
+        assertThat(inventoryClient.reserved("SKU-3001")).isZero();
+        assertThat(shipmentClient.createdTrackingCodes()).isEmpty();
     }
 
     @Test
@@ -108,7 +148,8 @@ class OrderServiceTest {
                 inventoryClient,
                 shipmentClient,
                 discountRepository(activeDiscount("TEST10", 10)),
-                new ShippingRateService()
+                new ShippingRateService(),
+                new PaymentSimulationService()
         );
 
         OrderResponse response = orderService.createOrder(new CreateOrderRequest(
@@ -137,7 +178,8 @@ class OrderServiceTest {
                 inventoryClient,
                 shipmentClient,
                 discountRepository(expiredDiscount),
-                new ShippingRateService()
+                new ShippingRateService(),
+                new PaymentSimulationService()
         );
 
         assertThatThrownBy(() -> orderService.createOrder(new CreateOrderRequest(
@@ -195,6 +237,7 @@ class OrderServiceTest {
                 null,
                 ShippingMethod.EXPRESS,
                 PaymentMethod.WEBPAY_SIMULATED,
+                null,
                 List.of(new OrderLineRequest("SKU-4001", 1))
         ));
 
