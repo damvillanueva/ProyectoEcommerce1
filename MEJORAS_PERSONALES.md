@@ -59,6 +59,8 @@ Registro de funcionalidades y mejoras incorporadas al proyecto de portafolio.
 - [x] Perfiles `dev`, `test` y `prod` para los servicios persistentes.
 - [x] Backup consistente de las cuatro bases con manifiesto, retencion y SHA-256.
 - [x] Restauracion completa probada con respaldo previo y propietarios separados.
+- [x] Sesiones JWT vencidas se limpian y redirigen al login correspondiente.
+- [x] Login sin exposicion del token en consola y con errores accesibles en pantalla.
 
 ## Siguientes mejoras recomendadas
 

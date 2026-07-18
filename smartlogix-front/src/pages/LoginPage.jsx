@@ -6,22 +6,26 @@ import logoLogin from "../assets/logo-login.png";
 function LoginPage() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [errorMessage, setErrorMessage] = useState("");
   const navigate = useNavigate();
 
   async function handleSubmit(event) {
     event.preventDefault();
+    setErrorMessage("");
 
     try {
       const response = await login({
         credential: username,
         password,
       });
-      console.log("Respuesta login:", response);
       saveLoginSession(response);
       navigate(response.role === "ROLE_CUSTOMER" ? "/shop" : "/dashboard");
     } catch (error) {
-      console.error(error);
-      alert(error.message || "Credenciales inválidas");
+      setErrorMessage(
+        error.response?.status === 401
+          ? "Usuario o contrasena incorrectos"
+          : error.message || "No fue posible iniciar sesion"
+      );
     }
   }
 
@@ -40,6 +44,7 @@ function LoginPage() {
 
               <input
                 type="text"
+                autoComplete="username"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 placeholder="Ingrese su usuario"
@@ -54,12 +59,22 @@ function LoginPage() {
 
               <input
                 type="password"
+                autoComplete="current-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Ingrese su contraseña"
                 className="w-full bg-slate-950/80 border border-white/10 text-white placeholder:text-slate-500 rounded-xl px-4 py-3 focus:ring-2 focus:ring-indigo-400 outline-none"
               />
             </div>
+
+            {errorMessage && (
+              <p
+                role="alert"
+                className="rounded-lg border border-red-400/30 bg-red-500/10 px-4 py-3 text-sm font-semibold text-red-200"
+              >
+                {errorMessage}
+              </p>
+            )}
 
             <button
               type="submit"

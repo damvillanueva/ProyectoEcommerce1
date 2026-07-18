@@ -34,6 +34,14 @@ export function getRoleFromToken(token = getAuthToken()) {
   );
 }
 
+export function isAuthTokenExpired(token = getAuthToken()) {
+  const decoded = decodeAuthToken(token);
+
+  if (!decoded?.exp) return true;
+
+  return decoded.exp * 1000 <= Date.now();
+}
+
 export function getUsernameFromToken(token = getAuthToken()) {
   const decoded = decodeAuthToken(token);
 

@@ -1,6 +1,5 @@
-import axios from "axios";
+import axios, { API_URL } from "./apiConfig";
 import { getAuthHeaders } from "../middleware/authHeaders";
-import { API_URL } from "./apiConfig";
 function compactParams(params = {}) {
   return Object.fromEntries(
     Object.entries(params).filter(

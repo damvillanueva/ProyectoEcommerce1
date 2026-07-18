@@ -1,6 +1,5 @@
-import axios from "axios";
+import axios, { API_URL } from "./apiConfig";
 import { getAuthHeaders } from "../middleware/authHeaders";
-import { API_URL } from "./apiConfig";
 
 export async function loginRequest(data) {
     const response = await axios.post(`${API_URL}/api/auth/login`, data);
