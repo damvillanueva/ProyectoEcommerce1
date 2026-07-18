@@ -1,137 +1,140 @@
-# Proyecto SmartLogix
+# SmartLogix
 
-Monorepo personal de SmartLogix con backend en Spring Boot y frontend en React.
-La base viene de la entrega grupal y esta copia se usa para seguir mejorando el sistema sin tocar el repositorio del equipo.
+Plataforma full stack de ecommerce y operacion logistica desarrollada como
+proyecto de portafolio. Reune una tienda para clientes y un panel interno para
+administrar inventario, bodegas, pedidos, envios, usuarios y descuentos.
 
-## Estructura
+Repositorio: [damvillanueva/ProyectoEcommerce1](https://github.com/damvillanueva/ProyectoEcommerce1)
 
-```txt
-ProyectoSmartlogix/
-  smartlogix-back/       Microservicios Spring Boot
-  smartlogix-front/      Frontend React + Vite
-  MEJORAS_PERSONALES.md  Checklist de mejoras implementadas y pendientes
-  ROADMAP_PLANTILLA_ECOMMERCE.md  Fases para convertirlo en plantilla reutilizable
-  NORMATIVA_Y_ESTANDARES.md  Matriz chilena e internacional de cumplimiento
-  EXPLICACION_GRUPO.md   Resumen tecnico simple para explicar al equipo
-  GUIA_DEMO_PROFESOR.md  Guion de demo paso a paso
+## Funcionalidades
+
+### Tienda ecommerce
+
+- Catalogo publico con busqueda, categorias, detalle, resenas y preguntas.
+- Carrito independiente y checkout autenticado para clientes.
+- Despacho o retiro, cotizacion de envio y codigos de descuento.
+- Pago demostrativo, confirmacion de compra y seguimiento del pedido.
+- Cuenta de cliente con perfil, direcciones, favoritos e historial de compras.
+- Cancelacion con liberacion de stock y reembolso simulado.
+
+### Operacion interna
+
+- Autenticacion JWT y autorizacion por roles en frontend y backend.
+- Dashboard con indicadores de inventario y productos criticos.
+- Inventario con imagenes, categorias, stock, reservas y reposicion.
+- Historial, auditoria, exportacion CSV/Excel y movimientos manuales.
+- Bodegas visuales, ubicaciones fisicas, traslados y explorador 3D con Three.js.
+- Gestion de pedidos, envios, usuarios y descuentos.
+- Codigos QR por SKU y localizacion por nombre, codigo o ubicacion.
+
+## Arquitectura
+
+```mermaid
+flowchart LR
+    UI["React + Vite"] --> GW["API Gateway"]
+    GW --> AUTH["Auth Service"]
+    GW --> INV["Inventory Service"]
+    GW --> ORD["Order Service"]
+    GW --> SHIP["Shipment Service"]
+    ORD --> INV
+    ORD --> SHIP
+    AUTH --> DBA[("PostgreSQL auth")]
+    INV --> DBI[("PostgreSQL inventory")]
+    ORD --> DBO[("PostgreSQL orders")]
+    SHIP --> DBS[("PostgreSQL shipments")]
+    DISC["Eureka Discovery"] --- GW
+    DISC --- AUTH
+    DISC --- INV
+    DISC --- ORD
+    DISC --- SHIP
 ```
 
-## Funcionalidades destacadas
+El backend usa una base y un usuario PostgreSQL independiente por servicio.
+Flyway controla las migraciones y Docker Compose levanta la plataforma completa.
 
-- Autenticacion con JWT y roles.
-- Inventario con productos, stock disponible, reservado y nivel de reposicion.
-- Historial de movimientos de inventario.
-- Registro manual de entradas, salidas y ajustes.
-- Filtros por producto, tipo, usuario, fechas y cantidad.
-- Exportacion CSV del historial con filtros aplicados.
-- Imagenes por producto mediante `imageUrl`.
-- Miniaturas en inventario e historial.
-- Alerta de stock bajo.
-- Detalle completo de producto con imagen, stock e historial asociado.
-- Vista 3D de bodega con busqueda por nombre, SKU o ubicacion.
-- Pedidos desde catalogo de inventario.
-- Envios conectados al pedido y limpieza de reservas al eliminar.
-- Traslado visual de productos entre bodegas.
+## Tecnologias
 
-## Backend
+- Frontend: React 19, Vite 8, React Router, Tailwind CSS y Three.js.
+- Backend: Java 17, Spring Boot 3.3, Spring Cloud Gateway y Eureka.
+- Datos: PostgreSQL 16, Flyway y H2 solo para pruebas automatizadas.
+- Operacion: Docker Compose, health checks y scripts de backup/restore.
 
-Ruta:
+## Ejecucion local
+
+Requisitos: Docker Desktop, Node.js 20 o superior y Git.
 
 ```powershell
-cd smartlogix-back
-```
-
-Crear la configuracion local antes del primer arranque:
-
-```powershell
+git clone https://github.com/damvillanueva/ProyectoEcommerce1.git
+cd ProyectoEcommerce1\smartlogix-back
 Copy-Item .env.example .env
 ```
 
-Luego se deben reemplazar todos los valores de `REEMPLAZAR_*`. El archivo `.env`
-real contiene secretos locales y Git no lo versiona.
-
-Validar:
+Reemplace todos los valores `REEMPLAZAR_*` de `smartlogix-back/.env` y levante
+el backend:
 
 ```powershell
-.\mvnw.cmd -pl inventory-service -am test
+docker compose up --build -d
+docker compose ps
 ```
 
-Levantar con Docker:
-
-```powershell
-docker compose up --build
-```
-
-API Gateway:
-
-```txt
-http://localhost:8080
-```
-
-Usuarios semilla de desarrollo:
-
-```txt
-admin
-usuario
-bodeguero
-cliente
-```
-
-Las contrasenas se definen exclusivamente mediante las variables
-`SMARTLOGIX_SEED_*_PASSWORD` del archivo `.env` local.
-
-## Frontend
-
-Ruta:
+En otra terminal, levante el frontend:
 
 ```powershell
 cd smartlogix-front
-```
-
-Instalar dependencias:
-
-```powershell
+Copy-Item .env.example .env
 npm install
-```
-
-Ejecutar:
-
-```powershell
 npm run dev
 ```
 
-Validar build:
+- Tienda: `http://localhost:5174/shop`
+- Panel interno: `http://localhost:5174/`
+- API Gateway: `http://localhost:8080`
+- Eureka: `http://localhost:8761`
+
+Los usuarios semilla son `admin`, `usuario`, `bodeguero` y `cliente`. Sus
+contrasenas se configuran localmente en `.env`; el repositorio no contiene
+credenciales funcionales.
+
+## Seguridad
+
+- Los permisos se validan en backend; cambiar el rol desde las herramientas del
+  navegador no concede privilegios.
+- JWT, credenciales semilla, CORS y claves de base de datos se exigen por entorno.
+- Los servicios internos no publican sus puertos al host y usan privilegio minimo.
+- PostgreSQL se enlaza a `127.0.0.1` y cada servicio usa credenciales separadas.
+- Los respaldos incluyen manifiesto, tamano y hash SHA-256 antes de restaurar.
+
+La matriz de controles y referencias chilenas/internacionales esta en
+[NORMATIVA_Y_ESTANDARES.md](NORMATIVA_Y_ESTANDARES.md). No representa una
+certificacion ni reemplaza una revision legal o de seguridad independiente.
+
+## Calidad
 
 ```powershell
+cd smartlogix-back
+.\mvnw.cmd clean test
+
+cd ..\smartlogix-front
+npm run lint
 npm run build
 ```
 
-URL local:
+## Documentacion
 
-```txt
-http://localhost:5174
-```
+- [Backend y API](smartlogix-back/README.md)
+- [Backup y restauracion](smartlogix-back/docs/BACKUP_RESTORE.md)
+- [Roadmap del producto](ROADMAP_PLANTILLA_ECOMMERCE.md)
+- [Normativa y estandares](NORMATIVA_Y_ESTANDARES.md)
+- [Evolucion tecnica](MEJORAS_PERSONALES.md)
 
-## Seguridad y limpieza del repositorio
+## Alcance actual
 
-Este repositorio ignora dependencias, builds, logs y archivos locales sensibles:
+SmartLogix es una demostracion funcional de arquitectura y producto. Los pagos
+son simulados, las imagenes subidas se almacenan como data URL y el comprobante
+de compra no es un documento tributario del SII. Antes de operar con clientes
+reales faltan integraciones de pago, facturacion, correo, almacenamiento de
+archivos, monitoreo, despliegue productivo y una auditoria de seguridad formal.
 
-- `node_modules`
-- `dist`
-- `target`
-- `.env`
-- contrasenas y secretos JWT
-- `credential.txt`
-- volumenes y datos locales de PostgreSQL
+## Autor
 
-## Checklist
-
-El avance personal esta documentado en:
-
-```txt
-MEJORAS_PERSONALES.md
-ROADMAP_PLANTILLA_ECOMMERCE.md
-NORMATIVA_Y_ESTANDARES.md
-EXPLICACION_GRUPO.md
-GUIA_DEMO_PROFESOR.md
-```
+[Damian Villanueva](https://github.com/damvillanueva)

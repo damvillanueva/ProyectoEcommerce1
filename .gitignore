@@ -34,3 +34,6 @@ Thumbs.db
 *.db
 *.mv.db
 *.trace.db
+*.dump
+smartlogix-back/backups/*
+!smartlogix-back/backups/.gitkeep

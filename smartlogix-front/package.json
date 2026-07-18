@@ -1,7 +1,7 @@
 {
-  "name": "fron_smart_logix",
+  "name": "smartlogix-front",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",

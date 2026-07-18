@@ -1,7 +1,10 @@
-# SmartLogix - Plataforma Inteligente para Gestion Logistica (Microservicios)
+# SmartLogix Backend
 
-Proyecto de referencia para el caso semestral de Informatica.
-Incluye una arquitectura realista para PYMEs eCommerce con estos modulos:
+Backend de microservicios para una plataforma ecommerce y de gestion logistica.
+Esta implementacion forma parte de un proyecto de portafolio y prioriza una
+arquitectura ejecutable, seguridad por capas y operacion reproducible.
+
+Incluye los siguientes modulos:
 
 - Gestion de Inventario (`inventory-service`)
 - Procesamiento de Pedidos (`order-service`)
@@ -79,6 +82,26 @@ Flyway ejecuta los archivos `db/migration/V*__*.sql` antes de que Hibernate
 valide las entidades. No se debe modificar una migracion ya aplicada; los
 cambios futuros se agregan como `V2`, `V3` y siguientes.
 
+### Respaldo y restauracion
+
+Con la plataforma levantada, cree un respaldo consistente de las cuatro bases:
+
+```powershell
+.\scripts\backup-postgres.ps1
+```
+
+La restauracion valida el manifiesto y los hashes, crea primero un respaldo de
+seguridad y exige confirmacion explicita:
+
+```powershell
+.\scripts\restore-postgres.ps1 `
+  -BackupPath .\backups\20260718_231323 `
+  -Force
+```
+
+El procedimiento completo, las opciones de retencion y las precauciones para
+datos personales estan en [docs/BACKUP_RESTORE.md](docs/BACKUP_RESTORE.md).
+
 Para detenerla:
 
 ```powershell
@@ -99,6 +122,7 @@ Iniciar en este orden (cada comando en terminal distinta):
 
 ```powershell
 .\mvnw.cmd -pl discovery-service spring-boot:run
+.\mvnw.cmd -pl auth-service spring-boot:run
 .\mvnw.cmd -pl inventory-service spring-boot:run
 .\mvnw.cmd -pl shipment-service spring-boot:run
 .\mvnw.cmd -pl order-service spring-boot:run
@@ -243,18 +267,19 @@ Invoke-RestMethod `
 4. Solicita planificacion de envio en `shipment-service`.
 5. Devuelve orden con `trackingCode` y estado final.
 
-## Nota para evaluacion parcial
+## Evolucion prevista
 
-Este proyecto ya cubre la base del Parcial 1 (arquitectura y microservicios).
-Se puede extender en Parcial 2/3 con:
+El backend puede ampliarse con:
 
 - trazabilidad distribuida,
 - mensajeria asincrona (Kafka/RabbitMQ),
-- frontend React/Vue,
-- despliegue con Docker Compose/Kubernetes.
+- procesamiento asincrono e idempotente de eventos,
+- observabilidad centralizada,
+- almacenamiento de objetos para imagenes,
+- despliegue automatizado y orquestacion de contenedores.
 
-## Documento tecnico sugerido
+## Documentacion operativa
 
-Se incluye una base de informe en:
-
-- `docs/INFORME-TECNICO.md`
+- [Backup y restauracion](docs/BACKUP_RESTORE.md)
+- [Roadmap general](../ROADMAP_PLANTILLA_ECOMMERCE.md)
+- [Normativa y estandares](../NORMATIVA_Y_ESTANDARES.md)

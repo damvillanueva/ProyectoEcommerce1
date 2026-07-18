@@ -178,6 +178,7 @@ duplicados y registrar estados sin exponer datos sensibles.
 - [x] Pagos demostrativos sin almacenar datos reales de tarjetas.
 - [x] Pruebas de permisos, stock, pedidos y envios.
 - [x] PostgreSQL persistente con migraciones versionadas y usuarios separados.
+- [x] Respaldo consistente y restauracion probada con validacion SHA-256.
 
 ### Pendiente antes de produccion
 
@@ -192,7 +193,7 @@ duplicados y registrar estados sin exponer datos sensibles.
 - [ ] Integrar boleta o factura electronica y flujo formal de garantia/retracto.
 - [ ] Usar proveedor de pagos real sin almacenar datos de tarjeta.
 - [ ] Completar auditoria WCAG 2.2 AA automatizada y manual.
-- [ ] Crear respaldos cifrados, restauracion probada y plan de continuidad.
+- [ ] Cifrar respaldos externos y formalizar el plan de continuidad.
 - [ ] Evaluar legalmente el alcance de las leyes 21.663 y 21.719.
 
 ## Evidencia exigida por cada entrega

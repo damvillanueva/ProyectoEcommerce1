@@ -1,16 +1,41 @@
-# React + Vite
+# SmartLogix Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Interfaz React de SmartLogix. Incluye la tienda ecommerce, cuenta de cliente,
+carrito y checkout, junto con el panel interno de inventario y logistica.
 
-Currently, two official plugins are available:
+## Requisitos
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- Node.js 20 o superior
+- Backend SmartLogix disponible mediante API Gateway
 
-## React Compiler
+## Configuracion
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+```powershell
+Copy-Item .env.example .env
+npm install
+npm run dev
+```
 
-## Expanding the ESLint configuration
+La variable `VITE_API_URL` permite apuntar el frontend a otro gateway. Su valor
+local predeterminado es `http://localhost:8080`.
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## Rutas principales
+
+- `/shop`: catalogo publico.
+- `/shop/cart`: carrito.
+- `/shop/checkout`: checkout para clientes autenticados.
+- `/shop/account`: perfil, direcciones, favoritos y compras.
+- `/dashboard`: resumen interno.
+- `/inventory`: inventario, bodegas y vista 3D.
+- `/inventory/movements`: historial y auditoria.
+- `/orders`, `/shipments`, `/users`, `/discounts`: operacion interna por rol.
+
+## Validacion
+
+```powershell
+npm run lint
+npm run build
+```
+
+Las rutas del navegador mejoran la experiencia, pero la autorizacion definitiva
+se aplica en el backend para cada operacion protegida.

@@ -1,6 +1,6 @@
-# Mejoras personales SmartLogix
+# Evolucion tecnica de SmartLogix
 
-Base copiada desde la entrega grupal y separada para seguir iterando sin tocar la rama del equipo.
+Registro de funcionalidades y mejoras incorporadas al proyecto de portafolio.
 
 ## Hecho en esta copia
 
@@ -45,7 +45,7 @@ Base copiada desde la entrega grupal y separada para seguir iterando sin tocar l
 - [x] Lint frontend limpio con `npm run lint`.
 - [x] Tests unitarios de `order-service` para reserva, envio y limpieza al eliminar pedido.
 - [x] Traslado avanzado entre bodegas desde el detalle del producto, manteniendo stock y reservas.
-- [x] Documentacion para explicar el codigo al grupo y guion de demo para el profesor.
+- [x] Documentacion tecnica y guion de demostracion del flujo completo.
 - [x] Checkout ecommerce con carrito separado, despacho/retiro, descuentos y pagos simulados.
 - [x] Cuenta de cliente con perfil, direcciones, favoritos, compras y seguimiento privado.
 - [x] Catalogo con detalle, resenas, preguntas y productos relacionados.
@@ -57,6 +57,8 @@ Base copiada desde la entrega grupal y separada para seguir iterando sin tocar l
 - [x] PostgreSQL persistente con una base y credencial separada por microservicio.
 - [x] Migraciones Flyway y validacion de entidades con `ddl-auto: validate`.
 - [x] Perfiles `dev`, `test` y `prod` para los servicios persistentes.
+- [x] Backup consistente de las cuatro bases con manifiesto, retencion y SHA-256.
+- [x] Restauracion completa probada con respaldo previo y propietarios separados.
 
 ## Siguientes mejoras recomendadas
 
@@ -164,10 +166,10 @@ Base copiada desde la entrega grupal y separada para seguir iterando sin tocar l
     - Si la orden tenia tracking, eliminar tambien el envio asociado para evitar registros huerfanos.
     - Estado: implementado en `order-service` y validado por API local.
 
-18. Calidad de codigo y explicacion
+18. Calidad de codigo y documentacion
     - `npm run lint` pasa limpio en frontend.
     - Se agregaron tests unitarios en `order-service` para crear pedido, reservar stock, solicitar envio, eliminar pedido, liberar stock y borrar tracking.
-    - Se agregaron `EXPLICACION_GRUPO.md` y `GUIA_DEMO_PROFESOR.md`.
+    - Se mantiene documentacion de arquitectura, operacion y alcance del producto.
 
 19. Traslado entre bodegas
     - Desde el modal de detalle se puede cambiar bodega, zona, pasillo, rack, nivel y posicion.

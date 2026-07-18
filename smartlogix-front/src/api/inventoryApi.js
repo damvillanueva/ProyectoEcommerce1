@@ -1,7 +1,6 @@
 import axios from "axios";
 import { getAuthHeaders } from "../middleware/authHeaders";
-
-const API_URL = "http://localhost:8080";
+import { API_URL } from "./apiConfig";
 function compactParams(params = {}) {
   return Object.fromEntries(
     Object.entries(params).filter(
