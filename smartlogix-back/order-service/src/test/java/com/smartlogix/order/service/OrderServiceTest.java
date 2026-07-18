@@ -1,6 +1,7 @@
 package com.smartlogix.order.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.smartlogix.order.client.InventoryAvailabilityResponse;
 import com.smartlogix.order.client.InventoryClient;
@@ -15,6 +16,7 @@ import com.smartlogix.order.domain.PurchaseOrder;
 import com.smartlogix.order.domain.FulfillmentMethod;
 import com.smartlogix.order.domain.PaymentMethod;
 import com.smartlogix.order.domain.PaymentStatus;
+import com.smartlogix.order.domain.ShippingMethod;
 import com.smartlogix.order.discount.Discount;
 import com.smartlogix.order.dto.CreateOrderRequest;
 import com.smartlogix.order.dto.OrderLineRequest;
@@ -121,6 +123,29 @@ class OrderServiceTest {
     }
 
     @Test
+    void createOrderRejectsExpiredDiscount() {
+        inventoryClient.setProduct("SKU-1001", 20, BigDecimal.valueOf(10000));
+        Discount expiredDiscount = activeDiscount("VENCIDO", 10);
+        expiredDiscount.setValidUntil(LocalDate.now().minusDays(1));
+        orderService = new OrderService(
+                store.repository(),
+                inventoryClient,
+                shipmentClient,
+                discountRepository(expiredDiscount)
+        );
+
+        assertThatThrownBy(() -> orderService.createOrder(new CreateOrderRequest(
+                "Cliente Descuento",
+                "descuento@smartlogix.cl",
+                "Providencia | Av. Demo 123",
+                "VENCIDO",
+                List.of(new OrderLineRequest("SKU-1001", 1))
+        )))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("vencido");
+    }
+
+    @Test
     void pickupOrderDoesNotRequestShipmentAndCanRemainPendingPayment() {
         inventoryClient.setProduct("SKU-2001", 12, BigDecimal.valueOf(25000));
 
@@ -142,6 +167,36 @@ class OrderServiceTest {
         assertThat(response.paymentStatus()).isEqualTo(PaymentStatus.PENDING);
         assertThat(response.trackingCode()).isNull();
         assertThat(shipmentClient.createdTrackingCodes()).isEmpty();
+    }
+
+    @Test
+    void expressDeliveryUsesBackendRateAndPersistsCheckoutDetails() {
+        inventoryClient.setProduct("SKU-4001", 8, BigDecimal.valueOf(30000));
+
+        OrderResponse response = orderService.createOrder(new CreateOrderRequest(
+                "Damian Villanueva",
+                "damian@smartlogix.cl",
+                "+56 9 1234 5678",
+                "18.406.158-9",
+                true,
+                "Argentina 8577, La Florida, Region Metropolitana",
+                "Argentina 8577, La Florida, Region Metropolitana",
+                "Departamento 609",
+                null,
+                FulfillmentMethod.DELIVERY,
+                null,
+                ShippingMethod.EXPRESS,
+                PaymentMethod.WEBPAY_SIMULATED,
+                List.of(new OrderLineRequest("SKU-4001", 1))
+        ));
+
+        assertThat(response.shippingMethod()).isEqualTo(ShippingMethod.EXPRESS);
+        assertThat(response.shippingAmount()).isEqualByComparingTo("8990");
+        assertThat(response.customerPhone()).isEqualTo("+56 9 1234 5678");
+        assertThat(response.customerDocument()).isEqualTo("18.406.158-9");
+        assertThat(response.marketingOptIn()).isTrue();
+        assertThat(response.billingAddress()).contains("La Florida");
+        assertThat(response.deliveryInstructions()).isEqualTo("Departamento 609");
     }
 
     @Test

@@ -35,6 +35,15 @@ public class PurchaseOrder {
     @Column(nullable = false, length = 120)
     private String customerEmail;
 
+    @Column(length = 30)
+    private String customerPhone;
+
+    @Column(length = 20)
+    private String customerDocument;
+
+    @Column(nullable = false)
+    private boolean marketingOptIn;
+
     @Column(length = 50)
     private String customerUsername;
 
@@ -49,8 +58,18 @@ public class PurchaseOrder {
     @Column(length = 255)
     private String shippingAddress;
 
+    @Column(length = 255)
+    private String billingAddress;
+
+    @Column(length = 250)
+    private String deliveryInstructions;
+
     @Column(length = 120)
     private String pickupLocation;
+
+    @Enumerated(EnumType.STRING)
+    @Column(length = 20)
+    private ShippingMethod shippingMethod;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 40)
@@ -125,6 +144,30 @@ public class PurchaseOrder {
         this.customerEmail = customerEmail;
     }
 
+    public String getCustomerPhone() {
+        return customerPhone;
+    }
+
+    public void setCustomerPhone(String customerPhone) {
+        this.customerPhone = customerPhone;
+    }
+
+    public String getCustomerDocument() {
+        return customerDocument;
+    }
+
+    public void setCustomerDocument(String customerDocument) {
+        this.customerDocument = customerDocument;
+    }
+
+    public boolean isMarketingOptIn() {
+        return marketingOptIn;
+    }
+
+    public void setMarketingOptIn(boolean marketingOptIn) {
+        this.marketingOptIn = marketingOptIn;
+    }
+
     public String getCustomerUsername() {
         return customerUsername;
     }
@@ -157,12 +200,36 @@ public class PurchaseOrder {
         this.shippingAddress = shippingAddress;
     }
 
+    public String getBillingAddress() {
+        return billingAddress;
+    }
+
+    public void setBillingAddress(String billingAddress) {
+        this.billingAddress = billingAddress;
+    }
+
+    public String getDeliveryInstructions() {
+        return deliveryInstructions;
+    }
+
+    public void setDeliveryInstructions(String deliveryInstructions) {
+        this.deliveryInstructions = deliveryInstructions;
+    }
+
     public String getPickupLocation() {
         return pickupLocation;
     }
 
     public void setPickupLocation(String pickupLocation) {
         this.pickupLocation = pickupLocation;
+    }
+
+    public ShippingMethod getShippingMethod() {
+        return shippingMethod;
+    }
+
+    public void setShippingMethod(ShippingMethod shippingMethod) {
+        this.shippingMethod = shippingMethod;
     }
 
     public PaymentMethod getPaymentMethod() {

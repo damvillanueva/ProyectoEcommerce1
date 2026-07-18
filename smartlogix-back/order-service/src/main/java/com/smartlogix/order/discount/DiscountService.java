@@ -3,6 +3,8 @@ package com.smartlogix.order.discount;
 import com.smartlogix.order.repository.DiscountRepository;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 
 @Service
@@ -34,6 +36,21 @@ public class DiscountService {
         repository.save(campaign);
 
         return toResponse(campaign);
+    }
+
+    public DiscountValidationResponse validate(DiscountValidationRequest request) {
+        Discount campaign = findApplicable(request.code());
+        BigDecimal discountAmount = request.subtotal()
+                .multiply(BigDecimal.valueOf(campaign.getPercentage()))
+                .divide(BigDecimal.valueOf(100));
+
+        return new DiscountValidationResponse(
+                campaign.getCode(),
+                campaign.getPercentage(),
+                request.subtotal(),
+                discountAmount,
+                request.subtotal().subtract(discountAmount)
+        );
     }
 
     public List<DiscountResponse> findAll() {
@@ -78,6 +95,24 @@ public class DiscountService {
         }
 
         repository.deleteById(id);
+    }
+
+    private Discount findApplicable(String code) {
+        Discount campaign = repository.findByCodeIgnoreCase(code.trim())
+                .orElseThrow(() -> new IllegalArgumentException("El codigo de descuento no existe."));
+        LocalDate today = LocalDate.now();
+
+        if (!Boolean.TRUE.equals(campaign.getActive())) {
+            throw new IllegalArgumentException("El codigo de descuento no esta activo.");
+        }
+        if (campaign.getValidFrom() != null && today.isBefore(campaign.getValidFrom())) {
+            throw new IllegalArgumentException("El codigo de descuento aun no esta vigente.");
+        }
+        if (campaign.getValidUntil() != null && today.isAfter(campaign.getValidUntil())) {
+            throw new IllegalArgumentException("El codigo de descuento esta vencido.");
+        }
+
+        return campaign;
     }
 
     private DiscountResponse toResponse(Discount campaign) {

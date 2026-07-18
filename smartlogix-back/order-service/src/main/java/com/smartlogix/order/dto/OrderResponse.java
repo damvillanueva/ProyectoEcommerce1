@@ -5,6 +5,7 @@ import com.smartlogix.order.domain.OrderChannel;
 import com.smartlogix.order.domain.FulfillmentMethod;
 import com.smartlogix.order.domain.PaymentMethod;
 import com.smartlogix.order.domain.PaymentStatus;
+import com.smartlogix.order.domain.ShippingMethod;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
@@ -14,10 +15,16 @@ public record OrderResponse(
         String orderNumber,
         String customerName,
         String customerEmail,
+        String customerPhone,
+        String customerDocument,
+        boolean marketingOptIn,
         OrderChannel salesChannel,
         String shippingAddress,
+        String billingAddress,
+        String deliveryInstructions,
         FulfillmentMethod fulfillmentMethod,
         String pickupLocation,
+        ShippingMethod shippingMethod,
         PaymentMethod paymentMethod,
         PaymentStatus paymentStatus,
         String transactionReference,

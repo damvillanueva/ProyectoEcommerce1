@@ -753,9 +753,23 @@ function OrderDetail({ onReorder, order, productsBySku }) {
         <div className="mt-5 border-t border-white/10 pt-5">
           <p className="text-xs font-black uppercase text-slate-500">{order.fulfillmentMethod === "PICKUP" ? "Retiro en tienda" : "Despacho"}</p>
           <p className="mt-2 text-sm font-bold text-slate-300">{order.fulfillmentMethod === "PICKUP" ? order.pickupLocation : order.shippingAddress}</p>
+          {order.fulfillmentMethod === "DELIVERY" && (
+            <p className="mt-2 text-xs font-black text-emerald-300">
+              {order.shippingMethod === "EXPRESS" ? "Despacho express" : "Despacho estandar"}
+            </p>
+          )}
+          {order.deliveryInstructions && <p className="mt-2 text-xs font-bold text-slate-500">Instrucciones: {order.deliveryInstructions}</p>}
           {order.trackingCode && (
             <p className="mt-2 text-xs font-black text-sky-300">Seguimiento: {order.trackingCode}</p>
           )}
+        </div>
+
+        <div className="mt-5 border-t border-white/10 pt-5">
+          <p className="text-xs font-black uppercase text-slate-500">Contacto y facturacion</p>
+          <p className="mt-2 text-sm font-bold text-slate-300">{order.customerName}</p>
+          <p className="mt-1 text-xs font-bold text-slate-500">{order.customerEmail}{order.customerPhone ? ` | ${order.customerPhone}` : ""}</p>
+          {order.customerDocument && <p className="mt-1 text-xs font-bold text-slate-500">RUT: {order.customerDocument}</p>}
+          {order.billingAddress && <p className="mt-2 text-xs font-bold text-slate-500">Facturacion: {order.billingAddress}</p>}
         </div>
 
         <div className="mt-5 border-t border-white/10 pt-5">

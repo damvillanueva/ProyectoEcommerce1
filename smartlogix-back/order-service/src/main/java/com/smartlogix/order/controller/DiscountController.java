@@ -3,6 +3,9 @@ package com.smartlogix.order.controller;
 import com.smartlogix.order.discount.DiscountRequest;
 import com.smartlogix.order.discount.DiscountResponse;
 import com.smartlogix.order.discount.DiscountService;
+import com.smartlogix.order.discount.DiscountValidationRequest;
+import com.smartlogix.order.discount.DiscountValidationResponse;
+import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -15,6 +18,11 @@ public class DiscountController {
 
     public DiscountController(DiscountService discountService) {
         this.discountService = discountService;
+    }
+
+    @PostMapping("/validate")
+    public DiscountValidationResponse validate(@Valid @RequestBody DiscountValidationRequest request) {
+        return discountService.validate(request);
     }
 
     @PostMapping

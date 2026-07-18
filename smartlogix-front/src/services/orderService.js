@@ -5,6 +5,7 @@ import {
   deleteOrder,
   getMyOrders,
   getMyOrder,
+  validateDiscount,
 } from "../api/orderApi";
 
 export async function loadOrderService() {
@@ -13,6 +14,10 @@ export async function loadOrderService() {
 
 export async function saveOrder(orderData) {
     return await createOrder(orderData);
+}
+
+export function validateOrderDiscount(code, subtotal) {
+  return validateDiscount(code, subtotal);
 }
 
 export async function editOrder(orderNumber, orderData) {

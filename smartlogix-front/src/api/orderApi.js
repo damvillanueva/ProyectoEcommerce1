@@ -41,6 +41,17 @@ export async function getMyOrders() {
   return response.data;
 }
 
+export async function validateDiscount(code, subtotal) {
+  const response = await axios.post(`${API_URL}/api/discounts/validate`, {
+    code,
+    subtotal,
+  }, {
+    headers: getAuthHeaders(),
+  });
+
+  return response.data;
+}
+
 export async function getMyOrder(orderNumber) {
   const response = await axios.get(`${API_URL}/api/orders/mine/${orderNumber}`, {
     headers: getAuthHeaders(),

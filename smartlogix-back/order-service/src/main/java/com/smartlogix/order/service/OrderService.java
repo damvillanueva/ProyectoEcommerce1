@@ -12,6 +12,7 @@ import com.smartlogix.order.domain.OrderStatus;
 import com.smartlogix.order.domain.FulfillmentMethod;
 import com.smartlogix.order.domain.PaymentMethod;
 import com.smartlogix.order.domain.PaymentStatus;
+import com.smartlogix.order.domain.ShippingMethod;
 import com.smartlogix.order.domain.PurchaseOrder;
 import com.smartlogix.order.dto.CreateOrderRequest;
 import com.smartlogix.order.dto.UpdateOrderRequest;
@@ -24,6 +25,7 @@ import com.smartlogix.order.repository.PurchaseOrderRepository;
 import com.smartlogix.order.discount.Discount;
 import com.smartlogix.order.repository.DiscountRepository;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -35,6 +37,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class OrderService {
 
     private static final BigDecimal DELIVERY_FEE = BigDecimal.valueOf(4990);
+    private static final BigDecimal EXPRESS_DELIVERY_FEE = BigDecimal.valueOf(8990);
     private static final BigDecimal FREE_SHIPPING_THRESHOLD = BigDecimal.valueOf(150000);
 
     private final PurchaseOrderRepository repository;
@@ -165,6 +168,9 @@ public class OrderService {
                 ? request.customerEmail()
                 : authenticatedEmail;
         order.setCustomerEmail(customerEmail.trim().toLowerCase());
+        order.setCustomerPhone(cleanOptional(request.customerPhone()));
+        order.setCustomerDocument(cleanOptional(request.customerDocument()));
+        order.setMarketingOptIn(request.marketingOptIn());
         order.setCustomerUsername(customerUsername);
         order.setSalesChannel(salesChannel == null ? OrderChannel.ONLINE : salesChannel);
         FulfillmentMethod fulfillmentMethod = request.fulfillmentMethod() == null
@@ -173,6 +179,9 @@ public class OrderService {
         PaymentMethod paymentMethod = request.paymentMethod() == null
                 ? PaymentMethod.WEBPAY_SIMULATED
                 : request.paymentMethod();
+        ShippingMethod shippingMethod = fulfillmentMethod == FulfillmentMethod.DELIVERY
+                ? (request.shippingMethod() == null ? ShippingMethod.STANDARD : request.shippingMethod())
+                : null;
         validateCheckoutDetails(
                 fulfillmentMethod,
                 request.shippingAddress(),
@@ -183,15 +192,18 @@ public class OrderService {
         order.setShippingAddress(fulfillmentMethod == FulfillmentMethod.DELIVERY
                 ? request.shippingAddress().trim()
                 : null);
+        order.setBillingAddress(cleanOptional(request.billingAddress()));
+        order.setDeliveryInstructions(cleanOptional(request.deliveryInstructions()));
         order.setPickupLocation(fulfillmentMethod == FulfillmentMethod.PICKUP
                 ? request.pickupLocation().trim()
                 : null);
+        order.setShippingMethod(shippingMethod);
         order.setPaymentMethod(paymentMethod);
         order.setPaymentStatus(PaymentStatus.PENDING);
         order.setStatus(OrderStatus.PENDING);
         BigDecimal subtotal = calculateTotal(pricedLines);
         BigDecimal discountAmount = calculateDiscount(request.discountCode(), subtotal);
-        BigDecimal shippingAmount = calculateShipping(fulfillmentMethod, subtotal);
+        BigDecimal shippingAmount = calculateShipping(fulfillmentMethod, shippingMethod, subtotal);
         BigDecimal total = subtotal.subtract(discountAmount).add(shippingAmount);
 
         order.setSubtotalAmount(subtotal);
@@ -235,12 +247,25 @@ public class OrderService {
         }
     }
 
-    private BigDecimal calculateShipping(FulfillmentMethod fulfillmentMethod, BigDecimal subtotal) {
-        if (fulfillmentMethod == FulfillmentMethod.PICKUP
-                || subtotal.compareTo(FREE_SHIPPING_THRESHOLD) >= 0) {
+    private BigDecimal calculateShipping(
+            FulfillmentMethod fulfillmentMethod,
+            ShippingMethod shippingMethod,
+            BigDecimal subtotal
+    ) {
+        if (fulfillmentMethod == FulfillmentMethod.PICKUP) {
+            return BigDecimal.ZERO;
+        }
+        if (shippingMethod == ShippingMethod.EXPRESS) {
+            return EXPRESS_DELIVERY_FEE;
+        }
+        if (subtotal.compareTo(FREE_SHIPPING_THRESHOLD) >= 0) {
             return BigDecimal.ZERO;
         }
         return DELIVERY_FEE;
+    }
+
+    private String cleanOptional(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
     }
 
     private void processPayment(PurchaseOrder order) {
@@ -292,6 +317,14 @@ public class OrderService {
             throw new IllegalArgumentException("El código de descuento no está activo.");
         }
 
+        LocalDate today = LocalDate.now();
+        if (discount.getValidFrom() != null && today.isBefore(discount.getValidFrom())) {
+            throw new IllegalArgumentException("El codigo de descuento aun no esta vigente.");
+        }
+        if (discount.getValidUntil() != null && today.isAfter(discount.getValidUntil())) {
+            throw new IllegalArgumentException("El codigo de descuento esta vencido.");
+        }
+
         BigDecimal percentage = BigDecimal.valueOf(discount.getPercentage());
 
         return subtotal
@@ -327,10 +360,16 @@ public class OrderService {
                 order.getOrderNumber(),
                 order.getCustomerName(),
                 order.getCustomerEmail(),
+                order.getCustomerPhone(),
+                order.getCustomerDocument(),
+                order.isMarketingOptIn(),
                 order.getSalesChannel(),
                 order.getShippingAddress(),
+                order.getBillingAddress(),
+                order.getDeliveryInstructions(),
                 order.getFulfillmentMethod(),
                 order.getPickupLocation(),
+                order.getShippingMethod(),
                 order.getPaymentMethod(),
                 order.getPaymentStatus(),
                 order.getTransactionReference(),
@@ -365,7 +404,11 @@ public class OrderService {
         List<PricedLine> pricedLines = priceLines(request.lines());
         BigDecimal subtotal = calculateTotal(pricedLines);
         BigDecimal discountAmount = calculateDiscount(request.discountCode(), subtotal);
-        BigDecimal shippingAmount = calculateShipping(order.getFulfillmentMethod(), subtotal);
+        BigDecimal shippingAmount = calculateShipping(
+                order.getFulfillmentMethod(),
+                order.getShippingMethod(),
+                subtotal
+        );
         BigDecimal total = subtotal.subtract(discountAmount).add(shippingAmount);
 
         order.setSubtotalAmount(subtotal);

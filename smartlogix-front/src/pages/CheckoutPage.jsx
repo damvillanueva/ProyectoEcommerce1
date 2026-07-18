@@ -2,31 +2,79 @@ import { useEffect, useMemo, useState } from "react";
 import {
   FiArrowLeft,
   FiCheck,
-  FiClock,
   FiCreditCard,
   FiHome,
+  FiInfo,
   FiLock,
   FiMapPin,
   FiPackage,
   FiShield,
-  FiShoppingBag,
+  FiTag,
   FiTruck,
+  FiUser,
 } from "react-icons/fi";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import logo from "../assets/logo-smartlogix.png";
-import { loadCustomerProfile } from "../services/customerAccountService";
+import {
+  createCustomerAddress,
+  loadCustomerProfile,
+} from "../services/customerAccountService";
 import { getPublicCatalogProducts } from "../services/inventoryService";
-import { saveOrder } from "../services/orderService";
+import { saveOrder, validateOrderDiscount } from "../services/orderService";
 
 const CART_STORAGE_KEY = "smartlogix-store-cart";
 const DELIVERY_FEE = 4990;
+const EXPRESS_DELIVERY_FEE = 8990;
 const FREE_SHIPPING_THRESHOLD = 150000;
-const STEPS = ["Entrega", "Pago", "Confirmacion"];
 const PICKUP_LOCATIONS = [
   "Sucursal Santiago Centro - Alameda 1234",
   "Sucursal Providencia - Nueva Providencia 2040",
   "Sucursal Las Condes - Apoquindo 4501",
 ];
+const CHILEAN_REGIONS = [
+  "Arica y Parinacota",
+  "Tarapaca",
+  "Antofagasta",
+  "Atacama",
+  "Coquimbo",
+  "Valparaiso",
+  "Region Metropolitana",
+  "O'Higgins",
+  "Maule",
+  "Nuble",
+  "Biobio",
+  "La Araucania",
+  "Los Rios",
+  "Los Lagos",
+  "Aysen",
+  "Magallanes",
+];
+const EMPTY_CUSTOMER = {
+  addressLine2: "",
+  commune: "",
+  country: "Chile",
+  document: "",
+  email: "",
+  firstName: "",
+  instructions: "",
+  lastName: "",
+  phone: "",
+  postalCode: "",
+  region: "Region Metropolitana",
+  street: "",
+};
+const EMPTY_BILLING = {
+  addressLine2: "",
+  commune: "",
+  country: "Chile",
+  document: "",
+  firstName: "",
+  lastName: "",
+  phone: "",
+  postalCode: "",
+  region: "Region Metropolitana",
+  street: "",
+};
 
 function readCart() {
   try {
@@ -45,28 +93,62 @@ function formatCurrency(value) {
   }).format(Number(value) || 0);
 }
 
-function composeShippingAddress(street, commune) {
-  return `${street.trim()}, ${commune.trim()}`;
+function splitName(value = "") {
+  const parts = value.trim().split(/\s+/).filter(Boolean);
+  return {
+    firstName: parts.shift() || "",
+    lastName: parts.join(" "),
+  };
+}
+
+function composeAddress(data) {
+  return [
+    data.street,
+    data.addressLine2,
+    data.commune,
+    data.region,
+    data.postalCode ? `CP ${data.postalCode}` : null,
+    data.country,
+  ].map((part) => part?.trim()).filter(Boolean).join(", ");
+}
+
+function isValidRut(value) {
+  const clean = String(value || "").replace(/\./g, "").replace(/-/g, "").toUpperCase();
+  if (!/^\d{7,8}[0-9K]$/.test(clean)) return false;
+  const body = clean.slice(0, -1);
+  const verifier = clean.slice(-1);
+  let sum = 0;
+  let multiplier = 2;
+  for (let index = body.length - 1; index >= 0; index -= 1) {
+    sum += Number(body[index]) * multiplier;
+    multiplier = multiplier === 7 ? 2 : multiplier + 1;
+  }
+  const result = 11 - (sum % 11);
+  const expected = result === 11 ? "0" : result === 10 ? "K" : String(result);
+  return verifier === expected;
 }
 
 function CheckoutPage() {
-  const navigate = useNavigate();
-  const [step, setStep] = useState(1);
   const [cart, setCart] = useState(readCart);
   const [products, setProducts] = useState([]);
+  const [addresses, setAddresses] = useState([]);
+  const [selectedAddressId, setSelectedAddressId] = useState("");
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [discountCode, setDiscountCode] = useState("");
+  const [discountPreview, setDiscountPreview] = useState(null);
+  const [discountChecking, setDiscountChecking] = useState(false);
+  const [discountError, setDiscountError] = useState("");
   const [fulfillmentMethod, setFulfillmentMethod] = useState("DELIVERY");
+  const [shippingMethod, setShippingMethod] = useState("STANDARD");
   const [paymentMethod, setPaymentMethod] = useState("WEBPAY_SIMULATED");
   const [pickupLocation, setPickupLocation] = useState(PICKUP_LOCATIONS[0]);
-  const [customer, setCustomer] = useState({
-    name: "",
-    email: "",
-    street: "",
-    commune: "",
-  });
+  const [customer, setCustomer] = useState(EMPTY_CUSTOMER);
+  const [billingSame, setBillingSame] = useState(true);
+  const [billing, setBilling] = useState(EMPTY_BILLING);
+  const [marketingOptIn, setMarketingOptIn] = useState(false);
+  const [saveInformation, setSaveInformation] = useState(true);
   const [order, setOrder] = useState(null);
 
   useEffect(() => {
@@ -74,14 +156,22 @@ function CheckoutPage() {
     Promise.all([getPublicCatalogProducts(), loadCustomerProfile()])
       .then(([catalog, profile]) => {
         if (!active) return;
-        const defaultAddress = profile.addresses?.find((address) => address.defaultAddress)
-          || profile.addresses?.[0];
+        const profileAddresses = Array.isArray(profile.addresses) ? profile.addresses : [];
+        const defaultAddress = profileAddresses.find((address) => address.defaultAddress)
+          || profileAddresses[0];
+        const profileName = splitName(defaultAddress?.recipientName || profile.displayName || profile.username);
         setProducts(Array.isArray(catalog) ? catalog : []);
+        setAddresses(profileAddresses);
+        setSelectedAddressId(defaultAddress?.id ? String(defaultAddress.id) : "");
         setCustomer({
-          name: profile.displayName || profile.username || "",
-          email: profile.email || "",
-          street: defaultAddress?.street || "",
+          ...EMPTY_CUSTOMER,
           commune: defaultAddress?.commune || "",
+          email: profile.email || "",
+          firstName: profileName.firstName,
+          lastName: profileName.lastName,
+          phone: defaultAddress?.phone || profile.phone || "",
+          region: defaultAddress?.region || EMPTY_CUSTOMER.region,
+          street: defaultAddress?.street || "",
         });
       })
       .catch((loadError) => {
@@ -115,153 +205,293 @@ function CheckoutPage() {
   );
 
   const subtotal = cartProducts.reduce((total, product) => total + product.lineTotal, 0);
-  const shippingAmount = fulfillmentMethod === "PICKUP" || subtotal >= FREE_SHIPPING_THRESHOLD
+  const shippingAmount = fulfillmentMethod === "PICKUP"
     ? 0
-    : DELIVERY_FEE;
-  const estimatedTotal = subtotal + shippingAmount;
+    : shippingMethod === "EXPRESS"
+      ? EXPRESS_DELIVERY_FEE
+      : subtotal >= FREE_SHIPPING_THRESHOLD ? 0 : DELIVERY_FEE;
+  const discountAmount = Number(discountPreview?.discountAmount || 0);
+  const estimatedTotal = Math.max(0, subtotal - discountAmount + shippingAmount);
 
   function updateCustomer(event) {
     const { name, value } = event.target;
     setCustomer((current) => ({ ...current, [name]: value }));
   }
 
-  function validateStep(currentStep) {
-    if (currentStep === 1) {
-      if (cartProducts.length === 0) return "Tu carrito esta vacio.";
-      const unavailable = cartProducts.find((product) => product.cartQuantity > product.availableUnits);
-      if (unavailable) return `No hay stock suficiente para ${unavailable.productName}.`;
-      if (!customer.name.trim() || !customer.email.trim()) return "Completa el nombre y correo del cliente.";
-      if (fulfillmentMethod === "DELIVERY" && (!customer.street.trim() || !customer.commune.trim())) {
-        return "Completa la direccion y comuna de despacho.";
-      }
-      if (fulfillmentMethod === "PICKUP" && !pickupLocation) return "Selecciona una sucursal de retiro.";
+  function updateBilling(event) {
+    const { name, value } = event.target;
+    setBilling((current) => ({ ...current, [name]: value }));
+  }
+
+  function selectSavedAddress(event) {
+    const addressId = event.target.value;
+    setSelectedAddressId(addressId);
+    const address = addresses.find((item) => String(item.id) === addressId);
+    if (!address) return;
+    const recipient = splitName(address.recipientName);
+    setCustomer((current) => ({
+      ...current,
+      commune: address.commune,
+      firstName: recipient.firstName,
+      lastName: recipient.lastName,
+      phone: address.phone || current.phone,
+      region: address.region,
+      street: address.street,
+    }));
+  }
+
+  function selectFulfillment(value) {
+    setFulfillmentMethod(value);
+    if (value === "DELIVERY" && paymentMethod === "PAY_ON_PICKUP") {
+      setPaymentMethod("WEBPAY_SIMULATED");
     }
-    if (currentStep === 2 && !paymentMethod) return "Selecciona un medio de pago.";
+  }
+
+  function validateCheckout() {
+    if (cartProducts.length === 0) return "Tu carrito esta vacio.";
+    const unavailable = cartProducts.find((product) => product.cartQuantity > product.availableUnits);
+    if (unavailable) return `No hay stock suficiente para ${unavailable.productName}.`;
+    if (!customer.email.trim() || !/^\S+@\S+\.\S+$/.test(customer.email)) return "Ingresa un correo valido.";
+    if (!customer.firstName.trim() || !customer.lastName.trim()) return "Completa nombre y apellidos.";
+    if (!isValidRut(customer.document)) return "Ingresa un RUT chileno valido.";
+    if (customer.phone.replace(/\D/g, "").length < 8) return "Ingresa un telefono valido.";
+    if (fulfillmentMethod === "DELIVERY") {
+      if (!customer.street.trim() || !customer.commune.trim() || !customer.region.trim()) {
+        return "Completa direccion, comuna y region para el despacho.";
+      }
+    } else if (!pickupLocation) {
+      return "Selecciona una sucursal de retiro.";
+    }
+    if (!paymentMethod) return "Selecciona un medio de pago.";
+    if (!billingSame) {
+      if (!billing.firstName.trim() || !billing.lastName.trim() || !isValidRut(billing.document)) {
+        return "Completa correctamente el nombre y RUT de facturacion.";
+      }
+      if (!billing.street.trim() || !billing.commune.trim() || !billing.region.trim()) {
+        return "Completa la direccion de facturacion.";
+      }
+    }
     return "";
   }
 
-  function goNext() {
-    const validationError = validateStep(step);
-    if (validationError) {
-      setError(validationError);
-      return;
+  async function saveAddressIfNeeded() {
+    if (!saveInformation || fulfillmentMethod !== "DELIVERY") return;
+    const exists = addresses.some((address) => address.street.trim().toLowerCase() === customer.street.trim().toLowerCase()
+      && address.commune.trim().toLowerCase() === customer.commune.trim().toLowerCase());
+    if (exists) return;
+    try {
+      await createCustomerAddress({
+        commune: customer.commune.trim(),
+        defaultAddress: addresses.length === 0,
+        label: "Casa",
+        phone: customer.phone.trim(),
+        recipientName: `${customer.firstName} ${customer.lastName}`.trim(),
+        region: customer.region.trim(),
+        street: [customer.street, customer.addressLine2].filter(Boolean).join(", "),
+      });
+    } catch (addressError) {
+      console.error("No se pudo guardar la direccion, pero la compra fue creada:", addressError);
     }
-    setError("");
-    setStep((current) => Math.min(current + 1, 2));
-    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  async function applyDiscount() {
+    if (!discountCode.trim() || subtotal <= 0) return;
+    try {
+      setDiscountChecking(true);
+      setDiscountError("");
+      const preview = await validateOrderDiscount(discountCode.trim(), subtotal);
+      setDiscountCode(preview.code);
+      setDiscountPreview(preview);
+    } catch (validationError) {
+      setDiscountPreview(null);
+      setDiscountError(validationError.response?.data?.message
+        || "No fue posible aplicar este codigo de descuento.");
+    } finally {
+      setDiscountChecking(false);
+    }
   }
 
   async function confirmOrder() {
-    const validationError = validateStep(2);
+    const validationError = validateCheckout();
     if (validationError) {
       setError(validationError);
+      window.scrollTo({ top: 0, behavior: "smooth" });
       return;
     }
+
+    const shippingAddress = fulfillmentMethod === "DELIVERY" ? composeAddress(customer) : null;
+    const billingAddress = billingSame
+      ? (shippingAddress || pickupLocation)
+      : composeAddress(billing);
 
     try {
       setSubmitting(true);
       setError("");
       const response = await saveOrder({
-        customerName: customer.name.trim(),
+        billingAddress,
+        customerDocument: customer.document.trim(),
         customerEmail: customer.email.trim(),
-        discountCode: discountCode.trim() || null,
+        customerName: `${customer.firstName} ${customer.lastName}`.trim(),
+        customerPhone: customer.phone.trim(),
+        deliveryInstructions: customer.instructions.trim() || null,
+        discountCode: discountPreview ? discountCode.trim() : null,
         fulfillmentMethod,
         lines: cartProducts.map((product) => ({
           quantity: product.cartQuantity,
           sku: product.sku,
         })),
+        marketingOptIn,
         paymentMethod,
         pickupLocation: fulfillmentMethod === "PICKUP" ? pickupLocation : null,
-        shippingAddress: fulfillmentMethod === "DELIVERY"
-          ? composeShippingAddress(customer.street, customer.commune)
-          : null,
+        shippingAddress,
+        shippingMethod: fulfillmentMethod === "DELIVERY" ? shippingMethod : null,
       });
+      await saveAddressIfNeeded();
       setOrder(response);
       setCart([]);
-      setStep(3);
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (checkoutError) {
       console.error(checkoutError);
       setError(checkoutError.response?.data?.message
-        || "No se pudo completar la compra. Revisa el stock y el codigo de descuento.");
+        || "No se pudo completar la compra. Revisa los datos, el stock y el descuento.");
+      window.scrollTo({ top: 0, behavior: "smooth" });
     } finally {
       setSubmitting(false);
     }
   }
 
+  if (order) {
+    return <Confirmation order={order} />;
+  }
+
   return (
     <div className="min-h-screen bg-slate-950 text-white">
       <CheckoutHeader />
-      <main className="mx-auto max-w-7xl px-4 py-8 lg:px-6">
-        <div className="mb-8">
-          <p className="text-xs font-black uppercase text-sky-300">Checkout protegido</p>
-          <h1 className="mt-2 text-3xl font-black sm:text-4xl">Finaliza tu compra</h1>
-        </div>
+      {loading ? (
+        <div className="flex min-h-[calc(100vh-80px)] items-center justify-center font-bold text-slate-400"><FiPackage className="mr-3" /> Preparando checkout...</div>
+      ) : (
+        <main className="mx-auto grid min-h-[calc(100vh-80px)] max-w-[1500px] lg:grid-cols-[minmax(0,1.05fr)_minmax(390px,0.75fr)]">
+          <section className="px-4 py-8 sm:px-8 lg:px-12 lg:py-10">
+            <Link to="/shop/cart" className="inline-flex items-center gap-2 text-sm font-black text-slate-400 hover:text-white"><FiArrowLeft /> Volver al carrito</Link>
+            <div className="mt-7">
+              <p className="text-xs font-black uppercase text-sky-300">Checkout protegido</p>
+              <h1 className="mt-2 text-3xl font-black">Finaliza tu compra</h1>
+            </div>
 
-        <StepIndicator currentStep={step} />
+            {error && <ErrorMessage>{error}</ErrorMessage>}
 
-        {loading ? (
-          <div className="mt-8 border border-white/10 bg-slate-900 p-8 text-center font-bold text-slate-400">Preparando tu carrito...</div>
-        ) : step === 3 && order ? (
-          <Confirmation order={order} />
-        ) : (
-          <div className="mt-8 grid items-start gap-7 lg:grid-cols-[minmax(0,1fr)_360px]">
-            <section className="border border-white/10 bg-slate-900 p-5 sm:p-7">
-              {error && <ErrorMessage>{error}</ErrorMessage>}
-              {step === 1 && (
-                <DeliveryStep
-                  customer={customer}
-                  fulfillmentMethod={fulfillmentMethod}
-                  onCustomerChange={updateCustomer}
-                  onFulfillmentChange={(value) => {
-                    setFulfillmentMethod(value);
-                    if (value === "DELIVERY" && paymentMethod === "PAY_ON_PICKUP") {
-                      setPaymentMethod("WEBPAY_SIMULATED");
-                    }
-                  }}
-                  onPickupChange={setPickupLocation}
-                  pickupLocation={pickupLocation}
-                />
-              )}
-              {step === 2 && (
-                <PaymentStep
-                  fulfillmentMethod={fulfillmentMethod}
-                  onPaymentChange={setPaymentMethod}
-                  paymentMethod={paymentMethod}
-                />
-              )}
+            <CheckoutSection icon={FiUser} title="Contacto">
+              <CheckoutInput label="Correo electronico" name="email" onChange={updateCustomer} type="email" value={customer.email} wide />
+              <CheckField checked={marketingOptIn} label="Enviarme novedades y ofertas por correo electronico" onChange={setMarketingOptIn} />
+            </CheckoutSection>
 
-              <div className="mt-8 flex flex-col-reverse gap-3 border-t border-white/10 pt-6 sm:flex-row sm:justify-between">
-                <button
-                  type="button"
-                  onClick={() => step === 1 ? navigate("/shop/cart") : setStep((current) => current - 1)}
-                  className="flex h-11 items-center justify-center gap-2 rounded-md border border-white/15 px-5 text-sm font-black text-slate-300 hover:bg-white/5"
-                >
-                  <FiArrowLeft /> {step === 1 ? "Volver al carrito" : "Volver"}
-                </button>
-                {step < 2 ? (
-                  <button type="button" onClick={goNext} className="h-11 rounded-md bg-sky-500 px-7 text-sm font-black hover:bg-sky-400">
-                    Continuar
-                  </button>
-                ) : (
-                  <button type="button" disabled={submitting} onClick={confirmOrder} className="flex h-11 items-center justify-center gap-2 rounded-md bg-emerald-500 px-7 text-sm font-black text-slate-950 hover:bg-emerald-400 disabled:opacity-60">
-                    <FiLock /> {submitting ? "Procesando..." : "Confirmar y pagar"}
-                  </button>
-                )}
+            <CheckoutSection icon={FiTruck} title="Entrega">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <ChoiceButton active={fulfillmentMethod === "DELIVERY"} icon={FiTruck} label="Despacho" note="Recibe en tu domicilio" onClick={() => selectFulfillment("DELIVERY")} />
+                <ChoiceButton active={fulfillmentMethod === "PICKUP"} icon={FiHome} label="Retiro" note="Sin costo en sucursal" onClick={() => selectFulfillment("PICKUP")} />
               </div>
-            </section>
 
-            <OrderSummary
-              discountCode={discountCode}
-              fulfillmentMethod={fulfillmentMethod}
-              onDiscountChange={setDiscountCode}
-              shippingAmount={shippingAmount}
-              subtotal={subtotal}
-              total={estimatedTotal}
-            />
-          </div>
-        )}
-      </main>
+              {fulfillmentMethod === "DELIVERY" ? (
+                <div className="mt-5 grid gap-4 sm:grid-cols-2">
+                  {addresses.length > 0 && (
+                    <CheckoutSelect label="Direccion guardada" onChange={selectSavedAddress} value={selectedAddressId} wide>
+                      <option value="">Ingresar una direccion nueva</option>
+                      {addresses.map((address) => <option key={address.id} value={address.id}>{address.label}: {address.street}, {address.commune}</option>)}
+                    </CheckoutSelect>
+                  )}
+                  <CheckoutSelect label="Pais / Region" name="country" onChange={updateCustomer} value={customer.country} wide><option>Chile</option></CheckoutSelect>
+                  <CheckoutInput label="Nombre" name="firstName" onChange={updateCustomer} value={customer.firstName} />
+                  <CheckoutInput label="Apellidos" name="lastName" onChange={updateCustomer} value={customer.lastName} />
+                  <CheckoutInput label="RUT" name="document" onChange={updateCustomer} placeholder="18.406.158-9" value={customer.document} wide />
+                  <CheckoutInput label="Direccion" name="street" onChange={updateCustomer} placeholder="Calle y numero" value={customer.street} wide />
+                  <CheckoutInput label="Casa, departamento, oficina (opcional)" name="addressLine2" onChange={updateCustomer} value={customer.addressLine2} wide />
+                  <CheckoutInput label="Codigo postal (opcional)" name="postalCode" onChange={updateCustomer} value={customer.postalCode} />
+                  <CheckoutInput label="Comuna" name="commune" onChange={updateCustomer} value={customer.commune} />
+                  <CheckoutSelect label="Region" name="region" onChange={updateCustomer} value={customer.region} wide>{CHILEAN_REGIONS.map((region) => <option key={region}>{region}</option>)}</CheckoutSelect>
+                  <CheckoutInput label="Telefono" name="phone" onChange={updateCustomer} placeholder="+56 9 1234 5678" type="tel" value={customer.phone} wide />
+                  <CheckoutInput label="Instrucciones de entrega (opcional)" name="instructions" onChange={updateCustomer} placeholder="Torre, conserjeria, referencias..." value={customer.instructions} wide />
+                  <CheckField checked={saveInformation} label="Guardar esta direccion para comprar mas rapido la proxima vez" onChange={setSaveInformation} />
+                </div>
+              ) : (
+                <div className="mt-5 grid gap-4 sm:grid-cols-2">
+                  <CheckoutInput label="Nombre" name="firstName" onChange={updateCustomer} value={customer.firstName} />
+                  <CheckoutInput label="Apellidos" name="lastName" onChange={updateCustomer} value={customer.lastName} />
+                  <CheckoutInput label="RUT" name="document" onChange={updateCustomer} value={customer.document} />
+                  <CheckoutInput label="Telefono" name="phone" onChange={updateCustomer} type="tel" value={customer.phone} />
+                  <CheckoutSelect icon={FiMapPin} label="Sucursal de retiro" onChange={(event) => setPickupLocation(event.target.value)} value={pickupLocation} wide>{PICKUP_LOCATIONS.map((location) => <option key={location}>{location}</option>)}</CheckoutSelect>
+                </div>
+              )}
+            </CheckoutSection>
+
+            <CheckoutSection icon={FiPackage} title="Metodo de entrega">
+              {fulfillmentMethod === "DELIVERY" ? (
+                <div className="space-y-3">
+                  <DeliveryOption active={shippingMethod === "STANDARD"} label="Despacho estandar" note="Entrega estimada en 3 a 5 dias habiles" onClick={() => setShippingMethod("STANDARD")} price={subtotal >= FREE_SHIPPING_THRESHOLD ? "Gratis" : formatCurrency(DELIVERY_FEE)} />
+                  <DeliveryOption active={shippingMethod === "EXPRESS"} label="Despacho express" note="Entrega estimada en 1 a 2 dias habiles" onClick={() => setShippingMethod("EXPRESS")} price={formatCurrency(EXPRESS_DELIVERY_FEE)} />
+                </div>
+              ) : (
+                <DeliveryOption active label="Retiro en sucursal" note={pickupLocation} price="Gratis" />
+              )}
+            </CheckoutSection>
+
+            <CheckoutSection icon={FiCreditCard} title="Pago" description="Los medios de pago se representan de forma segura y simulada.">
+              <div className="space-y-3">
+                <PaymentOption active={paymentMethod === "WEBPAY_SIMULATED"} badges={["VISA", "MC", "+3"]} label="Webpay simulado" note="Tarjeta, debito y cuotas" onClick={() => setPaymentMethod("WEBPAY_SIMULATED")} />
+                <PaymentOption active={paymentMethod === "BANK_TRANSFER_SIMULATED"} badges={["Banco", "CLP"]} label="Transferencia simulada" note="Confirmacion inmediata para la demostracion" onClick={() => setPaymentMethod("BANK_TRANSFER_SIMULATED")} />
+                {fulfillmentMethod === "PICKUP" && <PaymentOption active={paymentMethod === "PAY_ON_PICKUP"} badges={["Local"]} label="Pagar al retirar" note="El pago quedara pendiente" onClick={() => setPaymentMethod("PAY_ON_PICKUP")} />}
+              </div>
+              <div className="mt-4 flex gap-3 border border-sky-400/20 bg-sky-500/10 p-4 text-xs font-bold text-sky-100"><FiShield className="mt-0.5 shrink-0" /> No guardamos numeros de tarjeta, claves ni datos bancarios.</div>
+            </CheckoutSection>
+
+            <CheckoutSection icon={FiHome} title="Direccion de facturacion">
+              <div className="space-y-3">
+                <RadioRow active={billingSame} label="Usar la misma informacion de entrega" onClick={() => setBillingSame(true)} />
+                <RadioRow active={!billingSame} label="Usar una direccion de facturacion distinta" onClick={() => setBillingSame(false)} />
+              </div>
+              {!billingSame && (
+                <div className="mt-5 grid gap-4 sm:grid-cols-2">
+                  <CheckoutSelect label="Pais / Region" name="country" onChange={updateBilling} value={billing.country} wide><option>Chile</option></CheckoutSelect>
+                  <CheckoutInput label="Nombre" name="firstName" onChange={updateBilling} value={billing.firstName} />
+                  <CheckoutInput label="Apellidos" name="lastName" onChange={updateBilling} value={billing.lastName} />
+                  <CheckoutInput label="RUT" name="document" onChange={updateBilling} value={billing.document} wide />
+                  <CheckoutInput label="Direccion" name="street" onChange={updateBilling} value={billing.street} wide />
+                  <CheckoutInput label="Casa, departamento, oficina (opcional)" name="addressLine2" onChange={updateBilling} value={billing.addressLine2} wide />
+                  <CheckoutInput label="Codigo postal (opcional)" name="postalCode" onChange={updateBilling} value={billing.postalCode} />
+                  <CheckoutInput label="Comuna" name="commune" onChange={updateBilling} value={billing.commune} />
+                  <CheckoutSelect label="Region" name="region" onChange={updateBilling} value={billing.region} wide>{CHILEAN_REGIONS.map((region) => <option key={region}>{region}</option>)}</CheckoutSelect>
+                  <CheckoutInput label="Telefono" name="phone" onChange={updateBilling} type="tel" value={billing.phone} wide />
+                </div>
+              )}
+            </CheckoutSection>
+
+            <button type="button" disabled={submitting || cartProducts.length === 0} onClick={confirmOrder} className="mt-8 flex h-14 w-full items-center justify-center gap-2 rounded-md bg-emerald-500 px-6 text-base font-black text-slate-950 hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-60"><FiLock /> {submitting ? "Procesando pedido..." : `Pagar ahora ${formatCurrency(estimatedTotal)}`}</button>
+
+            <footer className="mt-10 flex flex-wrap gap-x-5 gap-y-2 border-t border-white/10 pt-5 text-xs font-bold text-slate-600">
+              <span>Politica de reembolso</span><span>Envios</span><span>Privacidad</span><span>Terminos del servicio</span>
+            </footer>
+          </section>
+
+          <OrderSummary
+            cartProducts={cartProducts}
+            discountAmount={discountAmount}
+            discountChecking={discountChecking}
+            discountCode={discountCode}
+            discountError={discountError}
+            discountPreview={discountPreview}
+            fulfillmentMethod={fulfillmentMethod}
+            onApplyDiscount={applyDiscount}
+            onDiscountChange={(value) => {
+              setDiscountCode(value.toUpperCase());
+              setDiscountPreview(null);
+              setDiscountError("");
+            }}
+            shippingAmount={shippingAmount}
+            shippingMethod={shippingMethod}
+            subtotal={subtotal}
+            total={estimatedTotal}
+          />
+        </main>
+      )}
     </div>
   );
 }
@@ -269,172 +499,107 @@ function CheckoutPage() {
 function CheckoutHeader() {
   return (
     <header className="border-b border-white/10 bg-indigo-950">
-      <div className="mx-auto flex min-h-20 max-w-7xl items-center justify-between gap-4 px-4 py-3 lg:px-6">
-        <Link to="/shop" className="flex items-center gap-3">
-          <img src={logo} alt="SmartLogix" className="h-8 w-auto" />
-          <span className="hidden border-l border-white/15 pl-3 text-xs font-black uppercase text-sky-300 sm:block">Pago seguro</span>
-        </Link>
-        <div className="flex items-center gap-2 text-xs font-black text-emerald-300"><FiShield size={18} /> Sesion protegida</div>
+      <div className="mx-auto flex min-h-20 max-w-[1500px] items-center justify-between gap-4 px-4 py-3 sm:px-8 lg:px-12">
+        <Link to="/shop" className="flex items-center gap-3"><img src={logo} alt="SmartLogix" className="h-8 w-auto" /><span className="hidden border-l border-white/15 pl-3 text-xs font-black uppercase text-sky-300 sm:block">Checkout</span></Link>
+        <div className="flex items-center gap-2 text-xs font-black text-emerald-300"><FiShield size={18} /> Pago protegido</div>
       </div>
     </header>
   );
 }
 
-function StepIndicator({ currentStep }) {
+function CheckoutSection({ children, description, icon: Icon, title }) {
   return (
-    <ol className="grid grid-cols-4 border border-white/10 bg-slate-900">
-      {STEPS.map((label, index) => {
-        const number = index + 1;
-        const done = number < currentStep;
-        const active = number === currentStep;
-        return (
-          <li key={label} className={`flex min-h-20 items-center justify-center gap-2 border-r border-white/10 px-2 last:border-r-0 ${active ? "bg-sky-500/10" : ""}`}>
-            <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-black ${done ? "bg-emerald-400 text-slate-950" : active ? "bg-sky-500 text-white" : "bg-slate-800 text-slate-500"}`}>
-              {done ? <FiCheck /> : number}
-            </span>
-            <span className={`hidden text-xs font-black sm:block ${active || done ? "text-white" : "text-slate-600"}`}>{label}</span>
-          </li>
-        );
-      })}
-    </ol>
-  );
-}
-
-function DeliveryStep({ customer, fulfillmentMethod, onCustomerChange, onFulfillmentChange, onPickupChange, pickupLocation }) {
-  return (
-    <div>
-      <StepHeading eyebrow="Paso 1" title="Como quieres recibirlo" description="Elige despacho a domicilio o retiro gratis en una sucursal." />
-      <div className="mt-6 grid gap-3 sm:grid-cols-2">
-        <ChoiceButton active={fulfillmentMethod === "DELIVERY"} icon={FiTruck} label="Despacho a domicilio" note="$4.990 o gratis sobre $150.000" onClick={() => onFulfillmentChange("DELIVERY")} />
-        <ChoiceButton active={fulfillmentMethod === "PICKUP"} icon={FiHome} label="Retiro en tienda" note="Gratis, sin generar despacho" onClick={() => onFulfillmentChange("PICKUP")} />
-      </div>
-
-      <div className="mt-7 grid gap-4 sm:grid-cols-2">
-        <CheckoutInput label="Nombre de quien recibe" name="name" onChange={onCustomerChange} value={customer.name} />
-        <CheckoutInput label="Correo de contacto" name="email" onChange={onCustomerChange} type="email" value={customer.email} />
-        {fulfillmentMethod === "DELIVERY" ? (
-          <>
-            <CheckoutInput label="Direccion" name="street" onChange={onCustomerChange} value={customer.street} />
-            <CheckoutInput label="Comuna" name="commune" onChange={onCustomerChange} value={customer.commune} />
-          </>
-        ) : (
-          <label className="block sm:col-span-2">
-            <span className="mb-2 block text-sm font-black text-slate-300">Sucursal de retiro</span>
-            <span className="relative block">
-              <FiMapPin className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-sky-300" />
-              <select value={pickupLocation} onChange={(event) => onPickupChange(event.target.value)} className="field-control pl-11">
-                {PICKUP_LOCATIONS.map((location) => <option key={location} value={location} className="bg-slate-900">{location}</option>)}
-              </select>
-            </span>
-          </label>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function PaymentStep({ fulfillmentMethod, onPaymentChange, paymentMethod }) {
-  return (
-    <div>
-      <StepHeading eyebrow="Paso 2" title="Elige como pagar" description="Esta demo simula la aprobacion sin solicitar datos bancarios reales." />
-      <div className="mt-6 space-y-3">
-        <ChoiceButton active={paymentMethod === "WEBPAY_SIMULATED"} icon={FiCreditCard} label="Webpay simulado" note="Pago aprobado al confirmar" onClick={() => onPaymentChange("WEBPAY_SIMULATED")} wide />
-        <ChoiceButton active={paymentMethod === "BANK_TRANSFER_SIMULATED"} icon={FiShoppingBag} label="Transferencia simulada" note="Genera una referencia de transaccion" onClick={() => onPaymentChange("BANK_TRANSFER_SIMULATED")} wide />
-        {fulfillmentMethod === "PICKUP" && <ChoiceButton active={paymentMethod === "PAY_ON_PICKUP"} icon={FiClock} label="Pagar al retirar" note="El pago queda pendiente hasta la entrega" onClick={() => onPaymentChange("PAY_ON_PICKUP")} wide />}
-      </div>
-      <div className="mt-7 flex gap-3 border border-sky-400/20 bg-sky-500/10 p-4 text-sm font-bold text-sky-100">
-        <FiShield className="mt-0.5 shrink-0" />
-        <p>No se solicitan numeros de tarjeta, claves ni datos bancarios. Solo se guarda el medio elegido y una referencia ficticia.</p>
-      </div>
-    </div>
-  );
-}
-
-function OrderSummary({ discountCode, fulfillmentMethod, onDiscountChange, shippingAmount, subtotal, total }) {
-  const remaining = Math.max(FREE_SHIPPING_THRESHOLD - subtotal, 0);
-  return (
-    <aside className="border border-white/10 bg-slate-900 p-5 lg:sticky lg:top-6">
-      <h2 className="text-lg font-black">Resumen</h2>
-      <label className="mt-5 block">
-        <span className="mb-2 block text-[11px] font-black uppercase text-slate-500">Codigo de descuento</span>
-        <input value={discountCode} onChange={(event) => onDiscountChange(event.target.value.toUpperCase())} placeholder="Ej: BIENVENIDA10" className="field-control" />
-      </label>
-      <div className="mt-5 space-y-3 border-y border-white/10 py-5 text-sm font-bold">
-        <SummaryLine label="Subtotal" value={formatCurrency(subtotal)} />
-        <SummaryLine label="Descuento" value={discountCode ? "Se calcula al pagar" : "-"} />
-        <SummaryLine label={fulfillmentMethod === "PICKUP" ? "Retiro" : "Despacho"} value={shippingAmount ? formatCurrency(shippingAmount) : "Gratis"} />
-      </div>
-      <div className="flex items-center justify-between py-5">
-        <span className="text-sm font-black uppercase text-slate-400">Total estimado</span>
-        <span className="text-2xl font-black text-sky-200">{formatCurrency(total)}</span>
-      </div>
-      {fulfillmentMethod === "DELIVERY" && remaining > 0 && (
-        <div className="border-t border-white/10 pt-4 text-xs font-bold text-slate-500">
-          Agrega {formatCurrency(remaining)} para obtener despacho gratis.
-        </div>
-      )}
-      <div className="mt-5 space-y-3 border-t border-white/10 pt-5 text-xs font-bold text-slate-500">
-        <p className="flex items-center gap-2"><FiLock className="text-emerald-300" /> Compra asociada a tu cuenta</p>
-        <p className="flex items-center gap-2"><FiPackage className="text-amber-300" /> Stock validado por el backend</p>
-      </div>
-    </aside>
-  );
-}
-
-function Confirmation({ order }) {
-  const pickup = order.fulfillmentMethod === "PICKUP";
-  return (
-    <section className="mx-auto mt-8 max-w-3xl border border-emerald-400/25 bg-slate-900 p-6 text-center sm:p-10">
-      <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-400 text-2xl text-slate-950"><FiCheck /></div>
-      <p className="mt-6 text-xs font-black uppercase text-emerald-300">Compra confirmada</p>
-      <h2 className="mt-2 text-3xl font-black">Pedido {order.orderNumber}</h2>
-      <p className="mx-auto mt-3 max-w-xl font-semibold text-slate-400">
-        {pickup
-          ? `Prepararemos tu compra para retiro en ${order.pickupLocation}.`
-          : "Tu pedido fue enviado al flujo de preparacion y despacho."}
-      </p>
-      <div className="mx-auto mt-7 grid max-w-xl gap-3 border-y border-white/10 py-6 text-left sm:grid-cols-2">
-        <ResultFact label="Total" value={formatCurrency(order.totalAmount)} />
-        <ResultFact label="Pago" value={order.paymentStatus === "PAID" ? "Pagado" : "Pendiente al retirar"} />
-        <ResultFact label="Entrega" value={pickup ? "Retiro en tienda" : "Despacho a domicilio"} />
-        <ResultFact label="Referencia" value={order.transactionReference || "Pago presencial"} />
-      </div>
-      <div className="mt-7 flex flex-col justify-center gap-3 sm:flex-row">
-        <Link to="/shop/account" className="flex h-11 items-center justify-center rounded-md bg-sky-500 px-6 text-sm font-black hover:bg-sky-400">Ver mis compras</Link>
-        <Link to="/shop" className="flex h-11 items-center justify-center rounded-md border border-white/15 px-6 text-sm font-black text-slate-300 hover:bg-white/5">Volver a la tienda</Link>
-      </div>
+    <section className="mt-9 border-t border-white/10 pt-8 first-of-type:mt-8">
+      <div className="flex items-start gap-3"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-sky-500/15 text-sky-300"><Icon /></span><div><h2 className="text-xl font-black">{title}</h2>{description && <p className="mt-1 text-sm font-semibold text-slate-500">{description}</p>}</div></div>
+      <div className="mt-5">{children}</div>
     </section>
   );
 }
 
-function StepHeading({ description, eyebrow, title }) {
-  return <div><p className="text-xs font-black uppercase text-sky-300">{eyebrow}</p><h2 className="mt-2 text-2xl font-black">{title}</h2><p className="mt-2 font-semibold text-slate-400">{description}</p></div>;
-}
-
-function ChoiceButton({ active, icon: Icon, label, note, onClick, wide }) {
+function OrderSummary({ cartProducts, discountAmount, discountChecking, discountCode, discountError, discountPreview, fulfillmentMethod, onApplyDiscount, onDiscountChange, shippingAmount, shippingMethod, subtotal, total }) {
   return (
-    <button type="button" onClick={onClick} className={`flex min-h-24 w-full items-center gap-4 rounded-md border p-4 text-left ${active ? "border-sky-400 bg-sky-500/10" : "border-white/10 bg-slate-950 hover:border-white/25"} ${wide ? "sm:px-5" : ""}`}>
-      <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-md ${active ? "bg-sky-500 text-white" : "bg-slate-800 text-slate-400"}`}><Icon size={20} /></span>
-      <span className="min-w-0 flex-1"><strong className="block text-sm text-white">{label}</strong><span className="mt-1 block text-xs font-bold text-slate-500">{note}</span></span>
-      <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${active ? "border-sky-400 bg-sky-400 text-slate-950" : "border-slate-600"}`}>{active && <FiCheck size={12} />}</span>
-    </button>
+    <aside className="border-l border-white/10 bg-slate-900 px-4 py-8 sm:px-8 lg:sticky lg:top-0 lg:min-h-[calc(100vh-80px)] lg:self-start lg:px-10 lg:py-10">
+      <h2 className="text-xl font-black">Resumen del pedido</h2>
+      <div className="mt-6 max-h-[360px] space-y-4 overflow-y-auto pr-1">
+        {cartProducts.map((product) => <SummaryProduct key={product.sku} product={product} />)}
+        {cartProducts.length === 0 && <p className="border border-dashed border-white/15 p-6 text-center text-sm font-bold text-slate-500">El carrito esta vacio.</p>}
+      </div>
+      <div className="mt-6 flex gap-2 border-y border-white/10 py-5">
+        <label className="relative min-w-0 flex-1"><FiTag className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" /><input value={discountCode} onChange={(event) => onDiscountChange(event.target.value)} placeholder="Codigo de descuento" className="field-control pl-10" /></label>
+        <button type="button" disabled={!discountCode.trim() || discountChecking} onClick={onApplyDiscount} className="h-11 rounded-md border border-sky-400/30 px-4 text-xs font-black text-sky-200 hover:bg-sky-500/10 disabled:opacity-40">{discountChecking ? "Validando..." : "Aplicar"}</button>
+      </div>
+      {discountPreview && <p className="mt-3 flex items-center gap-2 text-xs font-bold text-emerald-300"><FiCheck /> Codigo {discountPreview.code} aplicado: {discountPreview.percentage}% de descuento.</p>}
+      {discountError && <p className="mt-3 flex items-center gap-2 text-xs font-bold text-rose-300"><FiInfo /> {discountError}</p>}
+      <div className="mt-6 space-y-3 text-sm font-bold">
+        <SummaryLine label="Subtotal" value={formatCurrency(subtotal)} />
+        <SummaryLine label={fulfillmentMethod === "PICKUP" ? "Retiro" : shippingMethod === "EXPRESS" ? "Envio express" : "Envio estandar"} value={shippingAmount ? formatCurrency(shippingAmount) : "Gratis"} />
+        <SummaryLine label="Descuento" value={discountAmount > 0 ? `-${formatCurrency(discountAmount)}` : "-"} />
+      </div>
+      <div className="mt-5 flex items-end justify-between gap-4 border-t border-white/10 pt-5"><div><p className="font-black">Total estimado</p><p className="mt-1 text-xs font-bold text-slate-500">CLP</p></div><p className="text-3xl font-black text-sky-200">{formatCurrency(total)}</p></div>
+      <div className="mt-7 space-y-3 border-t border-white/10 pt-5 text-xs font-bold text-slate-500"><p className="flex items-center gap-2"><FiLock className="text-emerald-300" /> Sesion y compra protegidas</p><p className="flex items-center gap-2"><FiPackage className="text-amber-300" /> Precio y stock validados al confirmar</p></div>
+    </aside>
   );
 }
 
-function CheckoutInput({ label, name, onChange, type = "text", value }) {
-  return <label className="block"><span className="mb-2 block text-sm font-black text-slate-300">{label}</span><input className="field-control" name={name} onChange={onChange} type={type} value={value} /></label>;
+function SummaryProduct({ product }) {
+  return (
+    <div className="flex items-center gap-3">
+      <div className="relative shrink-0">{product.imageUrl ? <img src={product.imageUrl} alt={product.productName} className="h-16 w-16 rounded-md bg-white object-cover" /> : <div className="flex h-16 w-16 items-center justify-center rounded-md bg-slate-800"><FiPackage /></div>}<span className="absolute -right-2 -top-2 flex h-6 min-w-6 items-center justify-center rounded-full bg-slate-600 px-1 text-[10px] font-black">{product.cartQuantity}</span></div>
+      <div className="min-w-0 flex-1"><p className="line-clamp-2 text-sm font-black">{product.productName}</p><p className="mt-1 text-xs font-bold text-slate-500">{product.sku}</p></div>
+      <p className="shrink-0 text-sm font-black text-slate-200">{formatCurrency(product.lineTotal)}</p>
+    </div>
+  );
+}
+
+function ChoiceButton({ active, icon: Icon, label, note, onClick }) {
+  return <button type="button" onClick={onClick} className={`flex min-h-20 items-center gap-3 rounded-md border p-4 text-left ${active ? "border-sky-400 bg-sky-500/10" : "border-white/10 bg-slate-900 hover:border-white/25"}`}><span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-md ${active ? "bg-sky-500 text-white" : "bg-slate-800 text-slate-500"}`}><Icon /></span><span className="min-w-0 flex-1"><strong className="block text-sm">{label}</strong><span className="mt-1 block text-xs font-bold text-slate-500">{note}</span></span><RadioDot active={active} /></button>;
+}
+
+function DeliveryOption({ active, label, note, onClick, price }) {
+  return <button type="button" onClick={onClick} className={`flex min-h-16 w-full items-center gap-3 rounded-md border px-4 py-3 text-left ${active ? "border-sky-400 bg-sky-500/10" : "border-white/10 bg-slate-900 hover:border-white/25"}`}><RadioDot active={active} /><span className="min-w-0 flex-1"><strong className="block text-sm">{label}</strong><span className="mt-1 block text-xs font-bold text-slate-500">{note}</span></span><strong className={price === "Gratis" ? "text-emerald-300" : "text-slate-200"}>{price}</strong></button>;
+}
+
+function PaymentOption({ active, badges, label, note, onClick }) {
+  return <button type="button" onClick={onClick} className={`w-full overflow-hidden rounded-md border text-left ${active ? "border-sky-400 bg-sky-500/10" : "border-white/10 bg-slate-900 hover:border-white/25"}`}><span className="flex min-h-16 items-center gap-3 px-4 py-3"><RadioDot active={active} /><span className="min-w-0 flex-1"><strong className="block text-sm">{label}</strong><span className="mt-1 block text-xs font-bold text-slate-500">{note}</span></span><span className="flex shrink-0 gap-1">{badges.map((badge, index) => <span key={badge} className={`rounded px-1.5 py-1 text-[9px] font-black ${index % 2 === 0 ? "bg-sky-500 text-white" : "bg-amber-400 text-slate-950"}`}>{badge}</span>)}</span></span>{active && <span className="block border-t border-sky-400/20 bg-slate-950/40 px-11 py-3 text-xs font-bold text-slate-400">Se generara una referencia simulada y no se solicitaran credenciales bancarias.</span>}</button>;
+}
+
+function RadioRow({ active, label, onClick }) {
+  return <button type="button" onClick={onClick} className={`flex h-14 w-full items-center gap-3 rounded-md border px-4 text-left text-sm font-bold ${active ? "border-sky-400 bg-sky-500/10" : "border-white/10 bg-slate-900"}`}><RadioDot active={active} />{label}</button>;
+}
+
+function RadioDot({ active }) {
+  return <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${active ? "border-sky-400" : "border-slate-600"}`}>{active && <span className="h-2.5 w-2.5 rounded-full bg-sky-400" />}</span>;
+}
+
+function CheckoutInput({ label, name, onChange, placeholder, type = "text", value, wide }) {
+  return <label className={`block ${wide ? "sm:col-span-2" : ""}`}><span className="mb-2 block text-xs font-black text-slate-400">{label}</span><input className="field-control" name={name} onChange={onChange} placeholder={placeholder} type={type} value={value} /></label>;
+}
+
+function CheckoutSelect({ children, icon: Icon, label, name, onChange, value, wide }) {
+  return <label className={`block ${wide ? "sm:col-span-2" : ""}`}><span className="mb-2 block text-xs font-black text-slate-400">{label}</span><span className="relative block">{Icon && <Icon className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sky-300" />}<select className={`field-control ${Icon ? "pl-10" : ""}`} name={name} onChange={onChange} value={value}>{children}</select></span></label>;
+}
+
+function CheckField({ checked, label, onChange }) {
+  return <label className="flex items-start gap-3 sm:col-span-2"><input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} className="mt-0.5 h-4 w-4 accent-sky-500" /><span className="text-xs font-bold text-slate-400">{label}</span></label>;
 }
 
 function SummaryLine({ label, value }) {
   return <div className="flex items-center justify-between gap-4"><span className="text-slate-500">{label}</span><span className="text-right text-slate-200">{value}</span></div>;
 }
 
-function ResultFact({ label, value }) {
-  return <div><p className="text-[11px] font-black uppercase text-slate-500">{label}</p><p className="mt-1 break-words font-black text-slate-200">{value}</p></div>;
+function ErrorMessage({ children }) {
+  return <div className="mt-6 border border-red-400/30 bg-red-500/10 p-4 text-sm font-bold text-red-200">{children}</div>;
 }
 
-function ErrorMessage({ children }) {
-  return <div className="mb-6 border border-red-400/30 bg-red-500/10 p-4 text-sm font-bold text-red-200">{children}</div>;
+function Confirmation({ order }) {
+  const pickup = order.fulfillmentMethod === "PICKUP";
+  return (
+    <div className="min-h-screen bg-slate-950 text-white"><CheckoutHeader /><main className="mx-auto max-w-3xl px-4 py-12 sm:px-6"><section className="border border-emerald-400/25 bg-slate-900 p-6 text-center sm:p-10"><div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-400 text-2xl text-slate-950"><FiCheck /></div><p className="mt-6 text-xs font-black uppercase text-emerald-300">Compra confirmada</p><h1 className="mt-2 text-3xl font-black">Pedido {order.orderNumber}</h1><p className="mx-auto mt-3 max-w-xl font-semibold text-slate-400">{pickup ? `Prepararemos tu compra para retiro en ${order.pickupLocation}.` : "Tu pedido ingreso al flujo de preparacion y despacho."}</p><div className="mx-auto mt-7 grid max-w-xl gap-4 border-y border-white/10 py-6 text-left sm:grid-cols-2"><ResultFact label="Cliente" value={order.customerName} /><ResultFact label="Contacto" value={`${order.customerEmail} | ${order.customerPhone || "Sin telefono"}`} /><ResultFact label="Total" value={formatCurrency(order.totalAmount)} /><ResultFact label="Pago" value={order.paymentStatus === "PAID" ? "Pagado" : "Pendiente al retirar"} /><ResultFact label="Entrega" value={pickup ? "Retiro en tienda" : order.shippingMethod === "EXPRESS" ? "Despacho express" : "Despacho estandar"} /><ResultFact label="Referencia" value={order.transactionReference || "Pago presencial"} /></div><div className="mt-7 flex flex-col justify-center gap-3 sm:flex-row"><Link to="/shop/account" className="flex h-11 items-center justify-center rounded-md bg-sky-500 px-6 text-sm font-black hover:bg-sky-400">Ver mis compras</Link><Link to="/shop" className="flex h-11 items-center justify-center rounded-md border border-white/15 px-6 text-sm font-black text-slate-300 hover:bg-white/5">Volver a la tienda</Link></div></section></main></div>
+  );
+}
+
+function ResultFact({ label, value }) {
+  return <div><p className="text-[11px] font-black uppercase text-slate-500">{label}</p><p className="mt-1 break-words font-black text-slate-200">{value}</p></div>;
 }
 
 export default CheckoutPage;
