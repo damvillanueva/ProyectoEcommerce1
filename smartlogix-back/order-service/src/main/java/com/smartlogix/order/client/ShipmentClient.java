@@ -48,6 +48,19 @@ public class ShipmentClient {
         );
     }
 
+    public ShipmentResponse getShipment(String trackingCode) {
+        return circuitBreakerFactory.create("shipmentService").run(
+                () -> restTemplate.exchange(
+                        "http://shipment-service/api/shipments/{trackingCode}",
+                        HttpMethod.GET,
+                        authorizedEntity(null),
+                        ShipmentResponse.class,
+                        trackingCode
+                ).getBody(),
+                (Throwable throwable) -> null
+        );
+    }
+
     public boolean updateShipment(String trackingCode, ShipmentRequest request) {
         return circuitBreakerFactory.create("shipmentService").run(
                 () -> {

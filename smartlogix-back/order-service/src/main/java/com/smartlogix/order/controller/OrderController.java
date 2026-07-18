@@ -3,6 +3,7 @@ package com.smartlogix.order.controller;
 import com.smartlogix.order.dto.CreateOrderRequest;
 import com.smartlogix.order.dto.UpdateOrderRequest;
 import com.smartlogix.order.dto.OrderResponse;
+import com.smartlogix.order.dto.OrderTrackingResponse;
 import com.smartlogix.order.domain.OrderChannel;
 import com.smartlogix.order.security.AuthenticatedUser;
 import com.smartlogix.order.service.OrderService;
@@ -52,6 +53,14 @@ public class OrderController {
             @PathVariable String orderNumber
     ) {
         return orderService.getCustomerOrder(authentication.getName(), orderNumber);
+    }
+
+    @GetMapping("/mine/{orderNumber}/tracking")
+    public OrderTrackingResponse findMyOrderTracking(
+            Authentication authentication,
+            @PathVariable String orderNumber
+    ) {
+        return orderService.getCustomerOrderTracking(authentication.getName(), orderNumber);
     }
 
     @GetMapping

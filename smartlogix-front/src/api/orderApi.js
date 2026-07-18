@@ -59,3 +59,11 @@ export async function getMyOrder(orderNumber) {
 
   return response.data;
 }
+
+export async function getMyOrderTracking(orderNumber) {
+  const response = await axios.get(`${API_URL}/api/orders/mine/${orderNumber}/tracking`, {
+    headers: getAuthHeaders(),
+  });
+
+  return response.data;
+}

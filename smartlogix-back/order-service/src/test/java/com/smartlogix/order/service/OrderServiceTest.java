@@ -21,6 +21,7 @@ import com.smartlogix.order.discount.Discount;
 import com.smartlogix.order.dto.CreateOrderRequest;
 import com.smartlogix.order.dto.OrderLineRequest;
 import com.smartlogix.order.dto.OrderResponse;
+import com.smartlogix.order.dto.OrderTrackingResponse;
 import com.smartlogix.order.repository.DiscountRepository;
 import com.smartlogix.order.repository.PurchaseOrderRepository;
 import com.smartlogix.order.security.InternalServiceTokenProvider;
@@ -236,6 +237,35 @@ class OrderServiceTest {
         assertThat(customerOrders.get(0).salesChannel()).isEqualTo(OrderChannel.ONLINE);
     }
 
+    @Test
+    void customerTrackingUsesOwnedOrderAndRealShipmentStatus() {
+        inventoryClient.setProduct("SKU-1001", 20, BigDecimal.valueOf(10000));
+        OrderResponse order = orderService.createOrder(
+                new CreateOrderRequest(
+                        "Damian",
+                        "damian@smartlogix.cl",
+                        "Santiago | Direccion 1",
+                        null,
+                        List.of(new OrderLineRequest("SKU-1001", 1))
+                ),
+                "damian",
+                "damian@smartlogix.cl",
+                OrderChannel.ONLINE
+        );
+
+        OrderTrackingResponse tracking = orderService.getCustomerOrderTracking(
+                "damian",
+                order.orderNumber()
+        );
+
+        assertThat(tracking.trackingCode()).isEqualTo("SLX-TEST-1");
+        assertThat(tracking.shipmentStatus()).isEqualTo("PLANNED");
+        assertThat(tracking.carrier()).isEqualTo("Chilexpress");
+        assertThatThrownBy(() -> orderService.getCustomerOrderTracking("otro", order.orderNumber()))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("No existe");
+    }
+
     private DiscountRepository emptyDiscountRepository() {
         return discountRepository();
     }
@@ -392,6 +422,21 @@ class OrderServiceTest {
             return new ShipmentResponse(
                     trackingCode,
                     request.orderNumber(),
+                    "Chilexpress",
+                    "RUTA-1",
+                    LocalDate.now().plusDays(2),
+                    "PLANNED"
+            );
+        }
+
+        @Override
+        public ShipmentResponse getShipment(String trackingCode) {
+            if (!createdTrackingCodes.contains(trackingCode)) {
+                return null;
+            }
+            return new ShipmentResponse(
+                    trackingCode,
+                    "ORD-TEST",
                     "Chilexpress",
                     "RUTA-1",
                     LocalDate.now().plusDays(2),

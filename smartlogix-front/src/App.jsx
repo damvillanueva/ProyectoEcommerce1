@@ -9,6 +9,7 @@ import ProductDetailPage from "./pages/ProductDetailPage";
 import StoreAuthPage from "./pages/StoreAuthPage";
 import CustomerAccountPage from "./pages/CustomerAccountPage";
 import CheckoutPage from "./pages/CheckoutPage";
+import OrderSuccessPage from "./pages/OrderSuccessPage";
 import CartPage from "./pages/CartPage";
 import ShipmentPage from "./pages/ShipmentsPage";
 import DiscountsPage from "./pages/DiscountsPage";
@@ -59,6 +60,12 @@ function App() {
           element={
             <ProtectedRoute allowedRoles={["ROLE_CUSTOMER"]} loginPath="/shop/login">
               <CustomerAccountPage />
+            </ProtectedRoute>
+          } />
+        <Route path="/shop/order/:orderNumber"
+          element={
+            <ProtectedRoute allowedRoles={["ROLE_CUSTOMER"]} loginPath="/shop/login">
+              <OrderSuccessPage />
             </ProtectedRoute>
           } />
         <Route path="/shipments"

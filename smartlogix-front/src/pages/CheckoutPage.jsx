@@ -13,7 +13,7 @@ import {
   FiTruck,
   FiUser,
 } from "react-icons/fi";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import logo from "../assets/logo-smartlogix.png";
 import {
   createCustomerAddress,
@@ -129,6 +129,7 @@ function isValidRut(value) {
 }
 
 function CheckoutPage() {
+  const navigate = useNavigate();
   const [cart, setCart] = useState(readCart);
   const [products, setProducts] = useState([]);
   const [addresses, setAddresses] = useState([]);
@@ -149,7 +150,6 @@ function CheckoutPage() {
   const [billing, setBilling] = useState(EMPTY_BILLING);
   const [marketingOptIn, setMarketingOptIn] = useState(false);
   const [saveInformation, setSaveInformation] = useState(true);
-  const [order, setOrder] = useState(null);
 
   useEffect(() => {
     let active = true;
@@ -347,9 +347,12 @@ function CheckoutPage() {
         shippingMethod: fulfillmentMethod === "DELIVERY" ? shippingMethod : null,
       });
       await saveAddressIfNeeded();
-      setOrder(response);
       setCart([]);
-      window.scrollTo({ top: 0, behavior: "smooth" });
+      localStorage.setItem(CART_STORAGE_KEY, "[]");
+      navigate(`/shop/order/${encodeURIComponent(response.orderNumber)}`, {
+        replace: true,
+        state: { newOrder: true },
+      });
     } catch (checkoutError) {
       console.error(checkoutError);
       setError(checkoutError.response?.data?.message
@@ -358,10 +361,6 @@ function CheckoutPage() {
     } finally {
       setSubmitting(false);
     }
-  }
-
-  if (order) {
-    return <Confirmation order={order} />;
   }
 
   return (
@@ -589,17 +588,6 @@ function SummaryLine({ label, value }) {
 
 function ErrorMessage({ children }) {
   return <div className="mt-6 border border-red-400/30 bg-red-500/10 p-4 text-sm font-bold text-red-200">{children}</div>;
-}
-
-function Confirmation({ order }) {
-  const pickup = order.fulfillmentMethod === "PICKUP";
-  return (
-    <div className="min-h-screen bg-slate-950 text-white"><CheckoutHeader /><main className="mx-auto max-w-3xl px-4 py-12 sm:px-6"><section className="border border-emerald-400/25 bg-slate-900 p-6 text-center sm:p-10"><div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-400 text-2xl text-slate-950"><FiCheck /></div><p className="mt-6 text-xs font-black uppercase text-emerald-300">Compra confirmada</p><h1 className="mt-2 text-3xl font-black">Pedido {order.orderNumber}</h1><p className="mx-auto mt-3 max-w-xl font-semibold text-slate-400">{pickup ? `Prepararemos tu compra para retiro en ${order.pickupLocation}.` : "Tu pedido ingreso al flujo de preparacion y despacho."}</p><div className="mx-auto mt-7 grid max-w-xl gap-4 border-y border-white/10 py-6 text-left sm:grid-cols-2"><ResultFact label="Cliente" value={order.customerName} /><ResultFact label="Contacto" value={`${order.customerEmail} | ${order.customerPhone || "Sin telefono"}`} /><ResultFact label="Total" value={formatCurrency(order.totalAmount)} /><ResultFact label="Pago" value={order.paymentStatus === "PAID" ? "Pagado" : "Pendiente al retirar"} /><ResultFact label="Entrega" value={pickup ? "Retiro en tienda" : order.shippingMethod === "EXPRESS" ? "Despacho express" : "Despacho estandar"} /><ResultFact label="Referencia" value={order.transactionReference || "Pago presencial"} /></div><div className="mt-7 flex flex-col justify-center gap-3 sm:flex-row"><Link to="/shop/account" className="flex h-11 items-center justify-center rounded-md bg-sky-500 px-6 text-sm font-black hover:bg-sky-400">Ver mis compras</Link><Link to="/shop" className="flex h-11 items-center justify-center rounded-md border border-white/15 px-6 text-sm font-black text-slate-300 hover:bg-white/5">Volver a la tienda</Link></div></section></main></div>
-  );
-}
-
-function ResultFact({ label, value }) {
-  return <div><p className="text-[11px] font-black uppercase text-slate-500">{label}</p><p className="mt-1 break-words font-black text-slate-200">{value}</p></div>;
 }
 
 export default CheckoutPage;

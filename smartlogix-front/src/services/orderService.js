@@ -5,6 +5,7 @@ import {
   deleteOrder,
   getMyOrders,
   getMyOrder,
+  getMyOrderTracking,
   validateDiscount,
 } from "../api/orderApi";
 
@@ -34,4 +35,8 @@ export function loadMyOrders() {
 
 export function loadMyOrder(orderNumber) {
   return getMyOrder(orderNumber);
+}
+
+export function loadMyOrderTracking(orderNumber) {
+  return getMyOrderTracking(orderNumber);
 }

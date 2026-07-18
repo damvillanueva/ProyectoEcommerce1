@@ -19,6 +19,7 @@ import com.smartlogix.order.dto.UpdateOrderRequest;
 import com.smartlogix.order.dto.OrderLineRequest;
 import com.smartlogix.order.dto.OrderLineResponse;
 import com.smartlogix.order.dto.OrderResponse;
+import com.smartlogix.order.dto.OrderTrackingResponse;
 import com.smartlogix.order.exception.OrderNotFoundException;
 import com.smartlogix.order.exception.OrderProcessingException;
 import com.smartlogix.order.repository.PurchaseOrderRepository;
@@ -153,6 +154,29 @@ public class OrderService {
                 .findByOrderNumberAndCustomerUsername(orderNumber, customerUsername)
                 .orElseThrow(() -> new OrderNotFoundException("No existe la orden solicitada."));
         return toResponse(order);
+    }
+
+    @Transactional(readOnly = true)
+    public OrderTrackingResponse getCustomerOrderTracking(String customerUsername, String orderNumber) {
+        PurchaseOrder order = repository
+                .findByOrderNumberAndCustomerUsername(orderNumber, customerUsername)
+                .orElseThrow(() -> new OrderNotFoundException("No existe la orden solicitada."));
+        ShipmentResponse shipment = order.getTrackingCode() == null
+                ? null
+                : shipmentClient.getShipment(order.getTrackingCode());
+
+        return new OrderTrackingResponse(
+                order.getOrderNumber(),
+                order.getFulfillmentMethod(),
+                order.getStatus(),
+                order.getPaymentStatus(),
+                order.getTrackingCode(),
+                shipment == null ? null : shipment.status(),
+                shipment == null ? null : shipment.carrier(),
+                shipment == null ? null : shipment.routeCode(),
+                shipment == null ? null : shipment.estimatedDeliveryDate(),
+                order.getPickupLocation()
+        );
     }
 
     private PurchaseOrder buildOrder(

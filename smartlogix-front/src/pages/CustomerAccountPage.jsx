@@ -6,6 +6,7 @@ import {
   FiCheck,
   FiChevronRight,
   FiEdit2,
+  FiFileText,
   FiHome,
   FiHeart,
   FiLogOut,
@@ -33,7 +34,7 @@ import {
   updateCustomerAddress,
 } from "../services/customerAccountService";
 import { getPublicCatalogProducts } from "../services/inventoryService";
-import { loadMyOrders } from "../services/orderService";
+import { loadMyOrders, loadMyOrderTracking } from "../services/orderService";
 
 const CART_STORAGE_KEY = "smartlogix-store-cart";
 
@@ -87,7 +88,13 @@ function formatDate(value) {
   }).format(new Date(value));
 }
 
-function statusMeta(order) {
+function statusMeta(order, tracking) {
+  if (tracking?.shipmentStatus === "DELIVERED") {
+    return { label: "Entregado", tone: "emerald", step: 4 };
+  }
+  if (["PICKED_UP", "IN_TRANSIT"].includes(tracking?.shipmentStatus)) {
+    return { label: "En camino", tone: "sky", step: 3 };
+  }
   const fallback = STATUS_META[order?.status]
     || { label: order?.status || "Sin estado", tone: "slate", step: 0 };
   if (order?.status === "APPROVED" && order?.fulfillmentMethod === "PICKUP") {
@@ -113,6 +120,7 @@ function CustomerAccountPage() {
   const [profile, setProfile] = useState(null);
   const [profileForm, setProfileForm] = useState(null);
   const [orders, setOrders] = useState([]);
+  const [trackingByOrder, setTrackingByOrder] = useState({});
   const [catalog, setCatalog] = useState([]);
   const [favoriteSkus, setFavoriteSkus] = useState([]);
   const [selectedOrderNumber, setSelectedOrderNumber] = useState(null);
@@ -135,6 +143,13 @@ function CustomerAccountPage() {
           getPublicCatalogProducts(),
           loadCustomerFavorites(),
         ]);
+        const trackingEntries = await Promise.all((orderData || []).map(async (order) => {
+          try {
+            return [order.orderNumber, await loadMyOrderTracking(order.orderNumber)];
+          } catch {
+            return [order.orderNumber, null];
+          }
+        }));
         if (!active) return;
 
         setProfile(profileData);
@@ -145,6 +160,7 @@ function CustomerAccountPage() {
           avatarUrl: profileData.avatarUrl || "",
         });
         setOrders(Array.isArray(orderData) ? orderData : []);
+        setTrackingByOrder(Object.fromEntries(trackingEntries));
         setCatalog(Array.isArray(catalogData) ? catalogData : []);
         setFavoriteSkus((favoriteData || []).map((favorite) => favorite.sku));
         setSelectedOrderNumber(orderData?.[0]?.orderNumber || null);
@@ -173,12 +189,14 @@ function CustomerAccountPage() {
   );
 
   const selectedOrder = orders.find((order) => order.orderNumber === selectedOrderNumber) || null;
+  const selectedTracking = selectedOrder ? trackingByOrder[selectedOrder.orderNumber] : null;
   const favoriteProducts = favoriteSkus
     .map((sku) => productsBySku.get(sku))
     .filter(Boolean);
-  const completedOrders = orders.filter((order) => order.status === "DELIVERED").length;
+  const completedOrders = orders.filter((order) => trackingByOrder[order.orderNumber]?.shipmentStatus === "DELIVERED").length;
   const activeOrders = orders.filter((order) =>
-    ["PENDING", "APPROVED", "SHIPMENT_REQUESTED", "SHIPPED"].includes(order.status)
+    !["REJECTED", "FAILED"].includes(order.status)
+    && trackingByOrder[order.orderNumber]?.shipmentStatus !== "DELIVERED"
   ).length;
   const totalSpent = orders
     .filter((order) => !["REJECTED", "FAILED"].includes(order.status))
@@ -388,6 +406,7 @@ function CustomerAccountPage() {
               productsBySku={productsBySku}
               profile={profile}
               totalSpent={totalSpent}
+              trackingByOrder={trackingByOrder}
             />
           )}
 
@@ -398,6 +417,8 @@ function CustomerAccountPage() {
               orders={orders}
               productsBySku={productsBySku}
               selectedOrder={selectedOrder}
+              selectedTracking={selectedTracking}
+              trackingByOrder={trackingByOrder}
             />
           )}
 
@@ -513,7 +534,7 @@ function AccountSidebar({ activeView, favoriteCount, onChange, orderCount, profi
   );
 }
 
-function SummaryView({ activeOrders, addresses, completedOrders, favoriteCount, onOpenOrders, orders, productsBySku, profile, totalSpent }) {
+function SummaryView({ activeOrders, addresses, completedOrders, favoriteCount, onOpenOrders, orders, productsBySku, profile, totalSpent, trackingByOrder }) {
   return (
     <div>
       <div className="mb-6">
@@ -546,7 +567,7 @@ function SummaryView({ activeOrders, addresses, completedOrders, favoriteCount, 
         ) : (
           <div className="grid gap-3 xl:grid-cols-2">
             {orders.slice(0, 4).map((order) => (
-              <CompactOrder key={order.orderNumber} order={order} productsBySku={productsBySku} />
+              <CompactOrder key={order.orderNumber} order={order} productsBySku={productsBySku} tracking={trackingByOrder[order.orderNumber]} />
             ))}
           </div>
         )}
@@ -574,8 +595,8 @@ function AccountMetric({ icon: Icon, label, tone, value }) {
   );
 }
 
-function CompactOrder({ order, productsBySku }) {
-  const meta = statusMeta(order);
+function CompactOrder({ order, productsBySku, tracking }) {
+  const meta = statusMeta(order, tracking);
   const firstLine = order.lines?.[0];
   const firstProduct = firstLine ? productsBySku.get(firstLine.sku) : null;
   return (
@@ -645,7 +666,7 @@ function FavoritesView({ onRemove, products, saving }) {
   );
 }
 
-function OrdersView({ onReorder, onSelect, orders, productsBySku, selectedOrder }) {
+function OrdersView({ onReorder, onSelect, orders, productsBySku, selectedOrder, selectedTracking, trackingByOrder }) {
   return (
     <div>
       <div className="mb-6">
@@ -660,7 +681,7 @@ function OrdersView({ onReorder, onSelect, orders, productsBySku, selectedOrder 
         <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
           <div className="space-y-3">
             {orders.map((order) => {
-              const meta = statusMeta(order);
+              const meta = statusMeta(order, trackingByOrder[order.orderNumber]);
               const selected = selectedOrder?.orderNumber === order.orderNumber;
               return (
                 <button
@@ -694,7 +715,7 @@ function OrdersView({ onReorder, onSelect, orders, productsBySku, selectedOrder 
           </div>
 
           {selectedOrder && (
-            <OrderDetail order={selectedOrder} productsBySku={productsBySku} onReorder={onReorder} />
+            <OrderDetail order={selectedOrder} productsBySku={productsBySku} onReorder={onReorder} tracking={selectedTracking} />
           )}
         </div>
       )}
@@ -702,8 +723,8 @@ function OrdersView({ onReorder, onSelect, orders, productsBySku, selectedOrder 
   );
 }
 
-function OrderDetail({ onReorder, order, productsBySku }) {
-  const meta = statusMeta(order);
+function OrderDetail({ onReorder, order, productsBySku, tracking }) {
+  const meta = statusMeta(order, tracking);
   const failed = ["REJECTED", "FAILED"].includes(order.status);
   return (
     <aside className="overflow-hidden rounded-md border border-white/10 bg-slate-900 xl:sticky xl:top-6">
@@ -787,6 +808,12 @@ function OrderDetail({ onReorder, order, productsBySku }) {
           <FiRefreshCw />
           Comprar nuevamente
         </button>
+        <Link
+          to={`/shop/order/${encodeURIComponent(order.orderNumber)}`}
+          className="mt-3 flex h-11 w-full items-center justify-center gap-2 rounded-md border border-white/15 px-4 text-sm font-black text-slate-200 transition hover:bg-white/5"
+        >
+          <FiFileText /> Ver seguimiento y comprobante
+        </Link>
       </div>
     </aside>
   );
