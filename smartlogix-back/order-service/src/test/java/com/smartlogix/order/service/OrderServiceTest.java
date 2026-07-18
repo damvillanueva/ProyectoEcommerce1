@@ -506,7 +506,7 @@ class OrderServiceTest {
             super(
                     new RestTemplate(),
                     new InternalServiceTokenProvider(
-                            "SmartLogixSuperSecretKeyForJWT2024PlatformMicroservicesArchitecture!!"
+                            "SmartLogixOrderServiceUnitTestSecretWithAtLeast64CharactersLong!!"
                     )
             );
         }

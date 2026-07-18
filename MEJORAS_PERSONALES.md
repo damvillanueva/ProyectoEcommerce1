@@ -46,6 +46,14 @@ Base copiada desde la entrega grupal y separada para seguir iterando sin tocar l
 - [x] Tests unitarios de `order-service` para reserva, envio y limpieza al eliminar pedido.
 - [x] Traslado avanzado entre bodegas desde el detalle del producto, manteniendo stock y reservas.
 - [x] Documentacion para explicar el codigo al grupo y guion de demo para el profesor.
+- [x] Checkout ecommerce con carrito separado, despacho/retiro, descuentos y pagos simulados.
+- [x] Cuenta de cliente con perfil, direcciones, favoritos, compras y seguimiento privado.
+- [x] Catalogo con detalle, resenas, preguntas y productos relacionados.
+- [x] Cancelacion segura de pedidos con liberacion de inventario y reembolso simulado.
+- [x] Seguridad interna de envios con `ROLE_ORDER_SERVICE` y pruebas de permisos.
+- [x] Secretos JWT, CORS y contrasenas semilla movidos a variables de entorno obligatorias.
+- [x] Plantilla publica `.env.example` y archivo `.env` local ignorado por Git.
+- [x] Matriz de normativa chilena y estandares internacionales aplicables.
 
 ## Siguientes mejoras recomendadas
 
@@ -174,3 +182,13 @@ Base copiada desde la entrega grupal y separada para seguir iterando sin tocar l
 - Frontend: `npm.cmd run lint` OK.
 - Backend: `.\mvnw.cmd -pl order-service -am test` OK con 2 tests unitarios.
 - Nota: Vite mantiene advertencia de bundle mayor a 500 KB; no bloquea.
+
+## Roadmap vigente
+
+La continuacion para convertir SmartLogix en una plantilla completa de ecommerce,
+administracion interna y punto de venta se encuentra en:
+
+```txt
+ROADMAP_PLANTILLA_ECOMMERCE.md
+NORMATIVA_Y_ESTANDARES.md
+```

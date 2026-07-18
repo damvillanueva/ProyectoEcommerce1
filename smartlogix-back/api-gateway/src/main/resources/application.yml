@@ -34,13 +34,23 @@ spring:
       globalcors:
         cors-configurations:
           '[/**]':
-            allowedOrigins: '*'
-            allowedMethods: '*'
-            allowedHeaders: '*'
+            allowedOrigins:
+              - ${SMARTLOGIX_CORS_ALLOWED_ORIGIN}
+              - ${SMARTLOGIX_CORS_ALLOWED_ORIGIN_ALT}
+            allowedMethods:
+              - GET
+              - POST
+              - PUT
+              - PATCH
+              - DELETE
+              - OPTIONS
+            allowedHeaders:
+              - Authorization
+              - Content-Type
 
 # Configuración JWT (misma clave que el auth-service)
 jwt:
-  secret: ${JWT_SECRET:SmartLogixSuperSecretKeyForJWT2024PlatformMicroservicesArchitecture!!}
+  secret: ${JWT_SECRET}
 
 eureka:
   client:

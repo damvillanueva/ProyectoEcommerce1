@@ -20,16 +20,16 @@ spring:
 
 # Configuración JWT
 jwt:
-  secret: ${JWT_SECRET:SmartLogixSuperSecretKeyForJWT2024PlatformMicroservicesArchitecture!!}
+  secret: ${JWT_SECRET}
   expiration-ms: ${JWT_EXPIRATION_MS:3600000}   # 1 hora
 
 smartlogix:
   seed:
     enabled: ${SMARTLOGIX_SEED_ENABLED:true}
-    admin-password: ${SMARTLOGIX_SEED_ADMIN_PASSWORD:admin123}
-    user-password: ${SMARTLOGIX_SEED_USER_PASSWORD:user123}
-    warehouse-password: ${SMARTLOGIX_SEED_WAREHOUSE_PASSWORD:bodega123}
-    customer-password: ${SMARTLOGIX_SEED_CUSTOMER_PASSWORD:cliente123}
+    admin-password: ${SMARTLOGIX_SEED_ADMIN_PASSWORD}
+    user-password: ${SMARTLOGIX_SEED_USER_PASSWORD}
+    warehouse-password: ${SMARTLOGIX_SEED_WAREHOUSE_PASSWORD}
+    customer-password: ${SMARTLOGIX_SEED_CUSTOMER_PASSWORD}
 
 management:
   endpoints:

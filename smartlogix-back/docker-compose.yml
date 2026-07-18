@@ -25,7 +25,11 @@ services:
     restart: unless-stopped
     environment:
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://discovery-service:8761/eureka/
-      - JWT_SECRET=${JWT_SECRET:-SmartLogixSuperSecretKeyForJWT2024PlatformMicroservicesArchitecture!!}
+      - JWT_SECRET=${JWT_SECRET:?Defina JWT_SECRET en smartlogix-back/.env}
+      - SMARTLOGIX_SEED_ADMIN_PASSWORD=${SMARTLOGIX_SEED_ADMIN_PASSWORD:?Defina SMARTLOGIX_SEED_ADMIN_PASSWORD en smartlogix-back/.env}
+      - SMARTLOGIX_SEED_USER_PASSWORD=${SMARTLOGIX_SEED_USER_PASSWORD:?Defina SMARTLOGIX_SEED_USER_PASSWORD en smartlogix-back/.env}
+      - SMARTLOGIX_SEED_WAREHOUSE_PASSWORD=${SMARTLOGIX_SEED_WAREHOUSE_PASSWORD:?Defina SMARTLOGIX_SEED_WAREHOUSE_PASSWORD en smartlogix-back/.env}
+      - SMARTLOGIX_SEED_CUSTOMER_PASSWORD=${SMARTLOGIX_SEED_CUSTOMER_PASSWORD:?Defina SMARTLOGIX_SEED_CUSTOMER_PASSWORD en smartlogix-back/.env}
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:8084/actuator/health"]
       interval: 15s
@@ -46,7 +50,7 @@ services:
     restart: unless-stopped
     environment:
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://discovery-service:8761/eureka/
-      - JWT_SECRET=${JWT_SECRET:-SmartLogixSuperSecretKeyForJWT2024PlatformMicroservicesArchitecture!!}
+      - JWT_SECRET=${JWT_SECRET:?Defina JWT_SECRET en smartlogix-back/.env}
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:8081/actuator/health"]
       interval: 15s
@@ -67,7 +71,7 @@ services:
     restart: unless-stopped
     environment:
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://discovery-service:8761/eureka/
-      - JWT_SECRET=${JWT_SECRET:-SmartLogixSuperSecretKeyForJWT2024PlatformMicroservicesArchitecture!!}
+      - JWT_SECRET=${JWT_SECRET:?Defina JWT_SECRET en smartlogix-back/.env}
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:8083/actuator/health"]
       interval: 15s
@@ -92,7 +96,7 @@ services:
     restart: unless-stopped
     environment:
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://discovery-service:8761/eureka/
-      - JWT_SECRET=${JWT_SECRET:-SmartLogixSuperSecretKeyForJWT2024PlatformMicroservicesArchitecture!!}
+      - JWT_SECRET=${JWT_SECRET:?Defina JWT_SECRET en smartlogix-back/.env}
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:8082/actuator/health"]
       interval: 15s
@@ -121,7 +125,9 @@ services:
     restart: unless-stopped
     environment:
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://discovery-service:8761/eureka/
-      - JWT_SECRET=${JWT_SECRET:-SmartLogixSuperSecretKeyForJWT2024PlatformMicroservicesArchitecture!!}
+      - JWT_SECRET=${JWT_SECRET:?Defina JWT_SECRET en smartlogix-back/.env}
+      - SMARTLOGIX_CORS_ALLOWED_ORIGIN=${SMARTLOGIX_CORS_ALLOWED_ORIGIN:?Defina SMARTLOGIX_CORS_ALLOWED_ORIGIN en smartlogix-back/.env}
+      - SMARTLOGIX_CORS_ALLOWED_ORIGIN_ALT=${SMARTLOGIX_CORS_ALLOWED_ORIGIN_ALT:?Defina SMARTLOGIX_CORS_ALLOWED_ORIGIN_ALT en smartlogix-back/.env}
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:8080/actuator/health"]
       interval: 15s

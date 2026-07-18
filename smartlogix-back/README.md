@@ -53,6 +53,8 @@ FROM eclipse-temurin:17-jdk AS build
 Para levantar toda la plataforma con Docker Compose:
 
 ```powershell
+Copy-Item .env.example .env
+# Reemplace todos los valores REEMPLAZAR_* antes de continuar.
 docker compose up --build -d
 docker compose ps
 ```
@@ -101,27 +103,32 @@ En Docker Compose solo quedan publicados `8761` y `8080`. Los microservicios int
 ### 1) Obtener token JWT
 
 ```powershell
+$adminPassword = Read-Host "Contrasena local de admin"
 $login = Invoke-RestMethod `
   -Method Post `
   -Uri http://localhost:8080/api/auth/login `
   -ContentType "application/json" `
-  -Body '{"credential":"admin","password":"admin123"}'
+  -Body (@{ credential = "admin"; password = $adminPassword } | ConvertTo-Json)
 
 $token = $login.token
 ```
 
 Usuarios seed de desarrollo:
 
-- `admin` / `admin123`
-- `usuario` / `user123`
-- `bodeguero` / `bodega123`
+- `admin`
+- `usuario`
+- `bodeguero`
+- `cliente`
 
-Para produccion cambia esas claves con variables de entorno:
+Las contrasenas y la clave JWT son obligatorias y se definen en `.env`:
 
 - `SMARTLOGIX_SEED_ADMIN_PASSWORD`
 - `SMARTLOGIX_SEED_USER_PASSWORD`
 - `SMARTLOGIX_SEED_WAREHOUSE_PASSWORD`
+- `SMARTLOGIX_SEED_CUSTOMER_PASSWORD`
 - `JWT_SECRET`
+- `SMARTLOGIX_CORS_ALLOWED_ORIGIN`
+- `SMARTLOGIX_CORS_ALLOWED_ORIGIN_ALT`
 
 ### 2) Listar inventario inicial
 

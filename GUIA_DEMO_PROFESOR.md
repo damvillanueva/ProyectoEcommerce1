@@ -27,7 +27,7 @@ http://127.0.0.1:5174
 Usuario demo:
 
 ```txt
-admin / admin123
+admin / valor SMARTLOGIX_SEED_ADMIN_PASSWORD del archivo .env local
 ```
 
 ## Paso 1: Login

@@ -26,10 +26,10 @@ public class DataSeedConfig {
     CommandLineRunner seedUsers(
             UserRepository userRepository,
             PasswordEncoder passwordEncoder,
-            @Value("${smartlogix.seed.admin-password:admin123}") String adminPassword,
-            @Value("${smartlogix.seed.user-password:user123}") String userPassword,
-            @Value("${smartlogix.seed.warehouse-password:bodega123}") String warehousePassword,
-            @Value("${smartlogix.seed.customer-password:cliente123}") String customerPassword) {
+            @Value("${smartlogix.seed.admin-password}") String adminPassword,
+            @Value("${smartlogix.seed.user-password}") String userPassword,
+            @Value("${smartlogix.seed.warehouse-password}") String warehousePassword,
+            @Value("${smartlogix.seed.customer-password}") String customerPassword) {
         return args -> {
             if (userRepository.count() == 0) {
                 UserEntity admin = new UserEntity();

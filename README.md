@@ -10,6 +10,8 @@ ProyectoSmartlogix/
   smartlogix-back/       Microservicios Spring Boot
   smartlogix-front/      Frontend React + Vite
   MEJORAS_PERSONALES.md  Checklist de mejoras implementadas y pendientes
+  ROADMAP_PLANTILLA_ECOMMERCE.md  Fases para convertirlo en plantilla reutilizable
+  NORMATIVA_Y_ESTANDARES.md  Matriz chilena e internacional de cumplimiento
   EXPLICACION_GRUPO.md   Resumen tecnico simple para explicar al equipo
   GUIA_DEMO_PROFESOR.md  Guion de demo paso a paso
 ```
@@ -39,6 +41,15 @@ Ruta:
 cd smartlogix-back
 ```
 
+Crear la configuracion local antes del primer arranque:
+
+```powershell
+Copy-Item .env.example .env
+```
+
+Luego se deben reemplazar todos los valores de `REEMPLAZAR_*`. El archivo `.env`
+real contiene secretos locales y Git no lo versiona.
+
 Validar:
 
 ```powershell
@@ -57,13 +68,17 @@ API Gateway:
 http://localhost:8080
 ```
 
-Usuarios de desarrollo:
+Usuarios semilla de desarrollo:
 
 ```txt
-admin / admin123
-usuario / user123
-bodeguero / bodega123
+admin
+usuario
+bodeguero
+cliente
 ```
+
+Las contrasenas se definen exclusivamente mediante las variables
+`SMARTLOGIX_SEED_*_PASSWORD` del archivo `.env` local.
 
 ## Frontend
 
@@ -105,6 +120,7 @@ Este repositorio ignora dependencias, builds, logs y archivos locales sensibles:
 - `dist`
 - `target`
 - `.env`
+- contrasenas y secretos JWT
 - `credential.txt`
 - logs y archivos de base H2 local
 
@@ -114,6 +130,8 @@ El avance personal esta documentado en:
 
 ```txt
 MEJORAS_PERSONALES.md
+ROADMAP_PLANTILLA_ECOMMERCE.md
+NORMATIVA_Y_ESTANDARES.md
 EXPLICACION_GRUPO.md
 GUIA_DEMO_PROFESOR.md
 ```
