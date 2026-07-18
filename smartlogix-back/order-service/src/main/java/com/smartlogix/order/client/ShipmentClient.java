@@ -131,7 +131,7 @@ public class ShipmentClient {
 
         return Jwts.builder()
                 .subject("order-service")
-                .claim("role", "ROLE_ADMIN")
+                .claim("role", "ROLE_ORDER_SERVICE")
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(now.plusSeconds(60)))
                 .signWith(signingKey)

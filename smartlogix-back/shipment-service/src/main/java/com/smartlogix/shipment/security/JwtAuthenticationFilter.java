@@ -44,12 +44,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         }
 
         String path = request.getRequestURI();
-
-        if (HttpMethod.POST.matches(request.getMethod())
-                && (path.equals("/api/shipments") || path.equals("/api/shipments/"))) {
-            return true;
-        }
-
         return PUBLIC_PATHS.stream().anyMatch(publicPath -> matchesPath(path, publicPath));
     }
 
