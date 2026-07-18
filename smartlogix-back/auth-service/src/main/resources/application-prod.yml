@@ -1,0 +1,9 @@
+spring:
+  datasource:
+    url: ${SMARTLOGIX_AUTH_DB_URL}
+    username: ${SMARTLOGIX_AUTH_DB_USERNAME}
+    password: ${SMARTLOGIX_DB_AUTH_PASSWORD}
+
+smartlogix:
+  seed:
+    enabled: false

@@ -1,0 +1,5 @@
+spring:
+  datasource:
+    url: ${SMARTLOGIX_AUTH_DB_URL:jdbc:postgresql://localhost:5433/smartlogix_auth}
+    username: ${SMARTLOGIX_AUTH_DB_USERNAME:smartlogix_auth}
+    password: ${SMARTLOGIX_DB_AUTH_PASSWORD}

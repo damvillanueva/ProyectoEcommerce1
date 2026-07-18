@@ -54,6 +54,9 @@ Base copiada desde la entrega grupal y separada para seguir iterando sin tocar l
 - [x] Secretos JWT, CORS y contrasenas semilla movidos a variables de entorno obligatorias.
 - [x] Plantilla publica `.env.example` y archivo `.env` local ignorado por Git.
 - [x] Matriz de normativa chilena y estandares internacionales aplicables.
+- [x] PostgreSQL persistente con una base y credencial separada por microservicio.
+- [x] Migraciones Flyway y validacion de entidades con `ddl-auto: validate`.
+- [x] Perfiles `dev`, `test` y `prod` para los servicios persistentes.
 
 ## Siguientes mejoras recomendadas
 

@@ -17,7 +17,8 @@ Y componentes de infraestructura:
 
 - `Service Discovery`: registro dinamico con Eureka.
 - `API Gateway`: punto unico de entrada para frontend o clientes.
-- `Database per Service`: cada microservicio usa su propia base H2.
+- `Database per Service`: cada microservicio usa una base PostgreSQL y un usuario propio.
+- `Database Migration`: Flyway versiona y valida la estructura de cada base.
 - `Factory Method`: en `shipment-service` para crear planes de envio por zona.
 - `Circuit Breaker`: en `order-service` para llamadas a `shipment-service`.
 - `Synchronous orchestration`: `order-service` coordina inventario + envio.
@@ -35,6 +36,7 @@ Y componentes de infraestructura:
 
 - Java 17
 - Maven Wrapper (`mvnw.cmd` ya incluido)
+- Docker Desktop para PostgreSQL y la ejecucion completa
 
 ## Compilar y validar
 
@@ -58,6 +60,24 @@ Copy-Item .env.example .env
 docker compose up --build -d
 docker compose ps
 ```
+
+PostgreSQL se publica localmente en `localhost:5433`. Los datos permanecen en
+el volumen `smartlogix-postgres-data` aunque los contenedores se reinicien. Las
+cuatro bases se crean con propietarios separados:
+
+- `smartlogix_auth`
+- `smartlogix_inventory`
+- `smartlogix_order`
+- `smartlogix_shipment`
+
+El puerto se enlaza solo a `127.0.0.1`, por lo que PostgreSQL no queda expuesto
+a otros equipos de la red. Las credenciales de las bases se aplican al crear el
+volumen por primera vez; cambiarlas luego requiere actualizar los roles o crear
+un volumen nuevo de manera intencional.
+
+Flyway ejecuta los archivos `db/migration/V*__*.sql` antes de que Hibernate
+valide las entidades. No se debe modificar una migracion ya aplicada; los
+cambios futuros se agregan como `V2`, `V3` y siguientes.
 
 Para detenerla:
 
@@ -129,6 +149,17 @@ Las contrasenas y la clave JWT son obligatorias y se definen en `.env`:
 - `JWT_SECRET`
 - `SMARTLOGIX_CORS_ALLOWED_ORIGIN`
 - `SMARTLOGIX_CORS_ALLOWED_ORIGIN_ALT`
+- `SMARTLOGIX_DB_ADMIN_PASSWORD`
+- `SMARTLOGIX_DB_AUTH_PASSWORD`
+- `SMARTLOGIX_DB_INVENTORY_PASSWORD`
+- `SMARTLOGIX_DB_ORDER_PASSWORD`
+- `SMARTLOGIX_DB_SHIPMENT_PASSWORD`
+
+Los perfiles disponibles en los servicios persistentes son:
+
+- `dev`: PostgreSQL local en el puerto `5433`.
+- `test`: H2 aislado, Flyway desactivado y tablas temporales.
+- `prod`: exige URL, usuario y contrasena de base sin valores predeterminados.
 
 ### 2) Listar inventario inicial
 

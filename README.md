@@ -122,7 +122,7 @@ Este repositorio ignora dependencias, builds, logs y archivos locales sensibles:
 - `.env`
 - contrasenas y secretos JWT
 - `credential.txt`
-- logs y archivos de base H2 local
+- volumenes y datos locales de PostgreSQL
 
 ## Checklist
 

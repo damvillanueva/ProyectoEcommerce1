@@ -1,0 +1,5 @@
+spring:
+  datasource:
+    url: ${SMARTLOGIX_INVENTORY_DB_URL}
+    username: ${SMARTLOGIX_INVENTORY_DB_USERNAME}
+    password: ${SMARTLOGIX_DB_INVENTORY_PASSWORD}

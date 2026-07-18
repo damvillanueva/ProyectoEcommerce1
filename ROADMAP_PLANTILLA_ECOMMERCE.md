@@ -26,9 +26,9 @@ secretos y un commit con push al repositorio personal.
 
 ## Fase 2 - Persistencia y operacion
 
-- [ ] Reemplazar H2 en memoria por PostgreSQL local con Docker.
-- [ ] Crear migraciones de base de datos con Flyway.
-- [ ] Separar perfiles `dev`, `test` y `prod`.
+- [x] Reemplazar H2 en memoria por PostgreSQL local con Docker.
+- [x] Crear migraciones de base de datos con Flyway.
+- [x] Separar perfiles `dev`, `test` y `prod`.
 - [ ] Agregar respaldos, restauracion y datos semilla opcionales.
 - [ ] Incorporar logs estructurados, metricas y trazabilidad por pedido.
 

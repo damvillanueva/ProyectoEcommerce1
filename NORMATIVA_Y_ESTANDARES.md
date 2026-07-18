@@ -177,6 +177,7 @@ duplicados y registrar estados sin exponer datos sensibles.
 - [x] Liberacion de inventario y reembolso simulado al cancelar.
 - [x] Pagos demostrativos sin almacenar datos reales de tarjetas.
 - [x] Pruebas de permisos, stock, pedidos y envios.
+- [x] PostgreSQL persistente con migraciones versionadas y usuarios separados.
 
 ### Pendiente antes de produccion
 

@@ -1,0 +1,5 @@
+spring:
+  datasource:
+    url: ${SMARTLOGIX_ORDER_DB_URL:jdbc:postgresql://localhost:5433/smartlogix_order}
+    username: ${SMARTLOGIX_ORDER_DB_USERNAME:smartlogix_order}
+    password: ${SMARTLOGIX_DB_ORDER_PASSWORD}

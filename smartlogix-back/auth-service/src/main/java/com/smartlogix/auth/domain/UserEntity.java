@@ -26,8 +26,7 @@ public class UserEntity {
     @Column(length = 30)
     private String phone;
 
-    @Lob
-    @Column(columnDefinition = "CLOB")
+    @Column(columnDefinition = "TEXT")
     private String avatarUrl;
 
     @Column(nullable = false)

@@ -1,0 +1,5 @@
+spring:
+  datasource:
+    url: ${SMARTLOGIX_INVENTORY_DB_URL:jdbc:postgresql://localhost:5433/smartlogix_inventory}
+    username: ${SMARTLOGIX_INVENTORY_DB_USERNAME:smartlogix_inventory}
+    password: ${SMARTLOGIX_DB_INVENTORY_PASSWORD}

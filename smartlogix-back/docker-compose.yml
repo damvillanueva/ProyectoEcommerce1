@@ -1,4 +1,27 @@
 services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      - POSTGRES_DB=postgres
+      - POSTGRES_USER=smartlogix_admin
+      - POSTGRES_PASSWORD=${SMARTLOGIX_DB_ADMIN_PASSWORD:?Defina SMARTLOGIX_DB_ADMIN_PASSWORD en smartlogix-back/.env}
+      - SMARTLOGIX_DB_AUTH_PASSWORD=${SMARTLOGIX_DB_AUTH_PASSWORD:?Defina SMARTLOGIX_DB_AUTH_PASSWORD en smartlogix-back/.env}
+      - SMARTLOGIX_DB_INVENTORY_PASSWORD=${SMARTLOGIX_DB_INVENTORY_PASSWORD:?Defina SMARTLOGIX_DB_INVENTORY_PASSWORD en smartlogix-back/.env}
+      - SMARTLOGIX_DB_ORDER_PASSWORD=${SMARTLOGIX_DB_ORDER_PASSWORD:?Defina SMARTLOGIX_DB_ORDER_PASSWORD en smartlogix-back/.env}
+      - SMARTLOGIX_DB_SHIPMENT_PASSWORD=${SMARTLOGIX_DB_SHIPMENT_PASSWORD:?Defina SMARTLOGIX_DB_SHIPMENT_PASSWORD en smartlogix-back/.env}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - smartlogix-postgres-data:/var/lib/postgresql/data
+      - ./postgres-init:/docker-entrypoint-initdb.d:ro
+
   discovery-service:
     build:
       context: .
@@ -20,11 +43,17 @@ services:
       dockerfile: auth-service/Dockerfile
     image: smartlogix/auth-service:latest
     depends_on:
+      postgres:
+        condition: service_healthy
       discovery-service:
         condition: service_healthy
     restart: unless-stopped
     environment:
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://discovery-service:8761/eureka/
+      - SPRING_PROFILES_ACTIVE=dev
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/smartlogix_auth
+      - SPRING_DATASOURCE_USERNAME=smartlogix_auth
+      - SPRING_DATASOURCE_PASSWORD=${SMARTLOGIX_DB_AUTH_PASSWORD:?Defina SMARTLOGIX_DB_AUTH_PASSWORD en smartlogix-back/.env}
       - JWT_SECRET=${JWT_SECRET:?Defina JWT_SECRET en smartlogix-back/.env}
       - SMARTLOGIX_SEED_ADMIN_PASSWORD=${SMARTLOGIX_SEED_ADMIN_PASSWORD:?Defina SMARTLOGIX_SEED_ADMIN_PASSWORD en smartlogix-back/.env}
       - SMARTLOGIX_SEED_USER_PASSWORD=${SMARTLOGIX_SEED_USER_PASSWORD:?Defina SMARTLOGIX_SEED_USER_PASSWORD en smartlogix-back/.env}
@@ -45,11 +74,17 @@ services:
       dockerfile: inventory-service/Dockerfile
     image: smartlogix/inventory-service:latest
     depends_on:
+      postgres:
+        condition: service_healthy
       discovery-service:
         condition: service_healthy
     restart: unless-stopped
     environment:
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://discovery-service:8761/eureka/
+      - SPRING_PROFILES_ACTIVE=dev
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/smartlogix_inventory
+      - SPRING_DATASOURCE_USERNAME=smartlogix_inventory
+      - SPRING_DATASOURCE_PASSWORD=${SMARTLOGIX_DB_INVENTORY_PASSWORD:?Defina SMARTLOGIX_DB_INVENTORY_PASSWORD en smartlogix-back/.env}
       - JWT_SECRET=${JWT_SECRET:?Defina JWT_SECRET en smartlogix-back/.env}
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:8081/actuator/health"]
@@ -66,11 +101,17 @@ services:
       dockerfile: shipment-service/Dockerfile
     image: smartlogix/shipment-service:latest
     depends_on:
+      postgres:
+        condition: service_healthy
       discovery-service:
         condition: service_healthy
     restart: unless-stopped
     environment:
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://discovery-service:8761/eureka/
+      - SPRING_PROFILES_ACTIVE=dev
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/smartlogix_shipment
+      - SPRING_DATASOURCE_USERNAME=smartlogix_shipment
+      - SPRING_DATASOURCE_PASSWORD=${SMARTLOGIX_DB_SHIPMENT_PASSWORD:?Defina SMARTLOGIX_DB_SHIPMENT_PASSWORD en smartlogix-back/.env}
       - JWT_SECRET=${JWT_SECRET:?Defina JWT_SECRET en smartlogix-back/.env}
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:8083/actuator/health"]
@@ -87,6 +128,8 @@ services:
       dockerfile: order-service/Dockerfile
     image: smartlogix/order-service:latest
     depends_on:
+      postgres:
+        condition: service_healthy
       discovery-service:
         condition: service_healthy
       inventory-service:
@@ -96,6 +139,10 @@ services:
     restart: unless-stopped
     environment:
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://discovery-service:8761/eureka/
+      - SPRING_PROFILES_ACTIVE=dev
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/smartlogix_order
+      - SPRING_DATASOURCE_USERNAME=smartlogix_order
+      - SPRING_DATASOURCE_PASSWORD=${SMARTLOGIX_DB_ORDER_PASSWORD:?Defina SMARTLOGIX_DB_ORDER_PASSWORD en smartlogix-back/.env}
       - JWT_SECRET=${JWT_SECRET:?Defina JWT_SECRET en smartlogix-back/.env}
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:8082/actuator/health"]
@@ -136,3 +183,6 @@ services:
       start_period: 45s
     ports:
       - "8080:8080"
+
+volumes:
+  smartlogix-postgres-data:
