@@ -21,9 +21,11 @@ import {
   FiTruck,
   FiUser,
   FiX,
+  FiXCircle,
 } from "react-icons/fi";
 import { Link, useNavigate } from "react-router-dom";
 import logo from "../assets/logo-smartlogix.png";
+import CancelOrderModal from "../components/CancelOrderModal";
 import { clearLogin } from "../services/authService";
 import {
   createCustomerAddress,
@@ -35,7 +37,8 @@ import {
   updateCustomerAddress,
 } from "../services/customerAccountService";
 import { getPublicCatalogProducts } from "../services/inventoryService";
-import { loadMyOrders, loadMyOrderTracking } from "../services/orderService";
+import { cancelCustomerOrder, loadMyOrders, loadMyOrderTracking } from "../services/orderService";
+import { canCancelOrder } from "../utils/orderCancellationUtils";
 
 const CART_STORAGE_KEY = "smartlogix-store-cart";
 
@@ -57,6 +60,7 @@ const STATUS_META = {
   DELIVERED: { label: "Entregado", tone: "emerald", step: 4 },
   REJECTED: { label: "Pedido rechazado", tone: "red", step: -1 },
   FAILED: { label: "Requiere revision", tone: "red", step: -1 },
+  CANCELLED: { label: "Pedido cancelado", tone: "slate", step: -1 },
 };
 
 const TRACKING_STEPS = [
@@ -120,7 +124,9 @@ function paymentMethodLabel(paymentMethod) {
 
 function paymentStatusMeta(paymentStatus) {
   if (paymentStatus === "PAID") return { label: "Pago confirmado", classes: "text-emerald-300" };
+  if (paymentStatus === "REFUNDED") return { label: "Pago reembolsado", classes: "text-sky-300" };
   if (paymentStatus === "REJECTED") return { label: "Pago rechazado", classes: "text-red-300" };
+  if (paymentStatus === "CANCELLED") return { label: "Pago cancelado", classes: "text-slate-400" };
   return { label: "Pago pendiente", classes: "text-amber-300" };
 }
 
@@ -141,6 +147,9 @@ function CustomerAccountPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [cancelTarget, setCancelTarget] = useState(null);
+  const [cancelling, setCancelling] = useState(false);
+  const [cancelError, setCancelError] = useState("");
 
   useEffect(() => {
     let active = true;
@@ -205,7 +214,7 @@ function CustomerAccountPage() {
     .filter(Boolean);
   const completedOrders = orders.filter((order) => trackingByOrder[order.orderNumber]?.shipmentStatus === "DELIVERED").length;
   const activeOrders = orders.filter((order) =>
-    !["REJECTED", "FAILED"].includes(order.status)
+    !["REJECTED", "FAILED", "CANCELLED"].includes(order.status)
     && trackingByOrder[order.orderNumber]?.shipmentStatus !== "DELIVERED"
   ).length;
   const totalSpent = orders
@@ -348,6 +357,30 @@ function CustomerAccountPage() {
     }
   }
 
+  async function handleCancelOrder(reason) {
+    try {
+      setCancelling(true);
+      setCancelError("");
+      const updatedOrder = await cancelCustomerOrder(cancelTarget.orderNumber, reason);
+      const updatedTracking = await loadMyOrderTracking(cancelTarget.orderNumber);
+      setOrders((current) => current.map((order) => (
+        order.orderNumber === updatedOrder.orderNumber ? updatedOrder : order
+      )));
+      setTrackingByOrder((current) => ({
+        ...current,
+        [updatedOrder.orderNumber]: updatedTracking,
+      }));
+      setCancelTarget(null);
+      showMessage("Pedido cancelado y reembolso registrado.");
+    } catch (cancelRequestError) {
+      console.error(cancelRequestError);
+      setCancelError(cancelRequestError.response?.data?.message
+        || "No fue posible cancelar el pedido.");
+    } finally {
+      setCancelling(false);
+    }
+  }
+
   function reorder(order) {
     const nextCart = order.lines
       .map((line) => {
@@ -422,6 +455,7 @@ function CustomerAccountPage() {
 
           {activeView === "orders" && (
             <OrdersView
+              onCancel={(order) => { setCancelError(""); setCancelTarget(order); }}
               onReorder={reorder}
               onSelect={setSelectedOrderNumber}
               orders={orders}
@@ -468,6 +502,7 @@ function CustomerAccountPage() {
           )}
         </main>
       </div>
+      <CancelOrderModal error={cancelError} loading={cancelling} onClose={() => { if (!cancelling) setCancelTarget(null); }} onConfirm={handleCancelOrder} orderNumber={cancelTarget?.orderNumber} />
     </div>
   );
 }
@@ -676,7 +711,7 @@ function FavoritesView({ onRemove, products, saving }) {
   );
 }
 
-function OrdersView({ onReorder, onSelect, orders, productsBySku, selectedOrder, selectedTracking, trackingByOrder }) {
+function OrdersView({ onCancel, onReorder, onSelect, orders, productsBySku, selectedOrder, selectedTracking, trackingByOrder }) {
   return (
     <div>
       <div className="mb-6">
@@ -725,7 +760,7 @@ function OrdersView({ onReorder, onSelect, orders, productsBySku, selectedOrder,
           </div>
 
           {selectedOrder && (
-            <OrderDetail order={selectedOrder} productsBySku={productsBySku} onReorder={onReorder} tracking={selectedTracking} />
+            <OrderDetail onCancel={onCancel} order={selectedOrder} productsBySku={productsBySku} onReorder={onReorder} tracking={selectedTracking} />
           )}
         </div>
       )}
@@ -733,10 +768,12 @@ function OrdersView({ onReorder, onSelect, orders, productsBySku, selectedOrder,
   );
 }
 
-function OrderDetail({ onReorder, order, productsBySku, tracking }) {
+function OrderDetail({ onCancel, onReorder, order, productsBySku, tracking }) {
   const meta = statusMeta(order, tracking);
   const paymentMeta = paymentStatusMeta(order.paymentStatus);
   const failed = ["REJECTED", "FAILED"].includes(order.status);
+  const cancelled = order.status === "CANCELLED";
+  const cancellable = canCancelOrder(order, tracking);
   return (
     <aside className="overflow-hidden rounded-md border border-white/10 bg-slate-900 xl:sticky xl:top-6">
       <div className="border-b border-white/10 p-5">
@@ -751,7 +788,12 @@ function OrderDetail({ onReorder, order, productsBySku, tracking }) {
       </div>
 
       <div className="p-5">
-        {failed ? (
+        {cancelled ? (
+          <div className="rounded-md border border-slate-400/20 bg-slate-500/10 p-4 text-sm font-bold text-slate-300">
+            <p>Pedido cancelado</p>
+            <p className="mt-1 text-xs text-slate-500">{order.cancellationReason}</p>
+          </div>
+        ) : failed ? (
           <div className="rounded-md border border-red-400/25 bg-red-500/10 p-4 text-sm font-bold text-red-200">
             {order.paymentFailureReason || order.rejectionReason || "Este pedido necesita revision del equipo."}
           </div>
@@ -812,12 +854,17 @@ function OrderDetail({ onReorder, order, productsBySku, tracking }) {
           {order.transactionReference && <p className="mt-2 break-all text-xs font-bold text-slate-500">Referencia: {order.transactionReference}</p>}
           {order.paymentAuthorizationCode && <p className="mt-2 text-xs font-bold text-slate-500">Autorizacion: {order.paymentAuthorizationCode}</p>}
           {order.paymentProcessedAt && <p className="mt-2 text-xs font-bold text-slate-500">Procesado: {formatDate(order.paymentProcessedAt)}</p>}
+          {order.refundReference && <p className="mt-2 break-all text-xs font-bold text-sky-300">Reembolso: {order.refundReference}</p>}
+          {Number(order.refundAmount || 0) > 0 && <p className="mt-2 text-xs font-bold text-slate-500">Monto devuelto: {formatCurrency(order.refundAmount)}</p>}
+          {order.refundedAt && <p className="mt-2 text-xs font-bold text-slate-500">Reembolsado: {formatDate(order.refundedAt)}</p>}
         </div>
+
+        {cancellable && <button type="button" onClick={() => onCancel(order)} className="mt-6 flex h-11 w-full items-center justify-center gap-2 rounded-md border border-red-400/30 px-4 text-sm font-black text-red-200 transition hover:bg-red-500/10"><FiXCircle /> Cancelar pedido</button>}
 
         <button
           type="button"
           onClick={() => onReorder(order)}
-          className="mt-6 flex h-11 w-full items-center justify-center gap-2 rounded-md bg-sky-500 px-4 text-sm font-black transition hover:bg-sky-400"
+          className={`${cancellable ? "mt-3" : "mt-6"} flex h-11 w-full items-center justify-center gap-2 rounded-md bg-sky-500 px-4 text-sm font-black transition hover:bg-sky-400`}
         >
           <FiRefreshCw />
           Comprar nuevamente

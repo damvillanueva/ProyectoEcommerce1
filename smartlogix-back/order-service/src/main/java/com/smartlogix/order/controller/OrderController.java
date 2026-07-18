@@ -1,6 +1,7 @@
 package com.smartlogix.order.controller;
 
 import com.smartlogix.order.dto.CreateOrderRequest;
+import com.smartlogix.order.dto.CancelOrderRequest;
 import com.smartlogix.order.dto.UpdateOrderRequest;
 import com.smartlogix.order.dto.OrderResponse;
 import com.smartlogix.order.dto.OrderTrackingResponse;
@@ -70,6 +71,19 @@ public class OrderController {
         return orderService.getCustomerOrderTracking(authentication.getName(), orderNumber);
     }
 
+    @PostMapping("/mine/{orderNumber}/cancel")
+    public OrderResponse cancelMyOrder(
+            Authentication authentication,
+            @PathVariable String orderNumber,
+            @Valid @RequestBody CancelOrderRequest request
+    ) {
+        return orderService.cancelCustomerOrder(
+                authentication.getName(),
+                orderNumber,
+                request.reason()
+        );
+    }
+
     @GetMapping
     public List<OrderResponse> listOrders() {
         return orderService.getOrders();
@@ -78,6 +92,15 @@ public class OrderController {
     @GetMapping("/{orderNumber}")
     public OrderResponse findByOrderNumber(@PathVariable String orderNumber) {
         return orderService.getOrderByNumber(orderNumber);
+    }
+
+    @PostMapping("/{orderNumber}/cancel")
+    public OrderResponse cancelOrder(
+            Authentication authentication,
+            @PathVariable String orderNumber,
+            @Valid @RequestBody CancelOrderRequest request
+    ) {
+        return orderService.cancelOrder(orderNumber, authentication.getName(), request.reason());
     }
 
     @PutMapping("/{orderNumber}")

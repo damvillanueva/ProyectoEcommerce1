@@ -96,6 +96,22 @@ public class PurchaseOrder {
     @Column(length = 250)
     private String paymentFailureReason;
 
+    @Column(length = 60)
+    private String refundReference;
+
+    private OffsetDateTime refundedAt;
+
+    @Column(nullable = false, precision = 14, scale = 2)
+    private BigDecimal refundAmount = BigDecimal.ZERO;
+
+    private OffsetDateTime cancelledAt;
+
+    @Column(length = 80)
+    private String cancelledBy;
+
+    @Column(length = 250)
+    private String cancellationReason;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 30)
     private OrderStatus status;
@@ -308,6 +324,54 @@ public class PurchaseOrder {
 
     public void setPaymentFailureReason(String paymentFailureReason) {
         this.paymentFailureReason = paymentFailureReason;
+    }
+
+    public String getRefundReference() {
+        return refundReference;
+    }
+
+    public void setRefundReference(String refundReference) {
+        this.refundReference = refundReference;
+    }
+
+    public OffsetDateTime getRefundedAt() {
+        return refundedAt;
+    }
+
+    public void setRefundedAt(OffsetDateTime refundedAt) {
+        this.refundedAt = refundedAt;
+    }
+
+    public BigDecimal getRefundAmount() {
+        return refundAmount;
+    }
+
+    public void setRefundAmount(BigDecimal refundAmount) {
+        this.refundAmount = refundAmount;
+    }
+
+    public OffsetDateTime getCancelledAt() {
+        return cancelledAt;
+    }
+
+    public void setCancelledAt(OffsetDateTime cancelledAt) {
+        this.cancelledAt = cancelledAt;
+    }
+
+    public String getCancelledBy() {
+        return cancelledBy;
+    }
+
+    public void setCancelledBy(String cancelledBy) {
+        this.cancelledBy = cancelledBy;
+    }
+
+    public String getCancellationReason() {
+        return cancellationReason;
+    }
+
+    public void setCancellationReason(String cancellationReason) {
+        this.cancellationReason = cancellationReason;
     }
 
     public OrderStatus getStatus() {

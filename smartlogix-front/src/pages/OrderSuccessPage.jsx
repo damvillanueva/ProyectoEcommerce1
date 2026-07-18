@@ -19,9 +19,11 @@ import {
 } from "react-icons/fi";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import logo from "../assets/logo-smartlogix.png";
+import CancelOrderModal from "../components/CancelOrderModal";
 import { clearLogin } from "../services/authService";
 import { getPublicCatalogProducts } from "../services/inventoryService";
-import { loadMyOrder, loadMyOrderTracking } from "../services/orderService";
+import { cancelCustomerOrder, loadMyOrder, loadMyOrderTracking } from "../services/orderService";
+import { canCancelOrder } from "../utils/orderCancellationUtils";
 import "../styles/order-success.css";
 
 const DELIVERY_STEPS = [
@@ -64,15 +66,19 @@ function paymentMethodLabel(value) {
 
 function paymentStatusLabel(value) {
   return {
+    CANCELLED: "Pago cancelado",
     PAID: "Pago confirmado",
     PENDING: "Pago pendiente",
     REJECTED: "Pago rechazado",
+    REFUNDED: "Pago reembolsado",
   }[value] || value || "Sin informacion";
 }
 
 function paymentStatusTone(value) {
   if (value === "PAID") return "text-emerald-300";
+  if (value === "REFUNDED") return "text-sky-300";
   if (value === "REJECTED") return "text-red-300";
+  if (value === "CANCELLED") return "text-slate-400";
   return "text-amber-300";
 }
 
@@ -82,7 +88,7 @@ function deliveryLabel(order) {
 }
 
 function currentTrackingStep(order, tracking) {
-  if (["REJECTED", "FAILED"].includes(order.status)) return -1;
+  if (["REJECTED", "FAILED", "CANCELLED"].includes(order.status)) return -1;
   if (order.fulfillmentMethod === "PICKUP") {
     return order.status === "PENDING" ? 0 : 1;
   }
@@ -94,6 +100,13 @@ function currentTrackingStep(order, tracking) {
 }
 
 function statusMeta(order, tracking) {
+  if (order.status === "CANCELLED") {
+    return {
+      label: "Pedido cancelado",
+      tone: "slate",
+      detail: order.cancellationReason || "El pedido fue cancelado correctamente.",
+    };
+  }
   if (order.paymentStatus === "REJECTED") {
     return {
       label: "Pago rechazado",
@@ -138,6 +151,9 @@ function OrderSuccessPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
   const [lastUpdated, setLastUpdated] = useState(null);
+  const [cancelOpen, setCancelOpen] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
+  const [cancelError, setCancelError] = useState("");
 
   useEffect(() => {
     let active = true;
@@ -209,6 +225,25 @@ function OrderSuccessPage() {
     }
   }
 
+  async function cancelOrder(reason) {
+    try {
+      setCancelling(true);
+      setCancelError("");
+      const updatedOrder = await cancelCustomerOrder(orderNumber, reason);
+      const updatedTracking = await loadMyOrderTracking(orderNumber);
+      setOrder(updatedOrder);
+      setTracking(updatedTracking);
+      setLastUpdated(new Date());
+      setCancelOpen(false);
+    } catch (cancelRequestError) {
+      console.error(cancelRequestError);
+      setCancelError(cancelRequestError.response?.data?.message
+        || "No fue posible cancelar el pedido.");
+    } finally {
+      setCancelling(false);
+    }
+  }
+
   if (loading) {
     return <PageState icon={FiPackage} message="Cargando tu pedido..." />;
   }
@@ -219,6 +254,7 @@ function OrderSuccessPage() {
   const meta = statusMeta(order, tracking);
   const newOrder = Boolean(location.state?.newOrder);
   const paymentRejected = order.paymentStatus === "REJECTED";
+  const cancellable = canCancelOrder(order, tracking);
 
   return (
     <div className="min-h-screen bg-slate-950 text-white">
@@ -226,7 +262,7 @@ function OrderSuccessPage() {
       <main className="mx-auto max-w-[1450px] px-4 py-8 sm:px-8 lg:px-12 lg:py-10">
         <div className="no-print">
           <Link to="/shop/account" className="inline-flex items-center gap-2 text-sm font-black text-slate-400 hover:text-white"><FiArrowLeft /> Volver a mis compras</Link>
-          {newOrder && (
+          {newOrder && order.status !== "CANCELLED" && (
             <div className={`mt-6 flex items-start gap-3 rounded-md border p-4 ${paymentRejected ? "border-red-400/25 bg-red-500/10 text-red-200" : "border-emerald-400/25 bg-emerald-500/10 text-emerald-200"}`}>
               {paymentRejected ? <FiXCircle className="mt-0.5 shrink-0" size={20} /> : <FiCheck className="mt-0.5 shrink-0" size={20} />}
               <div>
@@ -243,6 +279,7 @@ function OrderSuccessPage() {
             </div>
             <div className="flex flex-wrap items-center gap-3">
               <StatusBadge meta={meta} />
+              {cancellable && <button type="button" onClick={() => { setCancelError(""); setCancelOpen(true); }} className="flex h-11 items-center gap-2 rounded-md border border-red-400/30 px-4 text-sm font-black text-red-200 hover:bg-red-500/10"><FiXCircle /> Cancelar pedido</button>}
               <button type="button" disabled={refreshing} onClick={refreshTracking} className="flex h-11 items-center gap-2 rounded-md border border-white/15 px-4 text-sm font-black text-slate-200 hover:bg-white/5 disabled:opacity-50"><FiRefreshCw className={refreshing ? "animate-spin" : ""} /> Actualizar</button>
             </div>
           </div>
@@ -268,6 +305,7 @@ function OrderSuccessPage() {
           </div>
         </div>
       </main>
+      <CancelOrderModal error={cancelError} loading={cancelling} onClose={() => { if (!cancelling) setCancelOpen(false); }} onConfirm={cancelOrder} orderNumber={cancelOpen ? order.orderNumber : null} />
     </div>
   );
 }
@@ -357,6 +395,9 @@ function OrderInformation({ order, tracking }) {
         {order.transactionReference && <p className="mt-3 break-all text-xs font-bold text-slate-500">Referencia {order.transactionReference}</p>}
         {order.paymentAuthorizationCode && <p className="mt-2 text-xs font-bold text-slate-500">Autorizacion {order.paymentAuthorizationCode}</p>}
         {order.paymentProcessedAt && <p className="mt-2 text-xs font-bold text-slate-500">Procesado {formatDate(order.paymentProcessedAt)}</p>}
+        {order.refundReference && <p className="mt-3 break-all text-xs font-bold text-sky-300">Reembolso {order.refundReference}</p>}
+        {Number(order.refundAmount || 0) > 0 && <p className="mt-2 text-xs font-bold text-slate-500">Monto devuelto {formatCurrency(order.refundAmount)}</p>}
+        {order.refundedAt && <p className="mt-2 text-xs font-bold text-slate-500">Reembolsado {formatDate(order.refundedAt)}</p>}
       </div>
     </section>
   );
@@ -366,7 +407,7 @@ function Receipt({ order, productsBySku, tracking }) {
   return (
     <section className="receipt-print rounded-md border border-white/10 bg-slate-900 p-5 sm:p-7">
       <div className="flex items-start justify-between gap-4 border-b border-white/10 pb-5 receipt-divider">
-        <div><img src={logo} alt="SmartLogix" className="h-8 w-auto" /><p className="mt-3 text-xs font-black uppercase text-sky-300 receipt-accent">{order.paymentStatus === "REJECTED" ? "Comprobante de intento de pago" : "Comprobante de compra"}</p></div>
+        <div><img src={logo} alt="SmartLogix" className="h-8 w-auto" /><p className="mt-3 text-xs font-black uppercase text-sky-300 receipt-accent">{order.status === "CANCELLED" ? "Comprobante de cancelacion" : order.paymentStatus === "REJECTED" ? "Comprobante de intento de pago" : "Comprobante de compra"}</p></div>
         <div className="text-right"><p className="text-xs font-black text-slate-500 receipt-muted">Documento no tributario</p><p className="mt-2 font-black">{order.orderNumber}</p></div>
       </div>
 
@@ -396,6 +437,11 @@ function Receipt({ order, productsBySku, tracking }) {
         {order.paymentAuthorizationCode && <ReceiptFact label="Codigo de autorizacion" value={order.paymentAuthorizationCode} />}
         {order.paymentProcessedAt && <ReceiptFact label="Fecha del pago" value={formatDate(order.paymentProcessedAt)} />}
         {order.paymentFailureReason && <ReceiptFact label="Motivo del rechazo" value={order.paymentFailureReason} />}
+        {order.refundReference && <ReceiptFact label="Referencia de reembolso" value={order.refundReference} />}
+        {Number(order.refundAmount || 0) > 0 && <ReceiptFact label="Monto reembolsado" value={formatCurrency(order.refundAmount)} />}
+        {order.refundedAt && <ReceiptFact label="Fecha del reembolso" value={formatDate(order.refundedAt)} />}
+        {order.cancellationReason && <ReceiptFact label="Motivo de cancelacion" value={order.cancellationReason} />}
+        {order.cancelledAt && <ReceiptFact label="Fecha de cancelacion" value={formatDate(order.cancelledAt)} />}
       </div>
 
       <p className="border-t border-white/10 pt-4 text-[11px] font-semibold leading-5 text-slate-500 receipt-divider receipt-muted">Este comprobante registra el pedido y el resultado de su pago en SmartLogix. No reemplaza una boleta o factura tributaria.</p>
@@ -408,7 +454,7 @@ function PageState({ error = false, icon: Icon, message }) {
 }
 
 function StatusBadge({ meta }) {
-  const colors = { amber: "bg-amber-500/15 text-amber-300", emerald: "bg-emerald-500/15 text-emerald-300", red: "bg-red-500/15 text-red-300", sky: "bg-sky-500/15 text-sky-300", violet: "bg-violet-500/15 text-violet-300" };
+  const colors = { amber: "bg-amber-500/15 text-amber-300", emerald: "bg-emerald-500/15 text-emerald-300", red: "bg-red-500/15 text-red-300", sky: "bg-sky-500/15 text-sky-300", slate: "bg-slate-500/15 text-slate-300", violet: "bg-violet-500/15 text-violet-300" };
   return <span className={`inline-flex h-10 items-center rounded-full px-4 text-xs font-black uppercase ${colors[meta.tone]}`}>{meta.label}</span>;
 }
 

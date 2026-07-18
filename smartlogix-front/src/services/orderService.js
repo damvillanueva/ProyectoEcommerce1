@@ -1,4 +1,6 @@
 import {
+  cancelMyOrder,
+  cancelOrder,
   getOrders,
   createOrder,
   updateOrder,
@@ -44,4 +46,12 @@ export function loadMyOrder(orderNumber) {
 
 export function loadMyOrderTracking(orderNumber) {
   return getMyOrderTracking(orderNumber);
+}
+
+export function cancelCustomerOrder(orderNumber, reason) {
+  return cancelMyOrder(orderNumber, reason);
+}
+
+export function cancelManagedOrder(orderNumber, reason) {
+  return cancelOrder(orderNumber, reason);
 }

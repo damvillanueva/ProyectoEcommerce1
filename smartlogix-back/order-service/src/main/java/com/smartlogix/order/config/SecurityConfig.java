@@ -37,6 +37,8 @@ public class SecurityConfig {
                         .hasAnyAuthority("ROLE_ADMIN", "ROLE_USER", "ROLE_CUSTOMER")
                         .requestMatchers(HttpMethod.GET, "/api/orders/mine", "/api/orders/mine/**")
                         .hasAuthority("ROLE_CUSTOMER")
+                        .requestMatchers(HttpMethod.POST, "/api/orders/mine/*/cancel")
+                        .hasAuthority("ROLE_CUSTOMER")
                         .requestMatchers("/api/orders/**").hasAnyAuthority("ROLE_ADMIN", "ROLE_USER")
                         .requestMatchers("/api/**").authenticated()
                         .anyRequest().denyAll()

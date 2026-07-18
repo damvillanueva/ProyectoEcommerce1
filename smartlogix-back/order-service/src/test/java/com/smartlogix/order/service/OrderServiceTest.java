@@ -141,6 +141,97 @@ class OrderServiceTest {
     }
 
     @Test
+    void customerCancellationRefundsPaymentAndReleasesInventoryOnce() {
+        inventoryClient.setProduct("SKU-3001", 45, BigDecimal.valueOf(45990));
+        OrderResponse created = orderService.createOrder(
+                new CreateOrderRequest(
+                        "Damian",
+                        "damian@smartlogix.cl",
+                        "Santiago | Av. Demo 123",
+                        null,
+                        List.of(new OrderLineRequest("SKU-3001", 1))
+                ),
+                "damian",
+                "damian@smartlogix.cl",
+                OrderChannel.ONLINE
+        );
+
+        OrderResponse cancelled = orderService.cancelCustomerOrder(
+                "damian",
+                created.orderNumber(),
+                "Me equivoque de producto"
+        );
+
+        assertThat(cancelled.status()).isEqualTo(OrderStatus.CANCELLED);
+        assertThat(cancelled.paymentStatus()).isEqualTo(PaymentStatus.REFUNDED);
+        assertThat(cancelled.refundReference()).startsWith("RFD-");
+        assertThat(cancelled.refundAmount()).isEqualByComparingTo(cancelled.totalAmount());
+        assertThat(cancelled.refundedAt()).isNotNull();
+        assertThat(cancelled.cancelledAt()).isNotNull();
+        assertThat(cancelled.cancelledBy()).isEqualTo("damian");
+        assertThat(cancelled.cancellationReason()).isEqualTo("Me equivoque de producto");
+        assertThat(cancelled.trackingCode()).isNull();
+        assertThat(inventoryClient.available("SKU-3001")).isEqualTo(45);
+        assertThat(inventoryClient.reserved("SKU-3001")).isZero();
+        assertThat(shipmentClient.deletedTrackingCodes()).containsExactly(created.trackingCode());
+
+        orderService.deleteOrder(cancelled.orderNumber());
+        assertThat(inventoryClient.available("SKU-3001")).isEqualTo(45);
+        assertThat(inventoryClient.reserved("SKU-3001")).isZero();
+    }
+
+    @Test
+    void customerCannotCancelAnotherCustomersOrder() {
+        inventoryClient.setProduct("SKU-3001", 45, BigDecimal.valueOf(45990));
+        OrderResponse created = orderService.createOrder(
+                new CreateOrderRequest(
+                        "Damian",
+                        "damian@smartlogix.cl",
+                        "Santiago | Av. Demo 123",
+                        null,
+                        List.of(new OrderLineRequest("SKU-3001", 1))
+                ),
+                "damian",
+                "damian@smartlogix.cl",
+                OrderChannel.ONLINE
+        );
+
+        assertThatThrownBy(() -> orderService.cancelCustomerOrder(
+                "otro",
+                created.orderNumber(),
+                "Intento sin permiso"
+        ))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("No existe");
+        assertThat(inventoryClient.available("SKU-3001")).isEqualTo(44);
+        assertThat(inventoryClient.reserved("SKU-3001")).isEqualTo(1);
+    }
+
+    @Test
+    void orderInTransitCannotBeCancelled() {
+        inventoryClient.setProduct("SKU-3001", 45, BigDecimal.valueOf(45990));
+        OrderResponse created = orderService.createOrder(new CreateOrderRequest(
+                "Cliente Demo",
+                "cliente.demo@smartlogix.cl",
+                "Santiago | Av. Demo 123",
+                null,
+                List.of(new OrderLineRequest("SKU-3001", 1))
+        ));
+        shipmentClient.setStatus(created.trackingCode(), "IN_TRANSIT");
+
+        assertThatThrownBy(() -> orderService.cancelOrder(
+                created.orderNumber(),
+                "admin",
+                "Solicitud fuera de plazo"
+        ))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("transportista");
+        assertThat(inventoryClient.available("SKU-3001")).isEqualTo(44);
+        assertThat(inventoryClient.reserved("SKU-3001")).isEqualTo(1);
+        assertThat(shipmentClient.deletedTrackingCodes()).isEmpty();
+    }
+
+    @Test
     void createOrderAppliesDiscountCodeToTotals() {
         inventoryClient.setProduct("SKU-1001", 20, BigDecimal.valueOf(10000));
         orderService = new OrderService(
@@ -469,6 +560,7 @@ class OrderServiceTest {
     private static class FakeShipmentClient extends ShipmentClient {
         private final List<String> createdTrackingCodes = new java.util.ArrayList<>();
         private final List<String> deletedTrackingCodes = new java.util.ArrayList<>();
+        private final Map<String, String> statusByTrackingCode = new HashMap<>();
 
         FakeShipmentClient() {
             super(new RestTemplate(), null, "01234567890123456789012345678901");
@@ -482,17 +574,22 @@ class OrderServiceTest {
             return deletedTrackingCodes;
         }
 
+        void setStatus(String trackingCode, String status) {
+            statusByTrackingCode.put(trackingCode, status);
+        }
+
         @Override
         public ShipmentResponse requestShipment(ShipmentRequest request) {
             String trackingCode = "SLX-TEST-" + (createdTrackingCodes.size() + 1);
             createdTrackingCodes.add(trackingCode);
+            statusByTrackingCode.put(trackingCode, "PLANNED");
             return new ShipmentResponse(
                     trackingCode,
                     request.orderNumber(),
                     "Chilexpress",
                     "RUTA-1",
                     LocalDate.now().plusDays(2),
-                    "PLANNED"
+                    statusByTrackingCode.getOrDefault(trackingCode, "PLANNED")
             );
         }
 
@@ -507,13 +604,14 @@ class OrderServiceTest {
                     "Chilexpress",
                     "RUTA-1",
                     LocalDate.now().plusDays(2),
-                    "PLANNED"
+                    statusByTrackingCode.getOrDefault(trackingCode, "PLANNED")
             );
         }
 
         @Override
         public boolean deleteShipment(String trackingCode) {
             deletedTrackingCodes.add(trackingCode);
+            statusByTrackingCode.remove(trackingCode);
             return true;
         }
     }

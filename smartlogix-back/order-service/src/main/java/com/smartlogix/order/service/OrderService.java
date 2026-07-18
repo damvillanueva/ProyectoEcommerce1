@@ -29,6 +29,7 @@ import com.smartlogix.order.discount.Discount;
 import com.smartlogix.order.repository.DiscountRepository;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import org.springframework.stereotype.Service;
@@ -171,6 +172,23 @@ public class OrderService {
                 .findByOrderNumberAndCustomerUsername(orderNumber, customerUsername)
                 .orElseThrow(() -> new OrderNotFoundException("No existe la orden solicitada."));
         return toResponse(order);
+    }
+
+    public OrderResponse cancelCustomerOrder(
+            String customerUsername,
+            String orderNumber,
+            String reason
+    ) {
+        PurchaseOrder order = repository
+                .findByOrderNumberAndCustomerUsername(orderNumber, customerUsername)
+                .orElseThrow(() -> new OrderNotFoundException("No existe la orden solicitada."));
+        return cancelOrder(order, customerUsername, reason);
+    }
+
+    public OrderResponse cancelOrder(String orderNumber, String cancelledBy, String reason) {
+        PurchaseOrder order = repository.findByOrderNumber(orderNumber)
+                .orElseThrow(() -> new OrderNotFoundException("No existe la orden " + orderNumber));
+        return cancelOrder(order, cancelledBy, reason);
     }
 
     @Transactional(readOnly = true)
@@ -450,6 +468,12 @@ public class OrderService {
                 order.getPaymentAuthorizationCode(),
                 order.getPaymentProcessedAt(),
                 order.getPaymentFailureReason(),
+                order.getRefundReference(),
+                order.getRefundedAt(),
+                order.getRefundAmount(),
+                order.getCancelledAt(),
+                order.getCancelledBy(),
+                order.getCancellationReason(),
                 order.getStatus(),
                 order.getSubtotalAmount(),
                 order.getDiscountAmount(),
@@ -541,6 +565,56 @@ public class OrderService {
         return order.getStatus() == OrderStatus.APPROVED
                 || order.getStatus() == OrderStatus.SHIPMENT_REQUESTED
                 || order.getStatus() == OrderStatus.FAILED;
+    }
+
+    private OrderResponse cancelOrder(PurchaseOrder order, String cancelledBy, String reason) {
+        if (order.getStatus() != OrderStatus.APPROVED
+                && order.getStatus() != OrderStatus.SHIPMENT_REQUESTED
+                && order.getStatus() != OrderStatus.FAILED) {
+            throw new IllegalArgumentException("El pedido ya no se puede cancelar.");
+        }
+
+        String cleanReason = cleanOptional(reason);
+        if (cleanReason == null) {
+            throw new IllegalArgumentException("Debes indicar el motivo de la cancelacion.");
+        }
+
+        if (order.getTrackingCode() != null && !order.getTrackingCode().isBlank()) {
+            ShipmentResponse shipment = shipmentClient.getShipment(order.getTrackingCode());
+            if (shipment == null) {
+                throw new OrderProcessingException(
+                        "No fue posible validar el estado del envio. Intenta nuevamente."
+                );
+            }
+            if (!"PLANNED".equals(shipment.status())) {
+                throw new IllegalArgumentException(
+                        "El pedido ya fue entregado al transportista y no se puede cancelar."
+                );
+            }
+            if (!shipmentClient.deleteShipment(order.getTrackingCode())) {
+                throw new OrderProcessingException("No fue posible cancelar el envio asociado.");
+            }
+        }
+
+        if (hasReservedInventory(order)) {
+            releaseReservedLinesOrThrow(order.getLines());
+        }
+
+        RefundResult refund = paymentSimulationService.refund(
+                order.getPaymentStatus(),
+                order.getTotalAmount()
+        );
+        order.setPaymentStatus(refund.status());
+        order.setRefundReference(refund.reference());
+        order.setRefundedAt(refund.processedAt());
+        order.setRefundAmount(refund.amount());
+        order.setCancelledAt(OffsetDateTime.now());
+        order.setCancelledBy(cleanOptional(cancelledBy));
+        order.setCancellationReason(cleanReason);
+        order.setTrackingCode(null);
+        order.setStatus(OrderStatus.CANCELLED);
+
+        return toResponse(repository.save(order));
     }
 
     private void releaseReservedLinesOrThrow(List<OrderLine> reservedLines) {

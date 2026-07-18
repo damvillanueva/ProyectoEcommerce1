@@ -75,3 +75,23 @@ export async function getMyOrderTracking(orderNumber) {
 
   return response.data;
 }
+
+export async function cancelMyOrder(orderNumber, reason) {
+  const response = await axios.post(
+    `${API_URL}/api/orders/mine/${encodeURIComponent(orderNumber)}/cancel`,
+    { reason },
+    { headers: getAuthHeaders() }
+  );
+
+  return response.data;
+}
+
+export async function cancelOrder(orderNumber, reason) {
+  const response = await axios.post(
+    `${API_URL}/api/orders/${encodeURIComponent(orderNumber)}/cancel`,
+    { reason },
+    { headers: getAuthHeaders() }
+  );
+
+  return response.data;
+}

@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { loadOrderService, saveOrder, editOrder, removeOrder } from "../services/orderService";
+import { cancelManagedOrder, loadOrderService, saveOrder, editOrder, removeOrder } from "../services/orderService";
 import { getInventoryItemsWithAvailable } from "../services/inventoryService";
 import Navbar from "../components/Navbar";
+import CancelOrderModal from "../components/CancelOrderModal";
 import PageContainer from "../layout/PageContainer";
 import {
   getAvailableUnits,
@@ -59,12 +60,18 @@ const ORDER_STATUS_META = {
     label: "Requiere revision",
     classes: "bg-amber-500/20 text-amber-200",
   },
+  CANCELLED: {
+    label: "Cancelado",
+    classes: "bg-slate-500/20 text-slate-300",
+  },
 };
 
 const PAYMENT_STATUS_META = {
   PAID: { label: "Pagado", classes: "bg-emerald-500/20 text-emerald-300" },
   PENDING: { label: "Pendiente", classes: "bg-amber-500/20 text-amber-200" },
   REJECTED: { label: "Rechazado", classes: "bg-red-500/20 text-red-200" },
+  REFUNDED: { label: "Reembolsado", classes: "bg-sky-500/20 text-sky-200" },
+  CANCELLED: { label: "Cancelado", classes: "bg-slate-500/20 text-slate-300" },
 };
 
 function composeShippingAddress(street, commune, region) {
@@ -139,6 +146,9 @@ function OrdersPage() {
   const [unitPrice, setUnitPrice] = useState(DEFAULT_UNIT_PRICE);
   const [discountCode, setDiscountCode] = useState("");
   const [editingOrderNumber, setEditingOrderNumber] = useState(null);
+  const [cancelTarget, setCancelTarget] = useState(null);
+  const [cancelling, setCancelling] = useState(false);
+  const [cancelError, setCancelError] = useState("");
 
   const role = getRoleFromToken();
   const canOpenShipments = role === "ROLE_ADMIN" || role === "ROLE_WAREHOUSE_MANAGER";
@@ -353,6 +363,22 @@ function OrdersPage() {
     }
   }
 
+  async function handleCancelOrder(reason) {
+    try {
+      setCancelling(true);
+      setCancelError("");
+      await cancelManagedOrder(cancelTarget.orderNumber, reason);
+      await loadOrders();
+      setCancelTarget(null);
+    } catch (cancelRequestError) {
+      console.error(cancelRequestError);
+      setCancelError(cancelRequestError.response?.data?.message
+        || "No se pudo cancelar el pedido.");
+    } finally {
+      setCancelling(false);
+    }
+  }
+
   return (
     <div className="min-h-screen bg-slate-950 p-6 text-white">
       <PageContainer>
@@ -564,6 +590,7 @@ function OrdersPage() {
                                 {paymentMeta.label}
                               </span>
                               {order.transactionReference && <p className="mt-2 max-w-[150px] break-all text-xs font-semibold text-slate-500">{order.transactionReference}</p>}
+                              {order.refundReference && <p className="mt-2 max-w-[150px] break-all text-xs font-semibold text-sky-300">{order.refundReference}</p>}
                             </td>
 
                             <td className="p-4">
@@ -612,6 +639,9 @@ function OrdersPage() {
 
                             <td className="p-4">
                               <div className="flex flex-wrap gap-2">
+                                {["APPROVED", "FAILED", "SHIPMENT_REQUESTED"].includes(order.status) && (
+                                  <button type="button" onClick={() => { setCancelError(""); setCancelTarget(order); }} className="rounded-xl bg-red-500 px-4 py-2 font-bold text-white transition hover:bg-red-400">Cancelar</button>
+                                )}
                                 <button
                                   onClick={() => handleEdit(order)}
                                   className="rounded-xl bg-amber-500 px-4 py-2 font-bold text-white transition hover:bg-amber-400"
@@ -638,6 +668,7 @@ function OrdersPage() {
           </section>
         </div>
       </PageContainer>
+      <CancelOrderModal error={cancelError} loading={cancelling} onClose={() => { if (!cancelling) setCancelTarget(null); }} onConfirm={handleCancelOrder} orderNumber={cancelTarget?.orderNumber} />
     </div>
   );
 }

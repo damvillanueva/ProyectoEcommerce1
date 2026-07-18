@@ -49,6 +49,26 @@ public class PaymentSimulationService {
         );
     }
 
+    public RefundResult refund(PaymentStatus paymentStatus, BigDecimal amount) {
+        if (paymentStatus == PaymentStatus.PAID) {
+            return new RefundResult(
+                    PaymentStatus.REFUNDED,
+                    "RFD-" + randomToken(12),
+                    OffsetDateTime.now(),
+                    amount
+            );
+        }
+        if (paymentStatus == PaymentStatus.PENDING) {
+            return new RefundResult(
+                    PaymentStatus.CANCELLED,
+                    null,
+                    OffsetDateTime.now(),
+                    BigDecimal.ZERO
+            );
+        }
+        throw new IllegalArgumentException("El estado de pago actual no permite reembolso.");
+    }
+
     private String transactionPrefix(PaymentMethod paymentMethod) {
         return paymentMethod == PaymentMethod.BANK_TRANSFER_SIMULATED ? "TRF" : "WBP";
     }
