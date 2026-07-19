@@ -271,15 +271,22 @@ Invoke-RestMethod `
 
 El backend puede ampliarse con:
 
-- trazabilidad distribuida,
 - mensajeria asincrona (Kafka/RabbitMQ),
 - procesamiento asincrono e idempotente de eventos,
-- observabilidad centralizada,
 - almacenamiento de objetos para imagenes,
 - despliegue automatizado y orquestacion de contenedores.
+
+## Observabilidad
+
+Docker Compose incluye Prometheus, Grafana y Zipkin. Las solicitudes reciben
+`X-Correlation-ID`, los clientes internos propagan el contexto y los eventos de
+pedidos, stock y envios generan metricas y logs correlacionados sin datos
+personales. Consulte [OBSERVABILITY.md](docs/OBSERVABILITY.md) para usar los
+paneles y seguir un pedido completo.
 
 ## Documentacion operativa
 
 - [Backup y restauracion](docs/BACKUP_RESTORE.md)
+- [Metricas, trazas y logs](docs/OBSERVABILITY.md)
 - [Roadmap general](../ROADMAP_PLANTILLA_ECOMMERCE.md)
 - [Normativa y estandares](../NORMATIVA_Y_ESTANDARES.md)

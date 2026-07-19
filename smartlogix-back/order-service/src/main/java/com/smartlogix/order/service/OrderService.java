@@ -32,6 +32,11 @@ import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -39,12 +44,15 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional
 public class OrderService {
 
+    private static final Logger log = LoggerFactory.getLogger(OrderService.class);
+
     private final PurchaseOrderRepository repository;
     private final InventoryClient inventoryClient;
     private final ShipmentClient shipmentClient;
     private final DiscountRepository discountRepository;
     private final ShippingRateService shippingRateService;
     private final PaymentSimulationService paymentSimulationService;
+    private final MeterRegistry meterRegistry;
 
     public OrderService(
             PurchaseOrderRepository repository,
@@ -54,12 +62,34 @@ public class OrderService {
             ShippingRateService shippingRateService,
             PaymentSimulationService paymentSimulationService
     ) {
+        this(
+                repository,
+                inventoryClient,
+                shipmentClient,
+                discountRepository,
+                shippingRateService,
+                paymentSimulationService,
+                new SimpleMeterRegistry()
+        );
+    }
+
+    @Autowired
+    public OrderService(
+            PurchaseOrderRepository repository,
+            InventoryClient inventoryClient,
+            ShipmentClient shipmentClient,
+            DiscountRepository discountRepository,
+            ShippingRateService shippingRateService,
+            PaymentSimulationService paymentSimulationService,
+            MeterRegistry meterRegistry
+    ) {
         this.repository = repository;
         this.inventoryClient = inventoryClient;
         this.shipmentClient = shipmentClient;
         this.discountRepository = discountRepository;
         this.shippingRateService = shippingRateService;
         this.paymentSimulationService = paymentSimulationService;
+        this.meterRegistry = meterRegistry;
     }
 
     public OrderResponse createOrder(CreateOrderRequest request) {
@@ -81,12 +111,22 @@ public class OrderService {
                 salesChannel
         );
         repository.save(order);
+        increment("smartlogix.orders.submitted", "channel", order.getSalesChannel().name());
+        log.info(
+                "order_created orderNumber={} channel={} fulfillment={} lines={} total={}",
+                order.getOrderNumber(),
+                order.getSalesChannel(),
+                order.getFulfillmentMethod(),
+                order.getLines().size(),
+                order.getTotalAmount()
+        );
 
         for (PricedLine line : pricedLines) {
             if (line.availableQuantity() < line.quantity()) {
                 order.setStatus(OrderStatus.REJECTED);
                 order.setRejectionReason("Stock insuficiente para SKU " + line.sku());
                 repository.save(order);
+                recordRejection(order, "insufficient_stock");
                 return toResponse(order);
             }
         }
@@ -101,6 +141,7 @@ public class OrderService {
                 order.setStatus(OrderStatus.REJECTED);
                 order.setRejectionReason("No fue posible reservar inventario. " + ex.getMessage());
                 repository.save(order);
+                recordRejection(order, "inventory_reservation");
                 return toResponse(order);
             }
         }
@@ -111,12 +152,21 @@ public class OrderService {
                 order.getTotalAmount()
         );
         applyPaymentResult(order, paymentResult);
+        increment("smartlogix.payments.processed", "status", paymentResult.status().name());
+        log.info(
+                "payment_processed orderNumber={} method={} status={} total={}",
+                order.getOrderNumber(),
+                order.getPaymentMethod(),
+                paymentResult.status(),
+                order.getTotalAmount()
+        );
 
         if (paymentResult.status() == PaymentStatus.REJECTED) {
             releaseReservedLines(reservedLines);
             order.setStatus(OrderStatus.REJECTED);
             order.setRejectionReason(paymentResult.failureReason());
             repository.save(order);
+            recordRejection(order, "payment");
             return toResponse(order);
         }
 
@@ -124,6 +174,8 @@ public class OrderService {
 
         if (order.getFulfillmentMethod() == FulfillmentMethod.PICKUP) {
             repository.save(order);
+            increment("smartlogix.orders.approved", "fulfillment", "pickup");
+            log.info("order_approved orderNumber={} fulfillment=pickup", order.getOrderNumber());
             return toResponse(order);
         }
 
@@ -135,12 +187,21 @@ public class OrderService {
             order.setStatus(OrderStatus.FAILED);
             order.setRejectionReason("Servicio de envios no disponible. Asignacion manual requerida.");
             repository.save(order);
+            increment("smartlogix.orders.failed", "reason", "shipment_unavailable");
+            log.error("order_shipment_failed orderNumber={} reason=shipment_unavailable", order.getOrderNumber());
             return toResponse(order);
         }
 
         order.setStatus(OrderStatus.SHIPMENT_REQUESTED);
         order.setTrackingCode(shipmentResponse.trackingCode());
         repository.save(order);
+        increment("smartlogix.orders.approved", "fulfillment", "delivery");
+        increment("smartlogix.shipments.requested", "result", "success");
+        log.info(
+                "order_approved orderNumber={} fulfillment=delivery trackingCode={}",
+                order.getOrderNumber(),
+                order.getTrackingCode()
+        );
 
         return toResponse(order);
     }
@@ -430,8 +491,14 @@ public class OrderService {
         for (OrderLine line : reservedLines) {
             try {
                 inventoryClient.release(line.getSku(), line.getQuantity());
-            } catch (Exception ignored) {
-                // Si la liberacion falla, la orden queda rechazada y se audita por log externo.
+            } catch (Exception ex) {
+                increment("smartlogix.inventory.releases", "result", "failed");
+                log.error(
+                        "inventory_release_failed sku={} quantity={}",
+                        line.getSku(),
+                        line.getQuantity(),
+                        ex
+                );
             }
         }
     }
@@ -540,6 +607,7 @@ public class OrderService {
 
         PurchaseOrder savedOrder = repository.save(order);
         syncShipmentDestination(savedOrder);
+        log.info("order_updated orderNumber={} total={}", savedOrder.getOrderNumber(), savedOrder.getTotalAmount());
 
         return toResponse(savedOrder);
     }
@@ -559,6 +627,8 @@ public class OrderService {
         }
 
         repository.delete(order);
+        increment("smartlogix.orders.deleted", "status", order.getStatus().name());
+        log.info("order_deleted orderNumber={} previousStatus={}", order.getOrderNumber(), order.getStatus());
     }
 
     private boolean hasReservedInventory(PurchaseOrder order) {
@@ -613,8 +683,16 @@ public class OrderService {
         order.setCancellationReason(cleanReason);
         order.setTrackingCode(null);
         order.setStatus(OrderStatus.CANCELLED);
+        PurchaseOrder cancelledOrder = repository.save(order);
+        increment("smartlogix.orders.cancelled", "channel", cancelledOrder.getSalesChannel().name());
+        log.info(
+                "order_cancelled orderNumber={} channel={} refundStatus={}",
+                cancelledOrder.getOrderNumber(),
+                cancelledOrder.getSalesChannel(),
+                cancelledOrder.getPaymentStatus()
+        );
 
-        return toResponse(repository.save(order));
+        return toResponse(cancelledOrder);
     }
 
     private void releaseReservedLinesOrThrow(List<OrderLine> reservedLines) {
@@ -637,6 +715,20 @@ public class OrderService {
                         totalUnits(order)
                 )
         );
+    }
+
+    private void recordRejection(PurchaseOrder order, String reason) {
+        increment("smartlogix.orders.rejected", "reason", reason);
+        log.warn(
+                "order_rejected orderNumber={} reason={} status={}",
+                order.getOrderNumber(),
+                reason,
+                order.getStatus()
+        );
+    }
+
+    private void increment(String name, String tagName, String tagValue) {
+        meterRegistry.counter(name, tagName, tagValue).increment();
     }
 
     private record PricedLine(

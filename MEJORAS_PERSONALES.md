@@ -68,6 +68,11 @@ Registro de funcionalidades y mejoras incorporadas al proyecto de portafolio.
 - [x] Revocacion de todas las sesiones al cambiar la contrasena.
 - [x] Mailpit local para probar correos sin contratar un proveedor externo.
 - [x] Prueba de escalamiento: un usuario que falsifica el rol en el navegador recibe 403.
+- [x] Correlacion de solicitudes con `X-Correlation-ID` validado y propagado entre microservicios.
+- [x] Trazabilidad distribuida con Micrometer Tracing y Zipkin.
+- [x] Metricas Prometheus de HTTP, JVM, pedidos, pagos, inventario y envios.
+- [x] Tablero Grafana local aprovisionado automaticamente y limitado a solo lectura.
+- [x] Logs operativos con servicio, traza, span y correlacion, sin datos personales del cliente.
 
 ## Siguientes mejoras recomendadas
 

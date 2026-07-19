@@ -11,7 +11,11 @@ import com.smartlogix.inventory.dto.InventoryItemResponse;
 import com.smartlogix.inventory.exception.InventoryNotFoundException;
 import com.smartlogix.inventory.exception.InventoryOperationException;
 import com.smartlogix.inventory.repository.InventoryItemRepository;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.util.List;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,9 +23,12 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional
 public class InventoryService {
 
+    private static final Logger log = LoggerFactory.getLogger(InventoryService.class);
+
     private final InventoryItemRepository repository;
     private final InventoryMovementService movementService;
     private final InventoryAuditLogService auditLogService;
+    private MeterRegistry meterRegistry;
 
     public InventoryService(
             InventoryItemRepository repository,
@@ -31,6 +38,11 @@ public class InventoryService {
         this.repository = repository;
         this.movementService = movementService;
         this.auditLogService = auditLogService;
+    }
+
+    @Autowired
+    void setMeterRegistry(MeterRegistry meterRegistry) {
+        this.meterRegistry = meterRegistry;
     }
 
     public InventoryItemResponse createItem(CreateInventoryItemRequest request) {
@@ -80,6 +92,13 @@ public class InventoryService {
                 savedItem.getSku(),
                 savedItem.getProductName(),
                 "Producto creado con stock inicial " + savedItem.getAvailableQuantity()
+        );
+        increment("smartlogix.inventory.products.added", "warehouse", savedItem.getWarehouseCode());
+        log.info(
+                "inventory_product_created sku={} warehouse={} available={}",
+                savedItem.getSku(),
+                savedItem.getWarehouseCode(),
+                savedItem.getAvailableQuantity()
         );
 
         return toResponse(savedItem);
@@ -146,6 +165,14 @@ public class InventoryService {
                 savedItem.getAvailableQuantity(),
                 "Reserva de stock"
         );
+        increment("smartlogix.inventory.operations", "operation", "reserve");
+        log.info(
+                "inventory_reserved sku={} quantity={} available={} reserved={}",
+                savedItem.getSku(),
+                quantity,
+                savedItem.getAvailableQuantity(),
+                savedItem.getReservedQuantity()
+        );
 
         return toResponse(savedItem);
     }
@@ -174,6 +201,14 @@ public class InventoryService {
                 savedItem.getAvailableQuantity(),
                 "Liberacion de reserva"
         );
+        increment("smartlogix.inventory.operations", "operation", "release");
+        log.info(
+                "inventory_released sku={} quantity={} available={} reserved={}",
+                savedItem.getSku(),
+                quantity,
+                savedItem.getAvailableQuantity(),
+                savedItem.getReservedQuantity()
+        );
 
         return toResponse(savedItem);
     }
@@ -189,7 +224,15 @@ public class InventoryService {
         }
 
         item.setReservedQuantity(item.getReservedQuantity() - quantity);
-        return toResponse(repository.save(item));
+        InventoryItem savedItem = repository.save(item);
+        increment("smartlogix.inventory.operations", "operation", "dispatch");
+        log.info(
+                "inventory_dispatched sku={} quantity={} reserved={}",
+                savedItem.getSku(),
+                quantity,
+                savedItem.getReservedQuantity()
+        );
+        return toResponse(savedItem);
     }
 
     private InventoryItem loadBySku(String sku) {
@@ -308,6 +351,14 @@ public class InventoryService {
                 "Producto actualizado. Stock anterior: " + previousStock
                         + ", stock nuevo: " + savedItem.getAvailableQuantity()
         );
+        increment("smartlogix.inventory.products.updated", "warehouse", savedItem.getWarehouseCode());
+        log.info(
+                "inventory_product_updated sku={} warehouse={} available={} reserved={}",
+                savedItem.getSku(),
+                savedItem.getWarehouseCode(),
+                savedItem.getAvailableQuantity(),
+                savedItem.getReservedQuantity()
+        );
 
         return toResponse(savedItem);
     }
@@ -335,6 +386,8 @@ public class InventoryService {
         );
 
         repository.delete(item);
+        increment("smartlogix.inventory.products.deleted", "warehouse", item.getWarehouseCode());
+        log.info("inventory_product_deleted sku={} warehouse={}", item.getSku(), item.getWarehouseCode());
     }
 
     private String normalizeImageUrl(String imageUrl) {
@@ -427,6 +480,12 @@ public class InventoryService {
             throw new InventoryOperationException(
                     "El stock disponible no puede ser menor al stock reservado."
             );
+        }
+    }
+
+    private void increment(String name, String tagName, String tagValue) {
+        if (meterRegistry != null) {
+            meterRegistry.counter(name, tagName, tagValue).increment();
         }
     }
 

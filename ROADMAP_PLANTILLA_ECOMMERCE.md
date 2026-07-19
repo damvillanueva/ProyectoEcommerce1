@@ -31,7 +31,7 @@ secretos y un commit con push al repositorio personal.
 - [x] Separar perfiles `dev`, `test` y `prod`.
 - [x] Agregar respaldos y restauracion verificada con manifiesto y hashes.
 - [x] Convertir los datos semilla en una opcion explicita por entorno.
-- [ ] Incorporar logs estructurados, metricas y trazabilidad por pedido.
+- [x] Incorporar logs estructurados, metricas y trazabilidad por pedido.
 
 PostgreSQL puede ejecutarse localmente en Docker sin pagar un servicio externo.
 

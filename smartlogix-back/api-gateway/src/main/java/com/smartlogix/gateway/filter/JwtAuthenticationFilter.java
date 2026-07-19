@@ -38,7 +38,8 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
             "/api/auth/email/resend",
             "/api/catalog",
             "/actuator/health",
-            "/actuator/info"
+            "/actuator/info",
+            "/actuator/prometheus"
     );
 
     private final SecretKey signingKey;
@@ -77,7 +78,7 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
                 return onUnauthorized(exchange, "Token de autenticacion incompleto.");
             }
 
-            log.info("Token valido para usuario '{}' con rol '{}' accediendo a {}", username, role, path);
+            log.debug("Token valido para usuario '{}' con rol '{}' accediendo a {}", username, role, path);
 
             ServerWebExchange mutatedExchange = exchange.mutate()
                     .request(request -> request

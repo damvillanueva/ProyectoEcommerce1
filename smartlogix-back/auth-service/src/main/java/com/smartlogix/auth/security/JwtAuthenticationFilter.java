@@ -30,7 +30,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             "/api/auth/email/verify",
             "/api/auth/email/resend",
             "/actuator/health",
-            "/actuator/info"
+            "/actuator/info",
+            "/actuator/prometheus"
     );
 
     private final JwtProvider jwtProvider;

@@ -27,7 +27,10 @@ public class SecurityConfig {
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/actuator/health", "/actuator/info").permitAll()
+                        .requestMatchers(HttpMethod.GET,
+                                "/actuator/health",
+                                "/actuator/info",
+                                "/actuator/prometheus").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/shipments", "/api/shipments/")
                         .hasAnyAuthority("ROLE_ADMIN", "ROLE_WAREHOUSE_MANAGER", "ROLE_ORDER_SERVICE")
                         .requestMatchers(HttpMethod.GET, "/api/shipments/*")

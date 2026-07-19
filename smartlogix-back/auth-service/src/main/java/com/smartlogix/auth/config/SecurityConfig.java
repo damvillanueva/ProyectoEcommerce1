@@ -46,7 +46,10 @@ public class SecurityConfig {
                                 "/api/auth/password/reset",
                                 "/api/auth/email/verify",
                                 "/api/auth/email/resend").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/actuator/health", "/actuator/info").permitAll()
+                        .requestMatchers(HttpMethod.GET,
+                                "/actuator/health",
+                                "/actuator/info",
+                                "/actuator/prometheus").permitAll()
                         .requestMatchers("/api/auth/me", "/api/auth/me/**").hasAuthority("ROLE_CUSTOMER")
                         .requestMatchers("/api/auth/users", "/api/auth/users/**").hasAuthority("ROLE_ADMIN")
                         .anyRequest().authenticated()

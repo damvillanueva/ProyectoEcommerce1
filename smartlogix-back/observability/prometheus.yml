@@ -1,0 +1,38 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: ["prometheus:9090"]
+
+  - job_name: smartlogix-discovery
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ["discovery-service:8761"]
+
+  - job_name: smartlogix-gateway
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ["api-gateway:8080"]
+
+  - job_name: smartlogix-auth
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ["auth-service:8084"]
+
+  - job_name: smartlogix-inventory
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ["inventory-service:8081"]
+
+  - job_name: smartlogix-orders
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ["order-service:8082"]
+
+  - job_name: smartlogix-shipments
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ["shipment-service:8083"]

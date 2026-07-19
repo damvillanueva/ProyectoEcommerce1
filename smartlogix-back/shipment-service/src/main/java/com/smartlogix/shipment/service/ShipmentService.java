@@ -10,10 +10,14 @@ import com.smartlogix.shipment.factory.ShipmentPlan;
 import com.smartlogix.shipment.factory.ShipmentPlanFactory;
 import com.smartlogix.shipment.factory.ShipmentPlanFactoryResolver;
 import com.smartlogix.shipment.repository.ShipmentRepository;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,8 +25,11 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional
 public class ShipmentService {
 
+    private static final Logger log = LoggerFactory.getLogger(ShipmentService.class);
+
     private final ShipmentRepository repository;
     private final ShipmentPlanFactoryResolver planFactoryResolver;
+    private MeterRegistry meterRegistry;
 
     public ShipmentService(
             ShipmentRepository repository,
@@ -30,6 +37,11 @@ public class ShipmentService {
     ) {
         this.repository = repository;
         this.planFactoryResolver = planFactoryResolver;
+    }
+
+    @Autowired
+    void setMeterRegistry(MeterRegistry meterRegistry) {
+        this.meterRegistry = meterRegistry;
     }
 
     public ShipmentResponse createShipment(CreateShipmentRequest request) {
@@ -48,7 +60,17 @@ public class ShipmentService {
         shipment.setStatus(ShipmentStatus.PLANNED);
         shipment.setTrackingCode("SLX-" + UUID.randomUUID().toString().substring(0, 10).toUpperCase());
 
-        return toResponse(repository.save(shipment));
+        Shipment savedShipment = repository.save(shipment);
+        increment("smartlogix.shipments.planned", "carrier", savedShipment.getCarrier());
+        log.info(
+                "shipment_created trackingCode={} orderNumber={} carrier={} route={} units={}",
+                savedShipment.getTrackingCode(),
+                savedShipment.getOrderNumber(),
+                savedShipment.getCarrier(),
+                savedShipment.getRouteCode(),
+                savedShipment.getTotalUnits()
+        );
+        return toResponse(savedShipment);
     }
 
     @Transactional(readOnly = true)
@@ -68,8 +90,17 @@ public class ShipmentService {
     public ShipmentResponse updateStatus(String trackingCode, ShipmentStatus status) {
         Shipment shipment = repository.findByTrackingCode(trackingCode.trim().toUpperCase())
                 .orElseThrow(() -> new ShipmentNotFoundException("No existe el envio " + trackingCode));
+        ShipmentStatus previousStatus = shipment.getStatus();
         shipment.setStatus(status);
-        return toResponse(repository.save(shipment));
+        Shipment savedShipment = repository.save(shipment);
+        increment("smartlogix.shipments.status_updates", "status", status.name());
+        log.info(
+                "shipment_status_updated trackingCode={} previousStatus={} status={}",
+                savedShipment.getTrackingCode(),
+                previousStatus,
+                status
+        );
+        return toResponse(savedShipment);
     }
 
     public ShipmentResponse updateShipment(String trackingCode, UpdateShipmentRequest request) {
@@ -90,7 +121,15 @@ public class ShipmentService {
         shipment.setEstimatedDeliveryDate(LocalDate.now().plusDays(shipmentPlan.estimatedDeliveryDays()));
         shipment.setStatus(ShipmentStatus.valueOf(request.status()));
 
-        return toResponse(repository.save(shipment));
+        Shipment savedShipment = repository.save(shipment);
+        log.info(
+                "shipment_updated trackingCode={} orderNumber={} carrier={} route={}",
+                savedShipment.getTrackingCode(),
+                savedShipment.getOrderNumber(),
+                savedShipment.getCarrier(),
+                savedShipment.getRouteCode()
+        );
+        return toResponse(savedShipment);
     }
 
     @Transactional
@@ -99,6 +138,13 @@ public class ShipmentService {
                 .orElseThrow(() -> new ShipmentNotFoundException("No existe el envío " + trackingCode));
 
         repository.delete(shipment);
+        increment("smartlogix.shipments.deleted", "status", shipment.getStatus().name());
+        log.info(
+                "shipment_deleted trackingCode={} orderNumber={} previousStatus={}",
+                shipment.getTrackingCode(),
+                shipment.getOrderNumber(),
+                shipment.getStatus()
+        );
     }
 
     private ShipmentResponse toResponse(Shipment shipment) {
@@ -112,5 +158,11 @@ public class ShipmentService {
                 shipment.getStatus(),
                 shipment.getCreatedAt()
         );
+    }
+
+    private void increment(String name, String tagName, String tagValue) {
+        if (meterRegistry != null) {
+            meterRegistry.counter(name, tagName, tagValue).increment();
+        }
     }
 }
