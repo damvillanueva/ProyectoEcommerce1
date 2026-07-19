@@ -36,7 +36,7 @@ public class LocalUsernameAuthStrategy implements AuthenticationStrategy {
 
     @Override
     public UserEntity authenticate(String credential, String password) {
-        UserEntity user = userRepository.findByUsername(credential)
+        UserEntity user = userRepository.findByUsernameIgnoreCase(credential)
                 .orElseThrow(() -> new RuntimeException("Usuario no encontrado: " + credential));
 
         if (!user.isEnabled()) {

@@ -25,6 +25,12 @@
             <artifactId>spring-boot-starter-security</artifactId>
         </dependency>
 
+        <!-- Correo transaccional (Mailpit en desarrollo, SMTP configurable en produccion) -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-mail</artifactId>
+        </dependency>
+
         <!-- Persistencia -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

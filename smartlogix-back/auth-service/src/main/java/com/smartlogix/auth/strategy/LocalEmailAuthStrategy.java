@@ -35,7 +35,7 @@ public class LocalEmailAuthStrategy implements AuthenticationStrategy {
 
     @Override
     public UserEntity authenticate(String credential, String password) {
-        UserEntity user = userRepository.findByEmail(credential)
+        UserEntity user = userRepository.findByEmailIgnoreCase(credential)
                 .orElseThrow(() -> new RuntimeException("No existe usuario con email: " + credential));
 
         if (!user.isEnabled()) {

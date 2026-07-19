@@ -3,6 +3,7 @@ import { useAuth } from "../hooks/useAuth";
 import { getRoleLabel } from "../utils/roleUtils";
 import logo from "../assets/logo-smartlogix.png";
 import Button from "../components/Button";
+import { clearLogin } from "../services/authService";
 
 function Navbar({
   title = "SmartLogix",
@@ -15,7 +16,7 @@ function Navbar({
   const navigate = useNavigate();
 
   function logout() {
-    localStorage.clear();
+    clearLogin();
     navigate("/");
   }
 

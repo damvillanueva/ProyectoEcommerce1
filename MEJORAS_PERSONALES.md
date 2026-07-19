@@ -61,6 +61,13 @@ Registro de funcionalidades y mejoras incorporadas al proyecto de portafolio.
 - [x] Restauracion completa probada con respaldo previo y propietarios separados.
 - [x] Sesiones JWT vencidas se limpian y redirigen al login correspondiente.
 - [x] Login sin exposicion del token en consola y con errores accesibles en pantalla.
+- [x] Bloqueo temporal luego de cinco intentos fallidos, persistido aunque el login responda 401.
+- [x] Recuperacion de contrasena mediante enlace de un solo uso y expiracion de 30 minutos.
+- [x] Verificacion obligatoria de correo para nuevas cuentas de cliente.
+- [x] Refresh token rotativo guardado como hash y enviado solo en cookie HttpOnly.
+- [x] Revocacion de todas las sesiones al cambiar la contrasena.
+- [x] Mailpit local para probar correos sin contratar un proveedor externo.
+- [x] Prueba de escalamiento: un usuario que falsifica el rol en el navegador recibe 403.
 
 ## Siguientes mejoras recomendadas
 

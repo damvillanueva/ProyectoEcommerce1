@@ -44,11 +44,13 @@ spring:
               - PATCH
               - DELETE
               - OPTIONS
+            allowCredentials: true
             allowedHeaders:
               - Authorization
               - Content-Type
+            exposedHeaders:
+              - Set-Cookie
 
-# Configuración JWT (misma clave que el auth-service)
 jwt:
   secret: ${JWT_SECRET}
 

@@ -15,15 +15,31 @@ spring:
     enabled: true
     clean-disabled: true
     validate-migration-naming: true
+  mail:
+    host: ${SMARTLOGIX_MAIL_HOST:localhost}
+    port: ${SMARTLOGIX_MAIL_PORT:1025}
+    properties:
+      mail.smtp.auth: ${SMARTLOGIX_MAIL_AUTH:false}
+      mail.smtp.starttls.enable: ${SMARTLOGIX_MAIL_STARTTLS:false}
+    test-connection: false
 
-# Configuración JWT
 jwt:
   secret: ${JWT_SECRET}
-  expiration-ms: ${JWT_EXPIRATION_MS:3600000}   # 1 hora
+  expiration-ms: ${JWT_EXPIRATION_MS:900000}
 
 smartlogix:
+  frontend-url: ${SMARTLOGIX_FRONTEND_URL:http://127.0.0.1:5174}
+  mail:
+    from: ${SMARTLOGIX_MAIL_FROM:no-reply@smartlogix.local}
+  auth:
+    max-login-attempts: ${SMARTLOGIX_MAX_LOGIN_ATTEMPTS:5}
+    lock-minutes: ${SMARTLOGIX_LOGIN_LOCK_MINUTES:15}
+    email-verification-hours: ${SMARTLOGIX_EMAIL_VERIFICATION_HOURS:24}
+    password-reset-minutes: ${SMARTLOGIX_PASSWORD_RESET_MINUTES:30}
+    refresh-token-days: ${SMARTLOGIX_REFRESH_TOKEN_DAYS:14}
+    refresh-cookie-secure: ${SMARTLOGIX_REFRESH_COOKIE_SECURE:false}
   seed:
-    enabled: ${SMARTLOGIX_SEED_ENABLED:true}
+    enabled: ${SMARTLOGIX_SEED_ENABLED:false}
     admin-password: ${SMARTLOGIX_SEED_ADMIN_PASSWORD}
     user-password: ${SMARTLOGIX_SEED_USER_PASSWORD}
     warehouse-password: ${SMARTLOGIX_SEED_WAREHOUSE_PASSWORD}

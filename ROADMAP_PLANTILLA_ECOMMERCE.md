@@ -20,9 +20,9 @@ secretos y un commit con push al repositorio personal.
 - [x] Restringir CORS a origenes definidos por entorno.
 - [x] Mantener `.env` fuera de Git y publicar solo `.env.example`.
 - [x] Usar privilegio minimo entre pedidos y envios.
-- [ ] Agregar recuperacion de contrasena y verificacion de correo.
-- [ ] Agregar limite de intentos y bloqueo temporal de login.
-- [ ] Evaluar access token corto con renovacion segura y cookie HttpOnly.
+- [x] Agregar recuperacion de contrasena y verificacion de correo.
+- [x] Agregar limite de intentos y bloqueo temporal de login.
+- [x] Implementar access token corto con renovacion segura y cookie HttpOnly.
 
 ## Fase 2 - Persistencia y operacion
 
@@ -30,7 +30,7 @@ secretos y un commit con push al repositorio personal.
 - [x] Crear migraciones de base de datos con Flyway.
 - [x] Separar perfiles `dev`, `test` y `prod`.
 - [x] Agregar respaldos y restauracion verificada con manifiesto y hashes.
-- [ ] Convertir los datos semilla en una opcion explicita por entorno.
+- [x] Convertir los datos semilla en una opcion explicita por entorno.
 - [ ] Incorporar logs estructurados, metricas y trazabilidad por pedido.
 
 PostgreSQL puede ejecutarse localmente en Docker sin pagar un servicio externo.
