@@ -64,6 +64,16 @@ export async function deleteInventoryStock(sku, warehouseCode) {
   );
 }
 
+export async function transferInventoryStock(sku, transferData) {
+  const response = await axios.post(
+    `${API_URL}/api/inventory/items/${encodeURIComponent(sku)}/transfer`,
+    transferData,
+    { headers: getAuthHeaders() }
+  );
+
+  return response.data;
+}
+
 export async function getWarehouses() {
   const response = await axios.get(`${API_URL}/api/inventory/warehouses`, {
     headers: getAuthHeaders(),

@@ -84,6 +84,30 @@ public class InventoryMovementService {
             int newStock,
             String reason
     ) {
+        return recordMovement(
+                item,
+                warehouseCode,
+                movementType,
+                actionType,
+                quantity,
+                previousStock,
+                newStock,
+                reason,
+                null
+        );
+    }
+
+    public InventoryMovementResponse recordMovement(
+            InventoryItem item,
+            String warehouseCode,
+            MovementType movementType,
+            ActionType actionType,
+            int quantity,
+            int previousStock,
+            int newStock,
+            String reason,
+            String transferReference
+    ) {
         InventoryMovement movement = new InventoryMovement();
         movement.setInventoryItemId(item.getId());
         movement.setProductName(item.getProductName());
@@ -96,6 +120,7 @@ public class InventoryMovementService {
         movement.setUsername(resolveUsername());
         movement.setReason(normalizeReason(reason));
         movement.setWarehouseCode(warehouseCode);
+        movement.setTransferReference(transferReference);
 
         return toResponse(movementRepository.save(movement));
     }
@@ -171,7 +196,7 @@ public class InventoryMovementService {
         );
 
         StringBuilder csv = new StringBuilder();
-        csv.append("Fecha,Producto,SKU,Bodega,Movimiento,Accion,Cantidad,Stock anterior,Stock nuevo,Usuario,Motivo\n");
+        csv.append("Fecha,Producto,SKU,Bodega,Referencia,Movimiento,Accion,Cantidad,Stock anterior,Stock nuevo,Usuario,Motivo\n");
 
         for (InventoryMovement movement : movements) {
             csv.append(csvValue(movement.getCreatedAt()))
@@ -181,6 +206,8 @@ public class InventoryMovementService {
                     .append(csvValue(movement.getSku()))
                     .append(",")
                     .append(csvValue(movement.getWarehouseCode()))
+                    .append(",")
+                    .append(csvValue(movement.getTransferReference()))
                     .append(",")
                     .append(csvValue(movement.getMovementType()))
                     .append(",")
@@ -390,6 +417,7 @@ public class InventoryMovementService {
                 movement.getUsername(),
                 movement.getReason(),
                 movement.getWarehouseCode(),
+                movement.getTransferReference(),
                 movement.getCreatedAt()
         );
     }

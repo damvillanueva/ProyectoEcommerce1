@@ -15,6 +15,7 @@ public record InventoryMovementResponse(
         String username,
         String reason,
         String warehouseCode,
+        String transferReference,
         LocalDateTime createdAt
 ) {
 }

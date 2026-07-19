@@ -39,6 +39,9 @@ public class InventoryMovement {
     @Column(length = 40)
     private String warehouseCode;
 
+    @Column(length = 40)
+    private String transferReference;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "movement_type", nullable = false, length = 30)
     private MovementType movementType;
@@ -102,6 +105,8 @@ public class InventoryMovement {
 
     public String getWarehouseCode() { return warehouseCode; }
     public void setWarehouseCode(String warehouseCode) { this.warehouseCode = warehouseCode; }
+    public String getTransferReference() { return transferReference; }
+    public void setTransferReference(String transferReference) { this.transferReference = transferReference; }
 
     public MovementType getMovementType() {
         return movementType;

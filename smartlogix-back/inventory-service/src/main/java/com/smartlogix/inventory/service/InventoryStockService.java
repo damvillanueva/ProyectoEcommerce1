@@ -105,6 +105,41 @@ public class InventoryStockService {
         return saved;
     }
 
+    public InventoryStock createTransferDestination(
+            InventoryItem item,
+            String warehouseCode,
+            String zone,
+            String aisle,
+            Integer rack,
+            Integer level,
+            Integer position,
+            Integer reorderLevel
+    ) {
+        String normalizedWarehouseCode = normalizeWarehouseCode(warehouseCode);
+        if (stockRepository.findByItem_SkuAndWarehouse_Code(item.getSku(), normalizedWarehouseCode).isPresent()) {
+            throw new InventoryOperationException(
+                    "El SKU ya tiene existencia en la bodega " + normalizedWarehouseCode + "."
+            );
+        }
+
+        Warehouse warehouse = warehouseService.loadActiveWarehouse(normalizedWarehouseCode);
+        InventoryStock stock = new InventoryStock();
+        stock.setItem(item);
+        stock.setWarehouse(warehouse);
+        applyLocation(stock, item, zone, aisle, rack, level, position);
+        warehouseService.validateLocation(
+                warehouse,
+                stock.getLocationAisle(),
+                stock.getLocationRack(),
+                stock.getLocationLevel(),
+                stock.getLocationPosition()
+        );
+        stock.setAvailableQuantity(0);
+        stock.setReservedQuantity(0);
+        stock.setReorderLevel(reorderLevel == null ? 0 : Math.max(reorderLevel, 0));
+        return stockRepository.save(stock);
+    }
+
     public void deleteStock(InventoryItem item, String warehouseCode) {
         List<InventoryStock> stocks = findStocksForUpdate(item.getSku());
         if (stocks.size() <= 1) {

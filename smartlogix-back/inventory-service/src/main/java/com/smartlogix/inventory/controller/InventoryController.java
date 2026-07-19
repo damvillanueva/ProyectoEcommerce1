@@ -4,8 +4,11 @@ import com.smartlogix.inventory.dto.CreateInventoryItemRequest;
 import com.smartlogix.inventory.dto.UpdateInventoryItemRequest;
 import com.smartlogix.inventory.dto.InventoryAvailabilityResponse;
 import com.smartlogix.inventory.dto.InventoryItemResponse;
+import com.smartlogix.inventory.dto.InventoryTransferResponse;
+import com.smartlogix.inventory.dto.TransferInventoryStockRequest;
 import com.smartlogix.inventory.dto.UpsertInventoryStockRequest;
 import com.smartlogix.inventory.service.InventoryService;
+import com.smartlogix.inventory.service.InventoryTransferService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
 import java.util.List;
@@ -19,9 +22,14 @@ import org.springframework.web.bind.annotation.*;
 public class InventoryController {
 
     private final InventoryService inventoryService;
+    private final InventoryTransferService transferService;
 
-    public InventoryController(InventoryService inventoryService) {
+    public InventoryController(
+            InventoryService inventoryService,
+            InventoryTransferService transferService
+    ) {
         this.inventoryService = inventoryService;
+        this.transferService = transferService;
     }
 
     @PostMapping("/items")
@@ -101,6 +109,13 @@ public class InventoryController {
             @PathVariable String warehouseCode,
             @Valid @RequestBody UpsertInventoryStockRequest request) {
         return inventoryService.upsertStock(sku, warehouseCode, request);
+    }
+
+    @PostMapping("/items/{sku}/transfer")
+    public InventoryTransferResponse transferStock(
+            @PathVariable String sku,
+            @Valid @RequestBody TransferInventoryStockRequest request) {
+        return transferService.transfer(sku, request);
     }
 
     @DeleteMapping("/items/{sku}/stocks/{warehouseCode}")

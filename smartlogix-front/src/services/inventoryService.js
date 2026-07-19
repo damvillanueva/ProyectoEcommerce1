@@ -14,6 +14,7 @@ import {
   deleteInventoryItem,
   upsertInventoryStock,
   deleteInventoryStock,
+  transferInventoryStock,
   getWarehouses,
   createWarehouse,
   updateWarehouse,
@@ -54,6 +55,10 @@ export async function saveInventoryStock(sku, warehouseCode, stockData) {
 
 export async function removeInventoryStock(sku, warehouseCode) {
   return await deleteInventoryStock(sku, warehouseCode);
+}
+
+export async function moveInventoryStock(sku, transferData) {
+  return await transferInventoryStock(sku, transferData);
 }
 
 export async function fetchWarehouses() {

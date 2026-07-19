@@ -7,6 +7,7 @@ editInventoryItem,
 removeInventoryItem,
 saveInventoryStock,
 removeInventoryStock,
+moveInventoryStock,
 fetchInventoryMovements,
 fetchInventoryAuditLogs,
 fetchWarehouses,
@@ -119,6 +120,7 @@ const [detailLoading, setDetailLoading] = useState(false);
 const [detailError, setDetailError] = useState("");
 const [savingStockKey, setSavingStockKey] = useState("");
 const [deletingStockKey, setDeletingStockKey] = useState("");
+const [transferringStock, setTransferringStock] = useState(false);
 const [auditLogs, setAuditLogs] = useState([]);
 const [auditLoading, setAuditLoading] = useState(false);
 const [auditError, setAuditError] = useState("");
@@ -813,6 +815,101 @@ setDeletingStockKey("");
 }
 }
 
+async function handleTransferProductStock(item, transferData) {
+if (!canManageInventory) {
+showPageError("No tienes permisos para trasladar inventario.");
+return;
+}
+
+const sourceWarehouseCode = transferData.sourceWarehouseCode.trim();
+const destinationWarehouseCode = transferData.destinationWarehouseCode.trim();
+const quantity = Number(transferData.quantity);
+const sourceStock = item.stocks?.find(
+(stock) => stock.warehouseCode === sourceWarehouseCode
+);
+const destinationStock = item.stocks?.find(
+(stock) => stock.warehouseCode === destinationWarehouseCode
+);
+
+if (!sourceWarehouseCode || !destinationWarehouseCode) {
+showPageError("Selecciona bodega de origen y destino.");
+return;
+}
+if (sourceWarehouseCode === destinationWarehouseCode) {
+showPageError("La bodega de origen y destino deben ser diferentes.");
+return;
+}
+if (!Number.isInteger(quantity) || quantity <= 0) {
+showPageError("La cantidad a trasladar debe ser un entero mayor a 0.");
+return;
+}
+if (!sourceStock || quantity > Number(sourceStock.availableQuantity || 0)) {
+showPageError(`Stock insuficiente en ${sourceWarehouseCode}.`);
+return;
+}
+
+const destinationLocationRack = Number(transferData.destinationLocationRack);
+const destinationLocationLevel = Number(transferData.destinationLocationLevel);
+const destinationLocationPosition = Number(transferData.destinationLocationPosition);
+const destinationReorderLevel = Number(transferData.destinationReorderLevel);
+
+if (!destinationStock && (
+!transferData.destinationLocationZone.trim() ||
+!transferData.destinationLocationAisle.trim() ||
+!Number.isInteger(destinationLocationRack) || destinationLocationRack <= 0 ||
+!Number.isInteger(destinationLocationLevel) || destinationLocationLevel <= 0 ||
+!Number.isInteger(destinationLocationPosition) || destinationLocationPosition <= 0 ||
+!Number.isInteger(destinationReorderLevel) || destinationReorderLevel < 0
+)) {
+showPageError("Completa una ubicacion valida para la nueva existencia destino.");
+return;
+}
+
+try {
+setTransferringStock(true);
+const transfer = await moveInventoryStock(item.sku, {
+sourceWarehouseCode,
+destinationWarehouseCode,
+quantity,
+reason: transferData.reason.trim() || "Reposicion interna",
+destinationLocationZone: transferData.destinationLocationZone.trim().toUpperCase(),
+destinationLocationAisle: transferData.destinationLocationAisle.trim().toUpperCase(),
+destinationLocationRack,
+destinationLocationLevel,
+destinationLocationPosition,
+destinationReorderLevel,
+});
+
+const data = await getInventoryItemsWithAvailable();
+setItems(data);
+const updatedItem = data.find((candidate) => candidate.sku === item.sku);
+if (updatedItem) {
+setDetailItem(updatedItem);
+setWarehouseFilter(destinationWarehouseCode);
+setFocusedWarehouseSku(updatedItem.sku);
+}
+
+if (canViewMovements) {
+const movementData = await fetchInventoryMovements({
+product: item.sku,
+page: 0,
+size: 5,
+sort: "createdAt,desc",
+});
+setDetailMovements(Array.isArray(movementData.content) ? movementData.content : movementData || []);
+}
+if (canViewAudit) await loadAuditLogs();
+showPageSuccess(
+`Traslado ${transfer.reference} completado: ${quantity} unidad(es) a ${destinationWarehouseCode}.`
+);
+} catch (err) {
+console.error(err);
+showPageError(err.response?.data?.message || "No se pudo completar el traslado.");
+} finally {
+setTransferringStock(false);
+}
+}
+
 return (
 <div className="min-h-screen bg-slate-950 p-2 text-white sm:p-6">
 <ToastStack onDismiss={dismissToast} toasts={toasts} />
@@ -1304,8 +1401,10 @@ canDeleteInventory={canDeleteInventory}
 canViewMovements={canViewMovements}
 onSaveStock={handleSaveProductStock}
 onDeleteStock={handleDeleteProductStock}
+onTransferStock={handleTransferProductStock}
 savingStockKey={savingStockKey}
 deletingStockKey={deletingStockKey}
+transferringStock={transferringStock}
 warehouseOptions={warehouseOptions}
 onClose={handleCloseDetail}
 />
@@ -2101,8 +2200,10 @@ error,
 onClose,
 onSaveStock,
 onDeleteStock,
+onTransferStock,
 savingStockKey,
 deletingStockKey,
+transferringStock,
 warehouseOptions,
 }) {
 const available = item.availableQuantity;
@@ -2111,11 +2212,11 @@ const location = getProductStorageLocation(item);
 
 return (
 <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm">
-<section className="max-h-[92vh] w-full max-w-5xl overflow-y-auto rounded-3xl border border-white/10 bg-slate-900 text-white shadow-2xl">
+<section className="max-h-[92vh] min-w-0 w-full max-w-5xl overflow-x-hidden overflow-y-auto rounded-3xl border border-white/10 bg-slate-900 text-white shadow-2xl">
 <div className="flex items-start justify-between gap-4 border-b border-white/10 p-6">
-<div>
+<div className="min-w-0">
 <p className="text-sm font-black uppercase text-sky-300">Detalle de producto</p>
-<h2 className="mt-1 text-3xl font-black">{item.productName}</h2>
+<h2 className="mt-1 break-words text-2xl font-black sm:text-3xl">{item.productName}</h2>
 <p className="mt-2 text-sm font-semibold text-slate-400">{item.sku}</p>
 </div>
 <button
@@ -2127,8 +2228,8 @@ Cerrar
 </button>
 </div>
 
-<div className="grid gap-6 p-6 lg:grid-cols-[320px_minmax(0,1fr)]">
-<div>
+<div className="grid min-w-0 gap-6 p-6 lg:grid-cols-[320px_minmax(0,1fr)]">
+<div className="min-w-0">
 {item.imageUrl ? (
 <img
 src={item.imageUrl}
@@ -2161,7 +2262,7 @@ Sin imagen
 </div>
 </div>
 
-<div className="space-y-6">
+<div className="min-w-0 space-y-6">
 <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
 <DetailMetric label="SKU" value={item.sku} />
 <DetailMetric label="Categoria" value={item.category || "General"} />
@@ -2176,6 +2277,7 @@ Sin imagen
 </div>
 
 {canManageInventory && (
+<>
 <WarehouseStockEditor
 item={item}
 location={location}
@@ -2186,6 +2288,13 @@ savingStockKey={savingStockKey}
 deletingStockKey={deletingStockKey}
 warehouseOptions={warehouseOptions}
 />
+<WarehouseTransferPanel
+item={item}
+onTransfer={onTransferStock}
+transferring={transferringStock}
+warehouseOptions={warehouseOptions}
+/>
+</>
 )}
 
 {canViewMovements && (
@@ -2239,6 +2348,11 @@ className="grid gap-3 rounded-2xl border border-white/10 bg-slate-900/80 p-4 sm:
 <p className="mt-1 text-xs font-semibold text-slate-500">
 #{movement.id}
 </p>
+{movement.transferReference && (
+<p className="mt-1 text-xs font-black text-sky-300">
+{movement.transferReference}
+</p>
+)}
 </div>
 <div>
 <p className="font-bold text-white">{movement.reason || "Movimiento de inventario"}</p>
@@ -2265,6 +2379,214 @@ className="grid gap-3 rounded-2xl border border-white/10 bg-slate-900/80 p-4 sm:
 </div>
 </section>
 </div>
+);
+}
+
+function WarehouseTransferPanel({ item, onTransfer, transferring, warehouseOptions }) {
+const stocks = item.stocks || [];
+const activeWarehouses = warehouseOptions.filter((warehouse) => warehouse.active !== false);
+
+function createInitialData() {
+const source = stocks.find((stock) =>
+Number(stock.availableQuantity || 0) > 0 &&
+activeWarehouses.some((warehouse) => warehouse.code === stock.warehouseCode)
+) || stocks.find((stock) =>
+activeWarehouses.some((warehouse) => warehouse.code === stock.warehouseCode)
+);
+const destination = activeWarehouses.find(
+(warehouse) => warehouse.code !== source?.warehouseCode
+);
+const destinationStock = stocks.find(
+(stock) => stock.warehouseCode === destination?.code
+);
+
+return {
+sourceWarehouseCode: source?.warehouseCode || "",
+destinationWarehouseCode: destination?.code || "",
+quantity: "1",
+reason: "Reposicion interna",
+destinationLocationZone: destinationStock?.locationZone || item.category?.slice(0, 1).toUpperCase() || "G",
+destinationLocationAisle: destinationStock?.locationAisle || "A",
+destinationLocationRack: String(destinationStock?.locationRack || 1),
+destinationLocationLevel: String(destinationStock?.locationLevel || 1),
+destinationLocationPosition: String(destinationStock?.locationPosition || 1),
+destinationReorderLevel: String(destinationStock?.reorderLevel ?? source?.reorderLevel ?? 0),
+};
+}
+
+const [transferData, setTransferData] = useState(createInitialData);
+
+useEffect(() => {
+setTransferData(createInitialData());
+}, [item, warehouseOptions]);
+
+const sourceStock = stocks.find(
+(stock) => stock.warehouseCode === transferData.sourceWarehouseCode
+);
+const destinationStock = stocks.find(
+(stock) => stock.warehouseCode === transferData.destinationWarehouseCode
+);
+const destinationOptions = activeWarehouses.filter(
+(warehouse) => warehouse.code !== transferData.sourceWarehouseCode
+);
+const quantity = Number(transferData.quantity || 0);
+const sourceAvailable = Number(sourceStock?.availableQuantity || 0);
+const destinationAvailable = Number(destinationStock?.availableQuantity || 0);
+const validQuantity = Number.isInteger(quantity) && quantity > 0 && quantity <= sourceAvailable;
+
+function applyDestination(warehouseCode, current) {
+const stock = stocks.find((candidate) => candidate.warehouseCode === warehouseCode);
+return {
+...current,
+destinationWarehouseCode: warehouseCode,
+destinationLocationZone: stock?.locationZone || item.category?.slice(0, 1).toUpperCase() || "G",
+destinationLocationAisle: stock?.locationAisle || "A",
+destinationLocationRack: String(stock?.locationRack || 1),
+destinationLocationLevel: String(stock?.locationLevel || 1),
+destinationLocationPosition: String(stock?.locationPosition || 1),
+destinationReorderLevel: String(stock?.reorderLevel ?? sourceStock?.reorderLevel ?? 0),
+};
+}
+
+function handleSourceChange(event) {
+const sourceWarehouseCode = event.target.value;
+setTransferData((current) => {
+const nextDestination = current.destinationWarehouseCode === sourceWarehouseCode
+? activeWarehouses.find((warehouse) => warehouse.code !== sourceWarehouseCode)?.code || ""
+: current.destinationWarehouseCode;
+return applyDestination(nextDestination, { ...current, sourceWarehouseCode });
+});
+}
+
+function handleDestinationChange(event) {
+const warehouseCode = event.target.value;
+setTransferData((current) => applyDestination(warehouseCode, current));
+}
+
+function handleChange(event) {
+const { name, value } = event.target;
+setTransferData((current) => ({ ...current, [name]: value }));
+}
+
+function handleSubmit(event) {
+event.preventDefault();
+onTransfer(item, transferData);
+}
+
+if (activeWarehouses.length < 2) {
+return (
+<section className="rounded-2xl border border-dashed border-white/15 bg-slate-950/45 p-5">
+<h3 className="text-xl font-black">Traslado entre bodegas</h3>
+<p className="mt-2 text-sm font-semibold text-slate-400">
+Se necesitan al menos dos bodegas activas para trasladar stock.
+</p>
+</section>
+);
+}
+
+return (
+<section className="min-w-0 rounded-2xl border border-emerald-300/20 bg-emerald-500/10 p-5">
+<div className="mb-4">
+<p className="text-xs font-black uppercase text-emerald-300">Operacion interna</p>
+<h3 className="mt-1 text-xl font-black">Traslado entre bodegas</h3>
+<p className="mt-1 text-sm font-semibold text-slate-400">
+Mueve stock disponible sin alterar unidades reservadas. La salida y entrada quedan enlazadas.
+</p>
+</div>
+
+<form onSubmit={handleSubmit} className="space-y-4">
+<div className="grid gap-3 md:grid-cols-2">
+<label className="min-w-0">
+<span className="mb-1 block text-xs font-black uppercase text-slate-500">Origen</span>
+<select
+value={transferData.sourceWarehouseCode}
+onChange={handleSourceChange}
+className="w-full min-w-0 max-w-full rounded-xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm font-black text-white outline-none focus:ring-2 focus:ring-emerald-400"
+>
+{stocks.map((stock) => {
+const warehouse = activeWarehouses.find((candidate) => candidate.code === stock.warehouseCode);
+if (!warehouse) return null;
+return (
+<option key={stock.warehouseCode} value={stock.warehouseCode}>
+{stock.warehouseCode} - Disponible {stock.availableQuantity}
+</option>
+);
+})}
+</select>
+</label>
+
+<label className="min-w-0">
+<span className="mb-1 block text-xs font-black uppercase text-slate-500">Destino</span>
+<select
+value={transferData.destinationWarehouseCode}
+onChange={handleDestinationChange}
+className="w-full min-w-0 max-w-full rounded-xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm font-black text-white outline-none focus:ring-2 focus:ring-emerald-400"
+>
+{destinationOptions.map((warehouse) => (
+<option key={warehouse.code} value={warehouse.code}>
+{warehouse.code} - {warehouse.name}
+</option>
+))}
+</select>
+</label>
+</div>
+
+<div className="grid grid-cols-3 gap-2 text-center">
+<WarehouseMiniStock label="Origen actual" value={sourceAvailable} />
+<WarehouseMiniStock
+label="Origen final"
+value={validQuantity ? sourceAvailable - quantity : "-"}
+tone={validQuantity ? "warning" : "default"}
+/>
+<WarehouseMiniStock
+label="Destino final"
+value={validQuantity ? destinationAvailable + quantity : "-"}
+tone={validQuantity ? "success" : "default"}
+/>
+</div>
+
+<div className="grid gap-3 md:grid-cols-[180px_minmax(0,1fr)]">
+<StockInput
+label={`Cantidad (max. ${sourceAvailable})`}
+name="quantity"
+value={transferData.quantity}
+onChange={handleChange}
+type="number"
+min="1"
+/>
+<StockInput
+label="Motivo"
+name="reason"
+value={transferData.reason}
+onChange={handleChange}
+/>
+</div>
+
+{!destinationStock && transferData.destinationWarehouseCode && (
+<div className="rounded-xl border border-amber-300/20 bg-amber-500/10 p-4">
+<p className="mb-3 text-sm font-black text-amber-100">
+Este SKU aun no existe en el destino. Define su ubicacion inicial.
+</p>
+<div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+<StockInput label="Zona" name="destinationLocationZone" value={transferData.destinationLocationZone} onChange={handleChange} />
+<StockInput label="Pasillo" name="destinationLocationAisle" value={transferData.destinationLocationAisle} onChange={handleChange} />
+<StockInput label="Rack" name="destinationLocationRack" value={transferData.destinationLocationRack} onChange={handleChange} type="number" />
+<StockInput label="Nivel" name="destinationLocationLevel" value={transferData.destinationLocationLevel} onChange={handleChange} type="number" />
+<StockInput label="Posicion" name="destinationLocationPosition" value={transferData.destinationLocationPosition} onChange={handleChange} type="number" />
+<StockInput label="Reposicion" name="destinationReorderLevel" value={transferData.destinationReorderLevel} onChange={handleChange} type="number" min="0" />
+</div>
+</div>
+)}
+
+<button
+type="submit"
+disabled={transferring || !validQuantity || !transferData.destinationWarehouseCode}
+className="w-full rounded-xl bg-emerald-500 px-4 py-3 text-sm font-black text-slate-950 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
+>
+{transferring ? "Trasladando..." : "Confirmar traslado"}
+</button>
+</form>
+</section>
 );
 }
 
@@ -2477,7 +2799,7 @@ className="rounded-xl bg-sky-500 px-4 py-3 text-sm font-black text-white transit
 
 function StockInput({ label, min, name, onChange, type = "text", value }) {
 return (
-<label className="block">
+<label className="block min-w-0">
 <span className="mb-1 block text-xs font-black uppercase text-slate-500">{label}</span>
 <input
 type={type}
@@ -2485,7 +2807,7 @@ name={name}
 value={value}
 onChange={onChange}
 min={type === "number" ? min ?? "1" : undefined}
-className="w-full rounded-xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm font-black text-white outline-none focus:ring-2 focus:ring-sky-400"
+className="w-full min-w-0 max-w-full rounded-xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm font-black text-white outline-none focus:ring-2 focus:ring-sky-400"
 />
 </label>
 );
@@ -2500,9 +2822,9 @@ tone === "success"
 : "text-white";
 
 return (
-<div className="rounded-2xl border border-white/10 bg-slate-950/45 p-4">
+<div className="min-w-0 rounded-2xl border border-white/10 bg-slate-950/45 p-4">
 <p className="text-xs font-black uppercase text-slate-500">{label}</p>
-<p className={`mt-2 text-2xl font-black ${toneClass}`}>{value ?? "-"}</p>
+<p className={`mt-2 break-words text-xl font-black sm:text-2xl ${toneClass}`}>{value ?? "-"}</p>
 </div>
 );
 }

@@ -55,7 +55,7 @@ PostgreSQL puede ejecutarse localmente en Docker sin pagar un servicio externo.
 - [ ] Administrar zonas, pasillos, racks, niveles y posiciones.
 - [ ] Impedir ubicaciones fisicas duplicadas.
 - [x] Guardar stock del mismo SKU en varias bodegas.
-- [ ] Registrar traslados con movimiento de origen y destino.
+- [x] Registrar traslados parciales con movimientos de origen y destino enlazados.
 - [x] Seleccionar automaticamente la bodega de despacho por prioridad y disponibilidad.
 - [x] Conectar la vista 3D con el nuevo modelo de stock por bodega.
 

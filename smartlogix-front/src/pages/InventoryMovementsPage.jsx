@@ -128,6 +128,8 @@ const ACTION_LABELS = {
   MANUAL_ENTRY: "Entrada manual",
   MANUAL_EXIT: "Salida manual",
   MANUAL_ADJUSTMENT: "Ajuste manual",
+  TRANSFER_OUT: "Traslado de salida",
+  TRANSFER_IN: "Traslado de entrada",
 };
 
 function getMovementMeta(type) {
@@ -266,6 +268,8 @@ function buildExcelHtml(exportMovements, filters) {
         ${excelCell(formatDate(movement.createdAt))}
         ${excelCell(movement.productName || "Producto")}
         ${excelCell(movement.sku || "-")}
+        ${excelCell(movement.warehouseCode || "-")}
+        ${excelCell(movement.transferReference || "-")}
         ${excelCell(meta.shortLabel)}
         ${excelCell(getActionLabel(movement.actionType))}
         ${excelCell(getQuantityLabel(movement))}
@@ -299,6 +303,8 @@ function buildExcelHtml(exportMovements, filters) {
           <th>Fecha</th>
           <th>Producto</th>
           <th>SKU</th>
+          <th>Bodega</th>
+          <th>Referencia</th>
           <th>Tipo</th>
           <th>Accion</th>
           <th>Cantidad</th>
@@ -309,7 +315,7 @@ function buildExcelHtml(exportMovements, filters) {
         </tr>
       </thead>
       <tbody>
-        ${rows || `<tr><td colspan="10">No hay movimientos para exportar.</td></tr>`}
+        ${rows || `<tr><td colspan="12">No hay movimientos para exportar.</td></tr>`}
       </tbody>
     </table>
   </body>
@@ -1308,6 +1314,11 @@ function TimelineItem({ imageUrl, movement, selected, onSelect }) {
         <p className="mt-3 line-clamp-2 text-sm font-bold text-slate-300">
           {movement.reason || getActionLabel(movement.actionType)}
         </p>
+        {movement.transferReference && (
+          <p className="mt-2 text-xs font-black text-sky-300">
+            Referencia {movement.transferReference}
+          </p>
+        )}
       </div>
     </button>
   );
@@ -1376,8 +1387,13 @@ function MovementRow({ imageUrl, movement, selected, onSelect }) {
       <td className="whitespace-nowrap px-3 py-3 font-black text-slate-200">
         {movement.username || "system"}
       </td>
-      <td className="max-w-[190px] truncate px-3 py-3 font-bold text-slate-300">
-        {movement.reason || getActionLabel(movement.actionType)}
+      <td className="max-w-[190px] px-3 py-3 font-bold text-slate-300">
+        <p className="truncate">{movement.reason || getActionLabel(movement.actionType)}</p>
+        {movement.transferReference && (
+          <p className="mt-1 truncate text-xs font-black text-sky-300">
+            {movement.transferReference}
+          </p>
+        )}
       </td>
       <td className="px-3 py-3 text-right text-slate-300">
         <FiChevronRight className="ml-auto" />
@@ -1441,6 +1457,9 @@ function MovementDetailPanel({ imageUrl, movement }) {
         <DetailItem icon={FiUser} label="Usuario" value={movement.username || "system"} />
         <DetailItem icon={FiHash} label="SKU" value={movement.sku || "-"} />
         <DetailItem icon={FiArchive} label="Bodega" value={movement.warehouseCode || "-"} />
+        {movement.transferReference && (
+          <DetailItem icon={FiHash} label="Referencia traslado" value={movement.transferReference} valueClass="text-sky-300" />
+        )}
         <DetailItem icon={FiCalendar} label="Fecha y hora" value={formatDate(movement.createdAt)} />
         <DetailItem label="Tipo de movimiento" value={meta.shortLabel} valueClass={meta.text} />
         <DetailItem label="Motivo" value={movement.reason || getActionLabel(movement.actionType)} />

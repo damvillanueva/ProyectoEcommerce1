@@ -44,7 +44,7 @@ Registro de funcionalidades y mejoras incorporadas al proyecto de portafolio.
 - [x] Correccion de flujo pedido-envio: al eliminar un pedido aprobado se libera la reserva de inventario y se elimina el envio asociado.
 - [x] Lint frontend limpio con `npm run lint`.
 - [x] Tests unitarios de `order-service` para reserva, envio y limpieza al eliminar pedido.
-- [ ] Traslados reales entre bodegas con cantidad parcial y movimientos de origen/destino.
+- [x] Traslados reales entre bodegas con cantidad parcial y movimientos de origen/destino enlazados.
 - [x] Documentacion tecnica y guion de demostracion del flujo completo.
 - [x] Checkout ecommerce con carrito separado, despacho/retiro, descuentos y pagos simulados.
 - [x] Cuenta de cliente con perfil, direcciones, favoritos, compras y seguimiento privado.
@@ -188,20 +188,23 @@ Registro de funcionalidades y mejoras incorporadas al proyecto de portafolio.
     - Se mantiene documentacion de arquitectura, operacion y alcance del producto.
 
 19. Traslado entre bodegas
-    - Desde el modal de detalle se puede cambiar bodega, zona, pasillo, rack, nivel y posicion.
-    - El traslado actualiza ubicacion sin modificar stock disponible ni reservado.
-    - Estado: implementado como mejora avanzada viable usando la API actual de inventario.
+    - Desde el detalle se seleccionan origen, destino, cantidad y motivo.
+    - Solo mueve stock disponible; las reservas permanecen en su bodega original.
+    - Si el SKU no existe en destino, crea la existencia con zona, pasillo, rack, nivel y posicion.
+    - Registra una salida y una entrada enlazadas por referencia `TRF-...`, ademas de auditoria.
+    - Estado: implementado con transaccion, bloqueo pesimista y permisos de administrador/bodeguero.
 
 ## Validacion actual
 
-- Backend: `.\mvnw.cmd -pl inventory-service -am test` OK.
-- Backend: `.\mvnw.cmd -pl order-service -am test` OK.
-- Frontend: `npm.cmd run build` OK.
+- Backend completo: `mvn test` OK en los 7 modulos, con 48 pruebas sin fallos.
+- Inventario: 18 pruebas, incluidas 4 de traslados entre bodegas.
+- Seguridad de traslados: usuario comun recibe `403`; administrador y bodeguero conservan el permiso operativo.
+- API real: traslado parcial y reversion OK, con dos movimientos enlazados por la misma referencia `TRF-...` y datos de demostracion restaurados.
+- Frontend: `npm.cmd run lint` y `npm.cmd run build` OK.
+- Frontend responsivo: modal de producto y formulario de traslado revisados en escritorio y a 390 x 844 px, sin desborde horizontal del formulario.
 - Frontend 3D: Playwright con Edge OK en desktop y movil; busqueda `SKU-3001` encontro `WH-VAP-02-MC-R1-N2-P3`; capturas con pixeles no vacios.
 - Flujo pedido-envio: pedido creado desde catalogo con `SKU-3001`, comuna `Providencia`, estado legible y envio generado con tracking.
 - Flujo borrar pedido: `ORD-5D401FAB` creo reserva/envio temporal, al eliminarlo el monitor volvio de disponible 44/reservado 1 a disponible 45/reservado 0 y el tracking desaparecio.
-- Frontend: `npm.cmd run lint` OK.
-- Backend: `.\mvnw.cmd -pl order-service -am test` OK con 2 tests unitarios.
 - Nota: Vite mantiene advertencia de bundle mayor a 500 KB; no bloquea.
 
 ## Roadmap vigente
