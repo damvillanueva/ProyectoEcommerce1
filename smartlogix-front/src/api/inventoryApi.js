@@ -46,6 +46,42 @@ export async function updateInventoryItem(sku, itemData) {
 
   return response.data;
 }
+
+export async function getWarehouses() {
+  const response = await axios.get(`${API_URL}/api/inventory/warehouses`, {
+    headers: getAuthHeaders(),
+  });
+
+  return response.data;
+}
+
+export async function createWarehouse(warehouseData) {
+  const response = await axios.post(
+    `${API_URL}/api/inventory/warehouses`,
+    warehouseData,
+    { headers: getAuthHeaders() }
+  );
+
+  return response.data;
+}
+
+export async function updateWarehouse(code, warehouseData) {
+  const response = await axios.put(
+    `${API_URL}/api/inventory/warehouses/${encodeURIComponent(code)}`,
+    warehouseData,
+    { headers: getAuthHeaders() }
+  );
+
+  return response.data;
+}
+
+export async function deleteWarehouse(code) {
+  await axios.delete(
+    `${API_URL}/api/inventory/warehouses/${encodeURIComponent(code)}`,
+    { headers: getAuthHeaders() }
+  );
+}
+
 export async function getInventoryMovements(params = {}) {
   const response = await axios.get(`${API_URL}/api/inventory/movements`, {
     headers: getAuthHeaders(),

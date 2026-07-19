@@ -12,6 +12,10 @@ import {
   createInventoryItem,
   updateInventoryItem,
   deleteInventoryItem,
+  getWarehouses,
+  createWarehouse,
+  updateWarehouse,
+  deleteWarehouse,
   getInventoryMovements,
   createInventoryMovement,
   exportInventoryMovements,
@@ -40,6 +44,22 @@ export async function editInventoryItem(sku, itemData) {
 
 export async function removeInventoryItem(sku) {
   return await deleteInventoryItem(sku);
+}
+
+export async function fetchWarehouses() {
+  return await getWarehouses();
+}
+
+export async function saveWarehouse(warehouseData) {
+  return await createWarehouse(warehouseData);
+}
+
+export async function editWarehouse(code, warehouseData) {
+  return await updateWarehouse(code, warehouseData);
+}
+
+export async function removeWarehouse(code) {
+  return await deleteWarehouse(code);
 }
 
 export async function fetchInventoryMovements(params) {

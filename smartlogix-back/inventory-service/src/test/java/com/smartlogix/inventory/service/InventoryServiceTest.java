@@ -31,6 +31,9 @@ class InventoryServiceTest {
     @Mock
     private InventoryAuditLogService auditLogService;
 
+    @Mock
+    private WarehouseService warehouseService;
+
     @InjectMocks
     private InventoryService inventoryService;
 

@@ -122,7 +122,9 @@ Registro de funcionalidades y mejoras incorporadas al proyecto de portafolio.
    - Mejorar `warehouseCode` con selector.
    - Ver stock por bodega.
    - Estado: implementado completo a nivel visual: selector, filtro, panel separado por bodega, mapa visual por ubicacion, productos dentro de cada bodega, categorias, stock total, disponible, reservado, productos criticos, barra de capacidad visual y acciones rapidas de detalle/QR.
-   - Pendiente solo si se quisiera nivel produccion: tabla propia de bodegas, CRUD de bodegas, movimientos de traslado entre bodegas y stock separado por SKU/bodega en backend.
+   - Estado backend: implementada tabla persistente de bodegas, migracion Flyway, API CRUD, validacion del plano fisico, bloqueo de eliminacion con productos y permisos por rol.
+   - Estado frontend: implementado panel administrativo para crear, editar, activar, desactivar y eliminar bodegas; los selectores y resumen consumen la API real.
+   - Pendiente: stock separado por SKU/bodega, ubicaciones unicas y traslados con movimientos de origen/destino.
 
 9.1. Etiquetas por SKU
    - Generar QR escaneable por SKU.

@@ -7,8 +7,13 @@ editInventoryItem,
 removeInventoryItem,
 fetchInventoryMovements,
 fetchInventoryAuditLogs,
+fetchWarehouses,
+saveWarehouse,
+editWarehouse,
+removeWarehouse,
 } from "../services/inventoryService";
 import Navbar from "../components/Navbar";
+import WarehouseManagementPanel from "../components/WarehouseManagementPanel";
 import PageContainer from "../layout/PageContainer";
 import ToastStack from "../components/ToastStack";
 import { useToasts } from "../hooks/useToasts";
@@ -100,6 +105,8 @@ return (hash >>> 0) % 4 !== 0;
 
 function InventoryPage() {
 const [items, setItems] = useState([]);
+const [warehouses, setWarehouses] = useState([]);
+const [warehousesLoaded, setWarehousesLoaded] = useState(false);
 const [loading, setLoading] = useState(true);
 const [, setError] = useState("");
 const [saving, setSaving] = useState(false);
@@ -147,18 +154,23 @@ return Array.from(categories).sort((left, right) => left.localeCompare(right));
 }, [items]);
 
 const warehouseOptions = useMemo(() => {
-const warehouses = new Map(WAREHOUSE_OPTIONS.map((warehouse) => [warehouse.code, warehouse]));
+const source = warehousesLoaded ? warehouses : WAREHOUSE_OPTIONS;
+const warehouseMap = new Map(source.map((warehouse) => [warehouse.code, warehouse]));
 items.forEach((item) => {
-if (item.warehouseCode && !warehouses.has(item.warehouseCode)) {
-warehouses.set(item.warehouseCode, {
+if (item.warehouseCode && !warehouseMap.has(item.warehouseCode)) {
+warehouseMap.set(item.warehouseCode, {
 code: item.warehouseCode,
 name: item.warehouseCode,
 city: "Sin ciudad",
+active: true,
 });
 }
 });
-return Array.from(warehouses.values()).sort((left, right) => left.code.localeCompare(right.code));
-}, [items]);
+return Array.from(warehouseMap.values()).sort((left, right) => {
+const priorityDifference = (left.dispatchPriority || 999) - (right.dispatchPriority || 999);
+return priorityDifference || left.code.localeCompare(right.code);
+});
+}, [items, warehouses, warehousesLoaded]);
 
 const warehouseSummary = useMemo(() => {
 return warehouseOptions.map((warehouse) => {
@@ -275,24 +287,83 @@ reorderLevel: "5",
 });
 
 useEffect(() => {
-async function loadInventory() {
-try {
-const data = await getInventoryItemsWithAvailable();
-setItems(data);
-} catch (err) {
-console.error(err);
+async function loadInventoryPage() {
+const [inventoryResult, warehouseResult] = await Promise.allSettled([
+getInventoryItemsWithAvailable(),
+fetchWarehouses(),
+]);
+
+if (inventoryResult.status === "fulfilled") {
+setItems(inventoryResult.value);
+} else {
+console.error(inventoryResult.reason);
 showPageError("No se pudo cargar el inventario.");
-} finally {
-setLoading(false);
-}
 }
 
-loadInventory();
+if (warehouseResult.status === "fulfilled") {
+setWarehouses(Array.isArray(warehouseResult.value) ? warehouseResult.value : []);
+} else {
+console.error(warehouseResult.reason);
+showPageError("No se pudo cargar la configuracion de bodegas.");
+}
+
+setWarehousesLoaded(true);
+setLoading(false);
+}
+
+loadInventoryPage();
 
 if (canViewAudit) {
 loadAuditLogs();
 }
 }, [canViewAudit]);
+
+async function reloadWarehouses() {
+const data = await fetchWarehouses();
+setWarehouses(Array.isArray(data) ? data : []);
+setWarehousesLoaded(true);
+return data;
+}
+
+async function handleCreateWarehouse(warehouseData) {
+try {
+await saveWarehouse(warehouseData);
+await reloadWarehouses();
+showPageSuccess(`Bodega ${warehouseData.code} creada correctamente.`);
+return true;
+} catch (err) {
+console.error(err);
+showPageError(err.response?.data?.message || "No se pudo crear la bodega.");
+return false;
+}
+}
+
+async function handleUpdateWarehouse(code, warehouseData) {
+try {
+await editWarehouse(code, warehouseData);
+await reloadWarehouses();
+showPageSuccess(`Bodega ${code} actualizada correctamente.`);
+return true;
+} catch (err) {
+console.error(err);
+showPageError(err.response?.data?.message || "No se pudo actualizar la bodega.");
+return false;
+}
+}
+
+async function handleDeleteWarehouse(code) {
+try {
+await removeWarehouse(code);
+await reloadWarehouses();
+if (warehouseFilter === code) setWarehouseFilter("");
+showPageSuccess(`Bodega ${code} eliminada correctamente.`);
+return true;
+} catch (err) {
+console.error(err);
+showPageError(err.response?.data?.message || "No se pudo eliminar la bodega.");
+return false;
+}
+}
 
 async function loadAuditLogs() {
 try {
@@ -812,8 +883,8 @@ required
 className="bg-slate-950/80 border border-white/10 text-white rounded-xl px-4 py-3 focus:ring-2 focus:ring-indigo-400 outline-none"
 >
 {warehouseOptions.map((warehouse) => (
-<option key={warehouse.code} value={warehouse.code}>
-{warehouse.code} - {warehouse.name}
+<option key={warehouse.code} value={warehouse.code} disabled={warehouse.active === false}>
+{warehouse.code} - {warehouse.name}{warehouse.active === false ? " (Inactiva)" : ""}
 </option>
 ))}
 </select>
@@ -906,6 +977,16 @@ className="rounded-xl bg-indigo-600 px-6 py-3 text-white font-bold shadow-lg hov
 </button>
 </form>
 </div>
+)}
+
+{canManageInventory && warehousesLoaded && (
+<WarehouseManagementPanel
+canDelete={canDeleteInventory}
+warehouses={warehouses}
+onCreate={handleCreateWarehouse}
+onUpdate={handleUpdateWarehouse}
+onDelete={handleDeleteWarehouse}
+/>
 )}
 
 <WarehouseSummaryPanel
@@ -1787,14 +1868,21 @@ const labels = {
 CREATE_PRODUCT: "Creacion",
 UPDATE_PRODUCT: "Edicion",
 DELETE_PRODUCT: "Eliminacion",
+CREATE_WAREHOUSE: "Bodega creada",
+UPDATE_WAREHOUSE: "Bodega actualizada",
+DELETE_WAREHOUSE: "Bodega eliminada",
 };
 
 return labels[action] || action || "Accion";
 }
 
 function getAuditActionClass(action) {
-if (action === "CREATE_PRODUCT") return "bg-emerald-500/20 text-emerald-300";
-if (action === "DELETE_PRODUCT") return "bg-red-500/20 text-red-200";
+if (action === "CREATE_PRODUCT" || action === "CREATE_WAREHOUSE") {
+return "bg-emerald-500/20 text-emerald-300";
+}
+if (action === "DELETE_PRODUCT" || action === "DELETE_WAREHOUSE") {
+return "bg-red-500/20 text-red-200";
+}
 return "bg-amber-500/20 text-amber-200";
 }
 
@@ -2182,8 +2270,8 @@ onChange={handleChange}
 className="rounded-xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm font-black text-white outline-none focus:ring-2 focus:ring-sky-400 md:col-span-3"
 >
 {warehouseOptions.map((warehouse) => (
-<option key={warehouse.code} value={warehouse.code}>
-{warehouse.code} - {warehouse.name}
+<option key={warehouse.code} value={warehouse.code} disabled={warehouse.active === false}>
+{warehouse.code} - {warehouse.name}{warehouse.active === false ? " (Inactiva)" : ""}
 </option>
 ))}
 </select>

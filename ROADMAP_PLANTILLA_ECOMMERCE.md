@@ -13,6 +13,20 @@ calidad segun su alcance.
 Cada cierre de bloque debe incluir pruebas, documentacion, revision para evitar
 secretos y un commit con push al repositorio personal.
 
+## Orden actual de prioridades
+
+1. Consistencia de inventario y bodegas: CRUD real, ubicaciones, stock por
+   bodega, traslados y conexion con la vista 3D.
+2. Calidad automatizada: pruebas de integracion, contratos, flujo end-to-end y
+   CI para impedir regresiones.
+3. Proveedores y reposicion: compras, recepcion, costos, margenes y alertas.
+4. Punto de venta fisico conectado al mismo inventario.
+5. Postventa, documentos comerciales, notificaciones y textos legales.
+6. Responsive, accesibilidad y limpieza final de la plantilla reutilizable.
+
+El orden prioriza la integridad de los datos antes de agregar nuevos canales de
+venta. Cada punto se cerrara en bloques pequenos con su propio commit y push.
+
 ## Fase 1 - Seguridad de configuracion
 
 - [x] Exigir `JWT_SECRET` en todos los microservicios.
@@ -37,10 +51,10 @@ PostgreSQL puede ejecutarse localmente en Docker sin pagar un servicio externo.
 
 ## Fase 3 - Bodegas reales
 
-- [ ] Crear entidad y CRUD de bodegas.
-- [ ] Guardar stock del mismo SKU en varias bodegas.
+- [x] Crear entidad, migracion, API y panel CRUD de bodegas.
 - [ ] Administrar zonas, pasillos, racks, niveles y posiciones.
 - [ ] Impedir ubicaciones fisicas duplicadas.
+- [ ] Guardar stock del mismo SKU en varias bodegas.
 - [ ] Registrar traslados con movimiento de origen y destino.
 - [ ] Seleccionar automaticamente la bodega de despacho.
 - [ ] Conectar la vista 3D con el nuevo modelo de stock por bodega.

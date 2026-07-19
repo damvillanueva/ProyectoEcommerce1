@@ -3,6 +3,7 @@ package com.smartlogix.inventory.service;
 import com.smartlogix.inventory.domain.ActionType;
 import com.smartlogix.inventory.domain.InventoryItem;
 import com.smartlogix.inventory.domain.MovementType;
+import com.smartlogix.inventory.domain.Warehouse;
 import com.smartlogix.inventory.dto.CatalogProductResponse;
 import com.smartlogix.inventory.dto.CreateInventoryItemRequest;
 import com.smartlogix.inventory.dto.UpdateInventoryItemRequest;
@@ -28,16 +29,19 @@ public class InventoryService {
     private final InventoryItemRepository repository;
     private final InventoryMovementService movementService;
     private final InventoryAuditLogService auditLogService;
+    private final WarehouseService warehouseService;
     private MeterRegistry meterRegistry;
 
     public InventoryService(
             InventoryItemRepository repository,
             InventoryMovementService movementService,
-            InventoryAuditLogService auditLogService
+            InventoryAuditLogService auditLogService,
+            WarehouseService warehouseService
     ) {
         this.repository = repository;
         this.movementService = movementService;
         this.auditLogService = auditLogService;
+        this.warehouseService = warehouseService;
     }
 
     @Autowired
@@ -50,6 +54,8 @@ public class InventoryService {
         if (repository.existsBySku(normalizedSku)) {
             throw new InventoryOperationException("El SKU ya existe: " + normalizedSku);
         }
+
+        Warehouse warehouse = warehouseService.loadActiveWarehouse(request.warehouseCode());
 
         InventoryItem item = new InventoryItem();
         item.setSku(normalizedSku);
@@ -64,7 +70,7 @@ public class InventoryService {
         item.setFastShipping(Boolean.TRUE.equals(request.fastShipping()));
         item.setFreeShipping(Boolean.TRUE.equals(request.freeShipping()));
         item.setStorePickup(request.storePickup() == null || request.storePickup());
-        item.setWarehouseCode(request.warehouseCode().trim().toUpperCase());
+        item.setWarehouseCode(warehouse.getCode());
         applyLocation(
                 item,
                 request.locationZone(),
@@ -72,6 +78,13 @@ public class InventoryService {
                 request.locationRack(),
                 request.locationLevel(),
                 request.locationPosition()
+        );
+        warehouseService.validateLocation(
+                warehouse,
+                item.getLocationAisle(),
+                item.getLocationRack(),
+                item.getLocationLevel(),
+                item.getLocationPosition()
         );
         item.setAvailableQuantity(request.initialQuantity());
         item.setReservedQuantity(0);
@@ -292,6 +305,7 @@ public class InventoryService {
         InventoryItem item = loadBySku(sku);
 
         validateStockState(request.availableQuantity(), request.reservedQuantity());
+        Warehouse warehouse = warehouseService.loadActiveWarehouse(request.warehouseCode());
 
         int previousStock = item.getAvailableQuantity();
         item.setProductName(request.productName().trim());
@@ -319,7 +333,7 @@ public class InventoryService {
         if (request.storePickup() != null) {
             item.setStorePickup(request.storePickup());
         }
-        item.setWarehouseCode(request.warehouseCode().trim().toUpperCase());
+        item.setWarehouseCode(warehouse.getCode());
         applyLocation(
                 item,
                 request.locationZone(),
@@ -327,6 +341,13 @@ public class InventoryService {
                 request.locationRack(),
                 request.locationLevel(),
                 request.locationPosition()
+        );
+        warehouseService.validateLocation(
+                warehouse,
+                item.getLocationAisle(),
+                item.getLocationRack(),
+                item.getLocationLevel(),
+                item.getLocationPosition()
         );
         item.setAvailableQuantity(request.availableQuantity());
         item.setReservedQuantity(request.reservedQuantity());
