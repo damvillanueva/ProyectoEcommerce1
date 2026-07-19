@@ -5,6 +5,8 @@ getInventoryItemsWithAvailable,
 saveInventoryItem,
 editInventoryItem,
 removeInventoryItem,
+saveInventoryStock,
+removeInventoryStock,
 fetchInventoryMovements,
 fetchInventoryAuditLogs,
 fetchWarehouses,
@@ -115,7 +117,8 @@ const [detailItem, setDetailItem] = useState(null);
 const [detailMovements, setDetailMovements] = useState([]);
 const [detailLoading, setDetailLoading] = useState(false);
 const [detailError, setDetailError] = useState("");
-const [transferringSku, setTransferringSku] = useState("");
+const [savingStockKey, setSavingStockKey] = useState("");
+const [deletingStockKey, setDeletingStockKey] = useState("");
 const [auditLogs, setAuditLogs] = useState([]);
 const [auditLoading, setAuditLoading] = useState(false);
 const [auditError, setAuditError] = useState("");
@@ -137,10 +140,38 @@ const canDeleteInventory = role === "ROLE_ADMIN";
 const canViewAudit = role === "ROLE_ADMIN";
 const canViewMovements = role === "ROLE_ADMIN" || role === "ROLE_WAREHOUSE_MANAGER";
 
+const warehouseItems = useMemo(
+() =>
+items.flatMap((item) => {
+const stocks = Array.isArray(item.stocks) && item.stocks.length > 0
+? item.stocks
+: [item];
+
+return stocks.map((stock) => ({
+...item,
+warehouseCode: stock.warehouseCode || item.warehouseCode,
+warehouseName: stock.warehouseName,
+warehouseCity: stock.warehouseCity,
+warehouseActive: stock.warehouseActive,
+dispatchPriority: stock.dispatchPriority,
+locationZone: stock.locationZone,
+locationAisle: stock.locationAisle,
+locationRack: stock.locationRack,
+locationLevel: stock.locationLevel,
+locationPosition: stock.locationPosition,
+availableQuantity: Number(stock.availableQuantity || 0),
+reservedQuantity: Number(stock.reservedQuantity || 0),
+reorderLevel: Number(stock.reorderLevel || 0),
+stockEntry: true,
+}));
+}),
+[items]
+);
+
 const criticalItems = useMemo(
 () =>
 items.filter(
-(item) => item.availableQuantity - item.reservedQuantity <= item.reorderLevel
+(item) => item.availableQuantity <= item.reorderLevel
 ),
 [items]
 );
@@ -156,7 +187,7 @@ return Array.from(categories).sort((left, right) => left.localeCompare(right));
 const warehouseOptions = useMemo(() => {
 const source = warehousesLoaded ? warehouses : WAREHOUSE_OPTIONS;
 const warehouseMap = new Map(source.map((warehouse) => [warehouse.code, warehouse]));
-items.forEach((item) => {
+warehouseItems.forEach((item) => {
 if (item.warehouseCode && !warehouseMap.has(item.warehouseCode)) {
 warehouseMap.set(item.warehouseCode, {
 code: item.warehouseCode,
@@ -170,22 +201,22 @@ return Array.from(warehouseMap.values()).sort((left, right) => {
 const priorityDifference = (left.dispatchPriority || 999) - (right.dispatchPriority || 999);
 return priorityDifference || left.code.localeCompare(right.code);
 });
-}, [items, warehouses, warehousesLoaded]);
+}, [warehouseItems, warehouses, warehousesLoaded]);
 
 const warehouseSummary = useMemo(() => {
 return warehouseOptions.map((warehouse) => {
-const warehouseItems = items.filter((item) => item.warehouseCode === warehouse.code);
+const assignedItems = warehouseItems.filter((item) => item.warehouseCode === warehouse.code);
 const categoryCounts = Array.from(
-warehouseItems.reduce((categories, item) => {
+assignedItems.reduce((categories, item) => {
 const category = item.category || "General";
 categories.set(category, (categories.get(category) || 0) + 1);
 return categories;
 }, new Map())
 ).map(([name, count]) => ({ name, count }));
-const totals = warehouseItems.reduce(
+const totals = assignedItems.reduce(
 (summary, item) => {
-const available = item.availableQuantity - item.reservedQuantity;
-summary.stock += item.availableQuantity;
+const available = item.availableQuantity;
+summary.stock += item.availableQuantity + item.reservedQuantity;
 summary.reserved += item.reservedQuantity;
 summary.available += available;
 if (available <= item.reorderLevel) summary.critical += 1;
@@ -197,13 +228,13 @@ return summary;
 return {
 ...warehouse,
 ...totals,
-items: warehouseItems.length,
+items: assignedItems.length,
 categories: categoryCounts,
-products: [...warehouseItems]
+products: [...assignedItems]
 .map((item) => ({
 ...item,
-availableVisual: item.availableQuantity - item.reservedQuantity,
-isCriticalVisual: item.availableQuantity - item.reservedQuantity <= item.reorderLevel,
+availableVisual: item.availableQuantity,
+isCriticalVisual: item.availableQuantity <= item.reorderLevel,
 }))
 .sort((left, right) => {
 if (left.isCriticalVisual !== right.isCriticalVisual) {
@@ -214,12 +245,14 @@ return left.productName.localeCompare(right.productName);
 }),
 };
 });
-}, [items, warehouseOptions]);
+}, [warehouseItems, warehouseOptions]);
 
 const filteredItems = useMemo(() => {
 return items.filter((item) => {
 const matchesCategory = !categoryFilter || (item.category || "General") === categoryFilter;
-const matchesWarehouse = !warehouseFilter || item.warehouseCode === warehouseFilter;
+const matchesWarehouse = !warehouseFilter
+|| item.stocks?.some((stock) => stock.warehouseCode === warehouseFilter)
+|| item.warehouseCode === warehouseFilter;
 return matchesCategory && matchesWarehouse;
 });
 }, [categoryFilter, items, warehouseFilter]);
@@ -229,7 +262,7 @@ const cleanSearch = warehouseSearch.trim();
 
 if (!cleanSearch) return [];
 
-return items
+return warehouseItems
 .filter((item) => productMatchesSearch(item, cleanSearch))
 .map((item) => ({
 ...item,
@@ -245,7 +278,7 @@ if (leftAvailable !== rightAvailable) return rightAvailable - leftAvailable;
 return left.productName.localeCompare(right.productName);
 })
 .slice(0, 8);
-}, [items, warehouseSearch]);
+}, [warehouseItems, warehouseSearch]);
 
 function showPageError(message) {
 setError(message);
@@ -502,14 +535,10 @@ setError("");
 
 if (editingSku) {
 const currentItem = items.find((item) => item.sku === editingSku);
-const reservedQuantity = Number(currentItem?.reservedQuantity || 0);
-
-if (parsedQuantity < reservedQuantity) {
-showPageError(
-`No puedes dejar el stock en ${parsedQuantity}, porque ya existen ${reservedQuantity} unidades reservadas.`
+const currentStock = currentItem?.stocks?.find(
+(stock) => stock.warehouseCode === cleanWarehouseCode
 );
-return;
-}
+const reservedQuantity = Number(currentStock?.reservedQuantity || 0);
 
 await editInventoryItem(editingSku, {
 productName: cleanProductName,
@@ -587,7 +616,8 @@ return;
 }
 
 setEditingSku(item.sku);
-const location = getProductStorageLocation(item);
+const primaryStock = item.stocks?.[0] || item;
+const location = getProductStorageLocation(primaryStock);
 
 setFormData({
 sku: item.sku,
@@ -595,14 +625,14 @@ productName: item.productName,
 imageUrl: item.imageUrl || "",
 category: item.category || "General",
 salePrice: String(item.salePrice || ""),
-warehouseCode: item.warehouseCode,
-locationZone: item.locationZone || location.zone,
-locationAisle: item.locationAisle || location.aisle,
-locationRack: String(item.locationRack || location.rack),
-locationLevel: String(item.locationLevel || location.level),
-locationPosition: String(item.locationPosition || location.position),
-initialQuantity: String(item.availableQuantity),
-reorderLevel: String(item.reorderLevel),
+warehouseCode: primaryStock.warehouseCode,
+locationZone: primaryStock.locationZone || location.zone,
+locationAisle: primaryStock.locationAisle || location.aisle,
+locationRack: String(primaryStock.locationRack || location.rack),
+locationLevel: String(primaryStock.locationLevel || location.level),
+locationPosition: String(primaryStock.locationPosition || location.position),
+initialQuantity: String(primaryStock.availableQuantity),
+reorderLevel: String(primaryStock.reorderLevel),
 });
 }
 
@@ -640,7 +670,8 @@ setDeleting(false);
 }
 
 async function handleOpenDetail(item) {
-setDetailItem(item);
+const product = items.find((candidate) => candidate.sku === item.sku) || item;
+setDetailItem(product);
 setDetailMovements([]);
 setDetailError("");
 
@@ -653,7 +684,7 @@ setDetailLoading(true);
 
 try {
 const data = await fetchInventoryMovements({
-product: item.sku,
+product: product.sku,
 page: 0,
 size: 5,
 sort: "createdAt,desc",
@@ -675,57 +706,63 @@ setDetailMovements([]);
 setDetailError("");
 }
 
-async function handleTransferProduct(item, transferData) {
+async function handleSaveProductStock(item, stockData) {
 if (!canManageInventory) {
-showPageError("No tienes permisos para trasladar inventario.");
+showPageError("No tienes permisos para administrar existencias.");
 return;
 }
 
-const destinationWarehouse = transferData.warehouseCode.trim();
-const destinationZone = transferData.locationZone.trim();
-const destinationAisle = transferData.locationAisle.trim();
-const destinationRack = Number(transferData.locationRack);
-const destinationLevel = Number(transferData.locationLevel);
-const destinationPosition = Number(transferData.locationPosition);
+const warehouseCode = stockData.warehouseCode.trim();
+const locationZone = stockData.locationZone.trim();
+const locationAisle = stockData.locationAisle.trim();
+const locationRack = Number(stockData.locationRack);
+const locationLevel = Number(stockData.locationLevel);
+const locationPosition = Number(stockData.locationPosition);
+const availableQuantity = Number(stockData.availableQuantity);
+const reorderLevel = Number(stockData.reorderLevel);
 
-if (!destinationWarehouse) {
-showPageError("Selecciona una bodega destino.");
+if (!warehouseCode) {
+showPageError("Selecciona una bodega.");
 return;
 }
 
-if (!destinationZone || !destinationAisle) {
-showPageError("Ingresa zona y pasillo de destino.");
+if (!locationZone || !locationAisle) {
+showPageError("Ingresa zona y pasillo de la existencia.");
 return;
 }
 
 if (
-!Number.isInteger(destinationRack) ||
-destinationRack <= 0 ||
-!Number.isInteger(destinationLevel) ||
-destinationLevel <= 0 ||
-!Number.isInteger(destinationPosition) ||
-destinationPosition <= 0
+!Number.isInteger(locationRack) ||
+locationRack <= 0 ||
+!Number.isInteger(locationLevel) ||
+locationLevel <= 0 ||
+!Number.isInteger(locationPosition) ||
+locationPosition <= 0
 ) {
 showPageError("Rack, nivel y posicion deben ser numeros enteros mayores a 0.");
 return;
 }
 
+if (!Number.isInteger(availableQuantity) || availableQuantity < 0) {
+showPageError("El stock disponible debe ser un entero mayor o igual a 0.");
+return;
+}
+
+if (!Number.isInteger(reorderLevel) || reorderLevel < 0) {
+showPageError("El nivel de reposicion debe ser un entero mayor o igual a 0.");
+return;
+}
+
 try {
-setTransferringSku(item.sku);
-await editInventoryItem(item.sku, {
-productName: item.productName,
-imageUrl: item.imageUrl || "",
-category: item.category || "General",
-salePrice: item.salePrice,
-warehouseCode: destinationWarehouse,
-locationZone: destinationZone.toUpperCase(),
-locationAisle: destinationAisle.toUpperCase(),
-locationRack: destinationRack,
-locationLevel: destinationLevel,
-locationPosition: destinationPosition,
-availableQuantity: item.availableQuantity,
-reservedQuantity: item.reservedQuantity,
-reorderLevel: item.reorderLevel,
+setSavingStockKey(`${item.sku}:${warehouseCode}`);
+await saveInventoryStock(item.sku, warehouseCode, {
+locationZone: locationZone.toUpperCase(),
+locationAisle: locationAisle.toUpperCase(),
+locationRack,
+locationLevel,
+locationPosition,
+availableQuantity,
+reorderLevel,
 });
 
 const data = await getInventoryItemsWithAvailable();
@@ -733,29 +770,57 @@ setItems(data);
 const updatedItem = data.find((candidate) => candidate.sku === item.sku);
 if (updatedItem) {
 setDetailItem(updatedItem);
-setWarehouseFilter(destinationWarehouse);
+setWarehouseFilter(warehouseCode);
 setFocusedWarehouseSku(updatedItem.sku);
 }
 if (canViewAudit) {
 await loadAuditLogs();
 }
-showPageSuccess(`${item.productName} trasladado a ${destinationWarehouse}.`);
+showPageSuccess(`Existencia de ${item.productName} guardada en ${warehouseCode}.`);
 } catch (err) {
 console.error(err);
-showPageError("No se pudo trasladar el producto.");
+showPageError(err.response?.data?.message || "No se pudo guardar la existencia.");
 } finally {
-setTransferringSku("");
+setSavingStockKey("");
+}
+}
+
+async function handleDeleteProductStock(item, warehouseCode) {
+if (!canDeleteInventory) {
+showPageError("Solo un administrador puede quitar existencias de una bodega.");
+return;
+}
+
+try {
+setDeletingStockKey(`${item.sku}:${warehouseCode}`);
+await removeInventoryStock(item.sku, warehouseCode);
+const data = await getInventoryItemsWithAvailable();
+setItems(data);
+const updatedItem = data.find((candidate) => candidate.sku === item.sku);
+if (updatedItem) setDetailItem(updatedItem);
+if (warehouseFilter === warehouseCode && !updatedItem?.stocks?.some(
+(stock) => stock.warehouseCode === warehouseCode
+)) {
+setWarehouseFilter("");
+}
+if (canViewAudit) await loadAuditLogs();
+showPageSuccess(`Existencia de ${item.productName} eliminada de ${warehouseCode}.`);
+} catch (err) {
+console.error(err);
+showPageError(err.response?.data?.message || "No se pudo eliminar la existencia.");
+} finally {
+setDeletingStockKey("");
 }
 }
 
 return (
-<div className="min-h-screen bg-slate-950 p-6 text-white">
+<div className="min-h-screen bg-slate-950 p-2 text-white sm:p-6">
 <ToastStack onDismiss={dismissToast} toasts={toasts} />
 <PageContainer>
 <div className="rounded-3xl overflow-hidden border border-white/10 shadow-2xl">
 <Navbar />
 
-<section className="bg-gradient-to-br from-slate-900 via-slate-900 to-indigo-950 p-8">
+<section className="bg-gradient-to-br from-slate-900 via-slate-900 to-indigo-950 p-4 sm:p-8">
 <div className="flex justify-between items-start mb-8">
 <div>
 <h1 className="text-4xl font-black mb-2">Inventario</h1>
@@ -880,7 +945,8 @@ name="warehouseCode"
 value={formData.warehouseCode}
 onChange={handleChange}
 required
-className="bg-slate-950/80 border border-white/10 text-white rounded-xl px-4 py-3 focus:ring-2 focus:ring-indigo-400 outline-none"
+disabled={Boolean(editingSku)}
+className="bg-slate-950/80 border border-white/10 text-white rounded-xl px-4 py-3 focus:ring-2 focus:ring-indigo-400 outline-none disabled:cursor-not-allowed disabled:opacity-60"
 >
 {warehouseOptions.map((warehouse) => (
 <option key={warehouse.code} value={warehouse.code} disabled={warehouse.active === false}>
@@ -1005,7 +1071,7 @@ fallback={
 }
 >
 <Warehouse3DExplorer
-items={items}
+items={warehouseItems}
 onOpenDetail={handleOpenDetail}
 onSelectWarehouse={setWarehouseFilter}
 selectedWarehouse={warehouseFilter}
@@ -1137,7 +1203,7 @@ className="border-b border-white/10 hover:bg-white/5 transition"
 </td>
 <td className="p-4">
 <span className="rounded-full bg-indigo-500/15 px-3 py-1 text-sm font-bold text-indigo-200">
-{item.warehouseCode}
+{item.stocks?.length || 1} bodega(s)
 </span>
 </td>
 <td className="p-4">
@@ -1148,11 +1214,11 @@ className="border-b border-white/10 hover:bg-white/5 transition"
 <span className="text-xs font-semibold text-slate-400">{location.label}</span>
 </div>
 </td>
-<td className="p-4">{item.availableQuantity}</td>
+<td className="p-4">{item.availableQuantity + item.reservedQuantity}</td>
 <td className="p-4">{item.reservedQuantity}</td>
 <td className="p-4">
 <span className="rounded-full bg-emerald-500/20 text-emerald-300 px-3 py-1 font-bold">
-{item.availableQuantity - item.reservedQuantity}
+{item.availableQuantity}
 </span>
 </td>
 <td className="p-4">
@@ -1234,9 +1300,12 @@ movements={detailMovements}
 loading={detailLoading}
 error={detailError}
 canManageInventory={canManageInventory}
+canDeleteInventory={canDeleteInventory}
 canViewMovements={canViewMovements}
-onTransfer={handleTransferProduct}
-transferring={transferringSku === detailItem.sku}
+onSaveStock={handleSaveProductStock}
+onDeleteStock={handleDeleteProductStock}
+savingStockKey={savingStockKey}
+deletingStockKey={deletingStockKey}
 warehouseOptions={warehouseOptions}
 onClose={handleCloseDetail}
 />
@@ -1340,7 +1409,7 @@ Todavia no hay eventos de auditoria.
 
 function WarehouseSummaryPanel({ onSelectWarehouse, selectedWarehouse, summary }) {
 return (
-<section className="mb-8 rounded-3xl border border-white/10 bg-slate-800/80 p-6">
+<section className="mb-8 rounded-3xl border border-white/10 bg-slate-800/80 p-3 sm:p-6">
 <div className="mb-5 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
 <div>
 <h2 className="text-2xl font-black">Stock por bodega</h2>
@@ -1498,7 +1567,7 @@ No se encontraron productos con ese nombre, SKU o ubicacion.
 <div className="grid gap-3 xl:grid-cols-2">
 {locationResults.map((item) => (
 <LocationResultCard
-key={`location-${item.sku}`}
+key={`location-${item.sku}-${item.warehouseCode}`}
 item={item}
 isFocused={focusedSku === item.sku}
 onLocateProduct={onLocateProduct}
@@ -1614,7 +1683,7 @@ const visibleProducts = locationSearch
 : warehouse.products;
 
 return (
-<article className="rounded-2xl border border-white/10 bg-slate-950/35 p-5">
+<article className="rounded-2xl border border-white/10 bg-slate-950/35 p-3 sm:p-5">
 <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
 <div>
 <div className="flex flex-wrap items-center gap-2">
@@ -1712,7 +1781,7 @@ function WarehouseProductRow({ isFocused, item, onOpenDetail, onOpenLabel }) {
 const location = getProductStorageLocation(item);
 
 return (
-<div className={`rounded-2xl border p-4 ${
+<div className={`rounded-2xl border p-3 sm:p-4 ${
 isFocused
 ? "border-sky-300/70 bg-sky-500/10 shadow-lg shadow-sky-950/30"
 :
@@ -1734,8 +1803,8 @@ item.isCriticalVisual
 </div>
 </div>
 
-<div className="grid grid-cols-4 gap-2 text-center text-xs lg:min-w-[340px]">
-<WarehouseMiniStock label="Stock" value={item.availableQuantity} />
+<div className="grid grid-cols-2 gap-2 text-center text-xs sm:grid-cols-4 lg:min-w-[340px]">
+<WarehouseMiniStock label="Stock" value={item.availableQuantity + item.reservedQuantity} />
 <WarehouseMiniStock label="Reservado" value={item.reservedQuantity} tone="warning" />
 <WarehouseMiniStock label="Disponible" value={item.availableVisual} tone={item.isCriticalVisual ? "warning" : "success"} />
 <WarehouseMiniStock label="Slot" value={location.shortLabel} tone="success" />
@@ -1787,7 +1856,7 @@ return (
 }
 
 function DeleteProductModal({ deleting, item, onCancel, onConfirm }) {
-const available = item.availableQuantity - item.reservedQuantity;
+const available = item.availableQuantity;
 
 return (
 <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm">
@@ -1817,7 +1886,7 @@ Esta accion eliminara el producto del inventario y quedara registrada en auditor
 <div className="mt-4 grid grid-cols-3 gap-3 text-center text-sm">
 <div className="rounded-xl bg-white/5 p-3">
 <p className="text-xs font-black uppercase text-slate-500">Stock</p>
-<p className="mt-1 text-xl font-black">{item.availableQuantity}</p>
+<p className="mt-1 text-xl font-black">{item.availableQuantity + item.reservedQuantity}</p>
 </div>
 <div className="rounded-xl bg-white/5 p-3">
 <p className="text-xs font-black uppercase text-slate-500">Reservado</p>
@@ -1973,7 +2042,7 @@ loading="lazy"
 }
 
 function SkuLabelModal({ item, onClose }) {
-const available = item.availableQuantity - item.reservedQuantity;
+const available = item.availableQuantity;
 const location = getProductStorageLocation(item);
 
 return (
@@ -2023,17 +2092,20 @@ Imprimir etiqueta
 
 function ProductDetailModal({
 canManageInventory,
+canDeleteInventory,
 canViewMovements,
 item,
 movements,
 loading,
 error,
 onClose,
-onTransfer,
-transferring,
+onSaveStock,
+onDeleteStock,
+savingStockKey,
+deletingStockKey,
 warehouseOptions,
 }) {
-const available = item.availableQuantity - item.reservedQuantity;
+const available = item.availableQuantity;
 const isLowStock = available <= item.reorderLevel;
 const location = getProductStorageLocation(item);
 
@@ -2093,10 +2165,10 @@ Sin imagen
 <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
 <DetailMetric label="SKU" value={item.sku} />
 <DetailMetric label="Categoria" value={item.category || "General"} />
-<DetailMetric label="Bodega" value={item.warehouseCode} />
+<DetailMetric label="Bodegas" value={item.stocks?.length || 1} />
 <DetailMetric label="Ubicacion" value={location.shortLabel} />
 <DetailMetric label="Detalle ubicacion" value={location.label} />
-<DetailMetric label="Stock total" value={item.availableQuantity} />
+<DetailMetric label="Stock total" value={item.availableQuantity + item.reservedQuantity} />
 <DetailMetric label="Precio venta" value={new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(item.salePrice || 0)} />
 <DetailMetric label="Reservado" value={item.reservedQuantity} />
 <DetailMetric label="Disponible" value={available} tone={isLowStock ? "warning" : "success"} />
@@ -2104,11 +2176,14 @@ Sin imagen
 </div>
 
 {canManageInventory && (
-<TransferProductPanel
+<WarehouseStockEditor
 item={item}
 location={location}
-onTransfer={onTransfer}
-transferring={transferring}
+canDelete={canDeleteInventory}
+onSave={onSaveStock}
+onDelete={onDeleteStock}
+savingStockKey={savingStockKey}
+deletingStockKey={deletingStockKey}
 warehouseOptions={warehouseOptions}
 />
 )}
@@ -2169,6 +2244,7 @@ className="grid gap-3 rounded-2xl border border-white/10 bg-slate-900/80 p-4 sm:
 <p className="font-bold text-white">{movement.reason || "Movimiento de inventario"}</p>
 <p className="mt-1 text-sm font-semibold text-slate-400">
 {formatMovementDate(movement.createdAt)} · {movement.username || "system"}
+{movement.warehouseCode ? ` · ${movement.warehouseCode}` : ""}
 </p>
 </div>
 <div className="text-left sm:text-right">
@@ -2192,81 +2268,184 @@ className="grid gap-3 rounded-2xl border border-white/10 bg-slate-900/80 p-4 sm:
 );
 }
 
-function TransferProductPanel({ item, location, onTransfer, transferring, warehouseOptions }) {
-const defaultWarehouseCode = warehouseOptions[0]?.code || "";
-const [transferData, setTransferData] = useState(() => ({
-warehouseCode: item.warehouseCode || warehouseOptions[0]?.code || "",
-locationZone: item.locationZone || location.zone,
-locationAisle: item.locationAisle || location.aisle,
-locationRack: String(item.locationRack || location.rack),
-locationLevel: String(item.locationLevel || location.level),
-locationPosition: String(item.locationPosition || location.position),
-}));
+function WarehouseStockEditor({
+canDelete,
+deletingStockKey,
+item,
+location,
+onDelete,
+onSave,
+savingStockKey,
+warehouseOptions,
+}) {
+const stocks = item.stocks?.length
+? item.stocks
+: [{
+warehouseCode: item.warehouseCode,
+warehouseName: item.warehouseCode,
+warehouseCity: "",
+locationZone: item.locationZone,
+locationAisle: item.locationAisle,
+locationRack: item.locationRack,
+locationLevel: item.locationLevel,
+locationPosition: item.locationPosition,
+availableQuantity: item.availableQuantity,
+reservedQuantity: item.reservedQuantity,
+reorderLevel: item.reorderLevel,
+}];
+const initialWarehouseCode = stocks[0]?.warehouseCode || warehouseOptions[0]?.code || "";
+const [selectedWarehouseCode, setSelectedWarehouseCode] = useState(initialWarehouseCode);
+const [confirmDeleteCode, setConfirmDeleteCode] = useState("");
+
+function createFormData(warehouseCode) {
+const stock = stocks.find((candidate) => candidate.warehouseCode === warehouseCode);
+return {
+warehouseCode,
+locationZone: stock?.locationZone || item.category?.slice(0, 1).toUpperCase() || location.zone,
+locationAisle: stock?.locationAisle || "A",
+locationRack: String(stock?.locationRack || 1),
+locationLevel: String(stock?.locationLevel || 1),
+locationPosition: String(stock?.locationPosition || 1),
+availableQuantity: String(stock?.availableQuantity ?? 0),
+reorderLevel: String(stock?.reorderLevel ?? 0),
+};
+}
+
+const [stockData, setStockData] = useState(() => createFormData(initialWarehouseCode));
 
 useEffect(() => {
-setTransferData({
-warehouseCode: item.warehouseCode || warehouseOptions[0]?.code || "",
-locationZone: item.locationZone || location.zone,
-locationAisle: item.locationAisle || location.aisle,
-locationRack: String(item.locationRack || location.rack),
-locationLevel: String(item.locationLevel || location.level),
-locationPosition: String(item.locationPosition || location.position),
-});
-}, [
-defaultWarehouseCode,
-item.locationAisle,
-item.locationLevel,
-item.locationPosition,
-item.locationRack,
-item.locationZone,
-item.sku,
-item.warehouseCode,
-location.aisle,
-location.level,
-location.position,
-location.rack,
-location.zone,
-]);
+const nextWarehouseCode = stocks.some(
+(stock) => stock.warehouseCode === selectedWarehouseCode
+)
+? selectedWarehouseCode
+: stocks[0]?.warehouseCode || warehouseOptions[0]?.code || "";
+setSelectedWarehouseCode(nextWarehouseCode);
+setStockData(createFormData(nextWarehouseCode));
+setConfirmDeleteCode("");
+}, [item, warehouseOptions]);
+
+function handleWarehouseChange(event) {
+const warehouseCode = event.target.value;
+setSelectedWarehouseCode(warehouseCode);
+setStockData(createFormData(warehouseCode));
+setConfirmDeleteCode("");
+}
 
 function handleChange(event) {
 const { name, value } = event.target;
-setTransferData((current) => ({
-...current,
-[name]: value,
-}));
+setStockData((current) => ({ ...current, [name]: value }));
 }
 
 function handleSubmit(event) {
 event.preventDefault();
-onTransfer(item, transferData);
+onSave(item, stockData);
 }
 
 const selectedWarehouse = warehouseOptions.find(
-(warehouse) => warehouse.code === transferData.warehouseCode
+(warehouse) => warehouse.code === selectedWarehouseCode
 );
+const operationKey = `${item.sku}:${selectedWarehouseCode}`;
 
 return (
-<form
-onSubmit={handleSubmit}
-className="rounded-2xl border border-sky-300/20 bg-sky-500/10 p-5"
->
+<section className="rounded-2xl border border-sky-300/20 bg-sky-500/10 p-5">
 <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
 <div>
-<h3 className="text-xl font-black">Traslado entre bodegas</h3>
+<h3 className="text-xl font-black">Existencias por bodega</h3>
 <p className="mt-1 text-sm font-semibold text-slate-400">
-Actualiza la bodega y posicion fisica sin modificar stock ni reservas.
+El stock disponible se administra por ubicacion. Las reservas solo cambian mediante pedidos.
 </p>
 </div>
 <span className="rounded-full bg-slate-950/70 px-3 py-1 text-xs font-black text-sky-200">
-{selectedWarehouse?.city || "Destino"}
+{stocks.length} bodega(s)
 </span>
 </div>
 
-<div className="grid gap-3 md:grid-cols-3">
+<div className="mb-5 space-y-2">
+{stocks.map((stock) => {
+const key = `${item.sku}:${stock.warehouseCode}`;
+const isSelected = selectedWarehouseCode === stock.warehouseCode;
+const isDeleting = deletingStockKey === key;
+const cannotDelete = stocks.length <= 1 || Number(stock.reservedQuantity || 0) > 0;
+return (
+<div
+key={stock.warehouseCode}
+className={`border p-4 ${
+isSelected ? "border-sky-300/60 bg-sky-500/10" : "border-white/10 bg-slate-950/45"
+}`}
+>
+<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+<button
+type="button"
+onClick={() => {
+setSelectedWarehouseCode(stock.warehouseCode);
+setStockData(createFormData(stock.warehouseCode));
+setConfirmDeleteCode("");
+}}
+className="min-w-0 text-left"
+>
+<p className="font-black text-white">{stock.warehouseCode} · {stock.warehouseName || "Bodega"}</p>
+<p className="mt-1 text-xs font-bold text-slate-400">
+{stock.locationAisle}-{stock.locationRack}-{stock.locationLevel}-{stock.locationPosition}
+{stock.warehouseCity ? ` · ${stock.warehouseCity}` : ""}
+</p>
+</button>
+<div className="grid grid-cols-3 gap-2 text-center sm:min-w-[280px]">
+<WarehouseMiniStock label="Disponible" value={stock.availableQuantity} tone="success" />
+<WarehouseMiniStock label="Reservado" value={stock.reservedQuantity} tone="warning" />
+<WarehouseMiniStock label="Reposicion" value={stock.reorderLevel} />
+</div>
+</div>
+
+{canDelete && confirmDeleteCode === stock.warehouseCode && (
+<div className="mt-3 flex flex-col gap-2 border-t border-white/10 pt-3 sm:flex-row sm:items-center sm:justify-between">
+<p className="text-sm font-bold text-red-200">Quitar esta existencia de la bodega?</p>
+<div className="flex gap-2">
+<button
+type="button"
+onClick={() => setConfirmDeleteCode("")}
+className="bg-white/10 px-3 py-2 text-xs font-black text-white hover:bg-white/20"
+>
+Cancelar
+</button>
+<button
+type="button"
+onClick={() => onDelete(item, stock.warehouseCode)}
+disabled={isDeleting}
+className="bg-red-500 px-3 py-2 text-xs font-black text-white hover:bg-red-400 disabled:opacity-60"
+>
+{isDeleting ? "Quitando..." : "Confirmar"}
+</button>
+</div>
+</div>
+)}
+
+{canDelete && confirmDeleteCode !== stock.warehouseCode && (
+<button
+type="button"
+onClick={() => setConfirmDeleteCode(stock.warehouseCode)}
+disabled={cannotDelete}
+title={
+stocks.length <= 1
+? "El producto debe conservar al menos una bodega"
+: Number(stock.reservedQuantity || 0) > 0
+? "Primero deben liberarse las unidades reservadas"
+: "Quitar existencia"
+}
+className="mt-3 text-xs font-black text-red-300 hover:text-red-200 disabled:cursor-not-allowed disabled:text-slate-600"
+>
+Quitar existencia
+</button>
+)}
+</div>
+);
+})}
+</div>
+
+<form onSubmit={handleSubmit} className="grid gap-3 md:grid-cols-3">
 <select
 name="warehouseCode"
-value={transferData.warehouseCode}
-onChange={handleChange}
+value={selectedWarehouseCode}
+onChange={handleWarehouseChange}
 className="rounded-xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm font-black text-white outline-none focus:ring-2 focus:ring-sky-400 md:col-span-3"
 >
 {warehouseOptions.map((warehouse) => (
@@ -2276,25 +2455,27 @@ className="rounded-xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm f
 ))}
 </select>
 
-<TransferInput label="Zona" name="locationZone" value={transferData.locationZone} onChange={handleChange} />
-<TransferInput label="Pasillo" name="locationAisle" value={transferData.locationAisle} onChange={handleChange} />
-<TransferInput label="Rack" name="locationRack" value={transferData.locationRack} onChange={handleChange} type="number" />
-<TransferInput label="Nivel" name="locationLevel" value={transferData.locationLevel} onChange={handleChange} type="number" />
-<TransferInput label="Posicion" name="locationPosition" value={transferData.locationPosition} onChange={handleChange} type="number" />
+<StockInput label="Zona" name="locationZone" value={stockData.locationZone} onChange={handleChange} />
+<StockInput label="Pasillo" name="locationAisle" value={stockData.locationAisle} onChange={handleChange} />
+<StockInput label="Rack" name="locationRack" value={stockData.locationRack} onChange={handleChange} type="number" />
+<StockInput label="Nivel" name="locationLevel" value={stockData.locationLevel} onChange={handleChange} type="number" />
+<StockInput label="Posicion" name="locationPosition" value={stockData.locationPosition} onChange={handleChange} type="number" />
+<StockInput label="Disponible" name="availableQuantity" value={stockData.availableQuantity} onChange={handleChange} type="number" min="0" />
+<StockInput label="Reposicion" name="reorderLevel" value={stockData.reorderLevel} onChange={handleChange} type="number" min="0" />
 
 <button
 type="submit"
-disabled={transferring}
-className="rounded-xl bg-sky-500 px-4 py-3 text-sm font-black text-white transition hover:bg-sky-400 disabled:cursor-not-allowed disabled:opacity-60"
+disabled={savingStockKey === operationKey || selectedWarehouse?.active === false}
+className="rounded-xl bg-sky-500 px-4 py-3 text-sm font-black text-white transition hover:bg-sky-400 disabled:cursor-not-allowed disabled:opacity-60 md:col-span-2"
 >
-{transferring ? "Trasladando..." : "Trasladar producto"}
+{savingStockKey === operationKey ? "Guardando..." : "Guardar existencia"}
 </button>
-</div>
 </form>
+</section>
 );
 }
 
-function TransferInput({ label, name, onChange, type = "text", value }) {
+function StockInput({ label, min, name, onChange, type = "text", value }) {
 return (
 <label className="block">
 <span className="mb-1 block text-xs font-black uppercase text-slate-500">{label}</span>
@@ -2303,7 +2484,7 @@ type={type}
 name={name}
 value={value}
 onChange={onChange}
-min={type === "number" ? "1" : undefined}
+min={type === "number" ? min ?? "1" : undefined}
 className="w-full rounded-xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm font-black text-white outline-none focus:ring-2 focus:ring-sky-400"
 />
 </label>
@@ -2382,7 +2563,7 @@ loading="lazy"
 }
 
 function StockBadge({ item }) {
-const available = item.availableQuantity - item.reservedQuantity;
+const available = item.availableQuantity;
 const isLowStock = available <= item.reorderLevel;
 
 if (isLowStock) {

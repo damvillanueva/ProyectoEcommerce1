@@ -27,7 +27,7 @@ function hashText(value) {
 }
 
 export function getAvailableUnits(item) {
-  return Number(item?.availableQuantity || 0) - Number(item?.reservedQuantity || 0);
+  return Number(item?.availableQuantity || 0);
 }
 
 export function getWarehouseMeta(code) {

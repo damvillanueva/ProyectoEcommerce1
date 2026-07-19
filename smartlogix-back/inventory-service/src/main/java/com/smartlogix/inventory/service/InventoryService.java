@@ -2,18 +2,20 @@ package com.smartlogix.inventory.service;
 
 import com.smartlogix.inventory.domain.ActionType;
 import com.smartlogix.inventory.domain.InventoryItem;
+import com.smartlogix.inventory.domain.InventoryStock;
 import com.smartlogix.inventory.domain.MovementType;
-import com.smartlogix.inventory.domain.Warehouse;
 import com.smartlogix.inventory.dto.CatalogProductResponse;
 import com.smartlogix.inventory.dto.CreateInventoryItemRequest;
-import com.smartlogix.inventory.dto.UpdateInventoryItemRequest;
 import com.smartlogix.inventory.dto.InventoryAvailabilityResponse;
 import com.smartlogix.inventory.dto.InventoryItemResponse;
+import com.smartlogix.inventory.dto.UpdateInventoryItemRequest;
+import com.smartlogix.inventory.dto.UpsertInventoryStockRequest;
 import com.smartlogix.inventory.exception.InventoryNotFoundException;
 import com.smartlogix.inventory.exception.InventoryOperationException;
 import com.smartlogix.inventory.repository.InventoryItemRepository;
 import io.micrometer.core.instrument.MeterRegistry;
 import java.util.List;
+import java.util.Locale;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -29,19 +31,19 @@ public class InventoryService {
     private final InventoryItemRepository repository;
     private final InventoryMovementService movementService;
     private final InventoryAuditLogService auditLogService;
-    private final WarehouseService warehouseService;
+    private final InventoryStockService stockService;
     private MeterRegistry meterRegistry;
 
     public InventoryService(
             InventoryItemRepository repository,
             InventoryMovementService movementService,
             InventoryAuditLogService auditLogService,
-            WarehouseService warehouseService
+            InventoryStockService stockService
     ) {
         this.repository = repository;
         this.movementService = movementService;
         this.auditLogService = auditLogService;
-        this.warehouseService = warehouseService;
+        this.stockService = stockService;
     }
 
     @Autowired
@@ -50,91 +52,80 @@ public class InventoryService {
     }
 
     public InventoryItemResponse createItem(CreateInventoryItemRequest request) {
-        String normalizedSku = request.sku().trim().toUpperCase();
+        String normalizedSku = normalizeSku(request.sku());
         if (repository.existsBySku(normalizedSku)) {
             throw new InventoryOperationException("El SKU ya existe: " + normalizedSku);
         }
 
-        Warehouse warehouse = warehouseService.loadActiveWarehouse(request.warehouseCode());
-
         InventoryItem item = new InventoryItem();
         item.setSku(normalizedSku);
-        item.setProductName(request.productName().trim());
-        item.setImageUrl(normalizeImageUrl(request.imageUrl()));
-        item.setCategory(normalizeCategory(request.category()));
-        item.setBrand(normalizeOptionalText(request.brand(), "SmartLogix"));
-        item.setShortDescription(normalizeOptionalText(request.shortDescription(), request.productName().trim()));
-        item.setSalePrice(request.salePrice());
-        item.setOriginalPrice(request.originalPrice() == null ? request.salePrice() : request.originalPrice());
-        item.setFeatured(Boolean.TRUE.equals(request.featured()));
-        item.setFastShipping(Boolean.TRUE.equals(request.fastShipping()));
-        item.setFreeShipping(Boolean.TRUE.equals(request.freeShipping()));
-        item.setStorePickup(request.storePickup() == null || request.storePickup());
-        item.setWarehouseCode(warehouse.getCode());
-        applyLocation(
+        applyProductData(
                 item,
+                request.productName(),
+                request.imageUrl(),
+                request.category(),
+                request.brand(),
+                request.shortDescription(),
+                request.salePrice(),
+                request.originalPrice(),
+                request.featured(),
+                request.fastShipping(),
+                request.freeShipping(),
+                request.storePickup()
+        );
+
+        InventoryStock initialStock = stockService.createInitialStock(
+                item,
+                request.warehouseCode(),
                 request.locationZone(),
                 request.locationAisle(),
                 request.locationRack(),
                 request.locationLevel(),
-                request.locationPosition()
+                request.locationPosition(),
+                request.initialQuantity(),
+                request.reorderLevel()
         );
-        warehouseService.validateLocation(
-                warehouse,
-                item.getLocationAisle(),
-                item.getLocationRack(),
-                item.getLocationLevel(),
-                item.getLocationPosition()
-        );
-        item.setAvailableQuantity(request.initialQuantity());
-        item.setReservedQuantity(0);
-        item.setReorderLevel(request.reorderLevel());
+        InventoryItem savedItem = initialStock.getItem();
 
-        InventoryItem savedItem = repository.save(item);
         movementService.recordMovement(
                 savedItem,
+                initialStock.getWarehouse().getCode(),
                 MovementType.ENTRY,
                 ActionType.CREATE_PRODUCT,
-                savedItem.getAvailableQuantity(),
+                initialStock.getAvailableQuantity(),
                 0,
-                savedItem.getAvailableQuantity(),
+                initialStock.getAvailableQuantity(),
                 "Producto creado"
         );
         auditLogService.record(
                 "CREATE_PRODUCT",
                 savedItem.getSku(),
                 savedItem.getProductName(),
-                "Producto creado con stock inicial " + savedItem.getAvailableQuantity()
+                "Producto creado con stock inicial " + initialStock.getAvailableQuantity()
         );
-        increment("smartlogix.inventory.products.added", "warehouse", savedItem.getWarehouseCode());
+        increment("smartlogix.inventory.products.added", "warehouse", initialStock.getWarehouse().getCode());
         log.info(
                 "inventory_product_created sku={} warehouse={} available={}",
                 savedItem.getSku(),
-                savedItem.getWarehouseCode(),
-                savedItem.getAvailableQuantity()
+                initialStock.getWarehouse().getCode(),
+                initialStock.getAvailableQuantity()
         );
-
         return toResponse(savedItem);
     }
 
     @Transactional(readOnly = true)
     public List<InventoryItemResponse> findAll() {
-        return repository.findAll().stream()
-                .map(this::toResponse)
-                .toList();
+        return repository.findAll().stream().map(this::toResponse).toList();
     }
 
     @Transactional(readOnly = true)
     public InventoryItemResponse findBySku(String sku) {
-        InventoryItem item = loadBySku(sku);
-        return toResponse(item);
+        return toResponse(loadBySku(sku));
     }
 
     @Transactional(readOnly = true)
     public List<CatalogProductResponse> findCatalogProducts() {
-        return repository.findAll().stream()
-                .map(this::toCatalogResponse)
-                .toList();
+        return repository.findAll().stream().map(this::toCatalogResponse).toList();
     }
 
     @Transactional(readOnly = true)
@@ -145,115 +136,292 @@ public class InventoryService {
     @Transactional(readOnly = true)
     public InventoryAvailabilityResponse checkAvailability(String sku, int quantity) {
         InventoryItem item = loadBySku(sku);
-        boolean available = item.getAvailableQuantity() >= quantity;
+        int availableQuantity = activeAvailable(stockService.findStocks(item));
         return new InventoryAvailabilityResponse(
                 item.getSku(),
                 quantity,
-                item.getAvailableQuantity(),
-                available
+                availableQuantity,
+                availableQuantity >= quantity
         );
     }
 
     public InventoryItemResponse reserve(String sku, int quantity) {
+        validatePositiveQuantity(quantity);
         InventoryItem item = loadBySku(sku);
-        int previousStock = item.getAvailableQuantity();
-        if (quantity <= 0) {
-            throw new InventoryOperationException("La cantidad debe ser mayor a 0.");
-        }
-        if (item.getAvailableQuantity() < quantity) {
+        List<InventoryStock> stocks = stockService.findStocksForUpdate(item.getSku());
+        List<InventoryStock> activeStocks = stocks.stream()
+                .filter(stock -> stock.getWarehouse().isActive())
+                .toList();
+        int availableQuantity = activeAvailable(activeStocks);
+        if (availableQuantity < quantity) {
             throw new InventoryOperationException(
-                    "Stock insuficiente para SKU " + sku + ". Disponible: " + item.getAvailableQuantity());
+                    "Stock insuficiente para SKU " + sku + ". Disponible: " + availableQuantity
+            );
         }
 
-        item.setAvailableQuantity(item.getAvailableQuantity() - quantity);
-        item.setReservedQuantity(item.getReservedQuantity() + quantity);
+        int remaining = quantity;
+        for (InventoryStock stock : activeStocks) {
+            if (remaining == 0) break;
+            int allocated = Math.min(stock.getAvailableQuantity(), remaining);
+            if (allocated == 0) continue;
 
-        InventoryItem savedItem = repository.save(item);
-        movementService.recordMovement(
-                savedItem,
-                MovementType.EXIT,
-                ActionType.ORDER_CREATED,
-                quantity,
-                previousStock,
-                savedItem.getAvailableQuantity(),
-                "Reserva de stock"
-        );
+            int previousStock = stock.getAvailableQuantity();
+            stock.setAvailableQuantity(previousStock - allocated);
+            stock.setReservedQuantity(stock.getReservedQuantity() + allocated);
+            movementService.recordMovement(
+                    item,
+                    stock.getWarehouse().getCode(),
+                    MovementType.EXIT,
+                    ActionType.ORDER_CREATED,
+                    allocated,
+                    previousStock,
+                    stock.getAvailableQuantity(),
+                    "Reserva de stock"
+            );
+            remaining -= allocated;
+        }
+
+        stockService.saveAndSynchronize(item, stocks);
         increment("smartlogix.inventory.operations", "operation", "reserve");
         log.info(
                 "inventory_reserved sku={} quantity={} available={} reserved={}",
-                savedItem.getSku(),
+                item.getSku(),
                 quantity,
-                savedItem.getAvailableQuantity(),
-                savedItem.getReservedQuantity()
+                item.getAvailableQuantity(),
+                item.getReservedQuantity()
         );
-
-        return toResponse(savedItem);
+        return toResponse(item);
     }
 
     public InventoryItemResponse release(String sku, int quantity) {
+        validatePositiveQuantity(quantity);
         InventoryItem item = loadBySku(sku);
-        if (quantity <= 0) {
-            throw new InventoryOperationException("La cantidad debe ser mayor a 0.");
+        List<InventoryStock> stocks = stockService.findStocksForUpdate(item.getSku());
+        int reservedQuantity = stocks.stream().mapToInt(InventoryStock::getReservedQuantity).sum();
+        if (reservedQuantity < quantity) {
+            throw new InventoryOperationException("No hay suficiente stock reservado para liberar en SKU " + sku);
         }
-        if (item.getReservedQuantity() < quantity) {
-            throw new InventoryOperationException(
-                    "No hay suficiente stock reservado para liberar en SKU " + sku);
+
+        int remaining = quantity;
+        for (InventoryStock stock : stocks) {
+            if (remaining == 0) break;
+            int released = Math.min(stock.getReservedQuantity(), remaining);
+            if (released == 0) continue;
+
+            int previousStock = stock.getAvailableQuantity();
+            stock.setReservedQuantity(stock.getReservedQuantity() - released);
+            stock.setAvailableQuantity(previousStock + released);
+            movementService.recordMovement(
+                    item,
+                    stock.getWarehouse().getCode(),
+                    MovementType.ENTRY,
+                    ActionType.ORDER_CANCELLED,
+                    released,
+                    previousStock,
+                    stock.getAvailableQuantity(),
+                    "Liberacion de reserva"
+            );
+            remaining -= released;
         }
-        int previousStock = item.getAvailableQuantity();
 
-        item.setReservedQuantity(item.getReservedQuantity() - quantity);
-        item.setAvailableQuantity(item.getAvailableQuantity() + quantity);
-
-        InventoryItem savedItem = repository.save(item);
-        movementService.recordMovement(
-                savedItem,
-                MovementType.ENTRY,
-                ActionType.ORDER_CANCELLED,
-                quantity,
-                previousStock,
-                savedItem.getAvailableQuantity(),
-                "Liberacion de reserva"
-        );
+        stockService.saveAndSynchronize(item, stocks);
         increment("smartlogix.inventory.operations", "operation", "release");
         log.info(
                 "inventory_released sku={} quantity={} available={} reserved={}",
-                savedItem.getSku(),
+                item.getSku(),
                 quantity,
-                savedItem.getAvailableQuantity(),
-                savedItem.getReservedQuantity()
+                item.getAvailableQuantity(),
+                item.getReservedQuantity()
         );
-
-        return toResponse(savedItem);
+        return toResponse(item);
     }
 
     public InventoryItemResponse dispatch(String sku, int quantity) {
+        validatePositiveQuantity(quantity);
         InventoryItem item = loadBySku(sku);
-        if (quantity <= 0) {
-            throw new InventoryOperationException("La cantidad debe ser mayor a 0.");
-        }
-        if (item.getReservedQuantity() < quantity) {
-            throw new InventoryOperationException(
-                    "No hay stock reservado suficiente para despachar SKU " + sku);
+        List<InventoryStock> stocks = stockService.findStocksForUpdate(item.getSku());
+        int reservedQuantity = stocks.stream().mapToInt(InventoryStock::getReservedQuantity).sum();
+        if (reservedQuantity < quantity) {
+            throw new InventoryOperationException("No hay stock reservado suficiente para despachar SKU " + sku);
         }
 
-        item.setReservedQuantity(item.getReservedQuantity() - quantity);
-        InventoryItem savedItem = repository.save(item);
+        int remaining = quantity;
+        for (InventoryStock stock : stocks) {
+            if (remaining == 0) break;
+            int dispatched = Math.min(stock.getReservedQuantity(), remaining);
+            stock.setReservedQuantity(stock.getReservedQuantity() - dispatched);
+            remaining -= dispatched;
+        }
+
+        stockService.saveAndSynchronize(item, stocks);
         increment("smartlogix.inventory.operations", "operation", "dispatch");
         log.info(
                 "inventory_dispatched sku={} quantity={} reserved={}",
-                savedItem.getSku(),
+                item.getSku(),
                 quantity,
-                savedItem.getReservedQuantity()
+                item.getReservedQuantity()
         );
-        return toResponse(savedItem);
+        return toResponse(item);
+    }
+
+    public InventoryItemResponse updateItem(String sku, UpdateInventoryItemRequest request) {
+        InventoryItem item = loadBySku(sku);
+        List<InventoryStock> currentStocks = stockService.findStocks(item);
+        int previousStock = currentStocks.stream()
+                .filter(stock -> stock.getWarehouse().getCode().equals(normalizeWarehouseCode(request.warehouseCode())))
+                .mapToInt(InventoryStock::getAvailableQuantity)
+                .findFirst()
+                .orElse(0);
+
+        applyProductData(
+                item,
+                request.productName(),
+                request.imageUrl(),
+                request.category(),
+                request.brand(),
+                request.shortDescription(),
+                request.salePrice(),
+                request.originalPrice(),
+                request.featured(),
+                request.fastShipping(),
+                request.freeShipping(),
+                request.storePickup()
+        );
+        repository.save(item);
+
+        InventoryStock stock = stockService.upsertStock(
+                item,
+                request.warehouseCode(),
+                new UpsertInventoryStockRequest(
+                        request.locationZone(),
+                        request.locationAisle(),
+                        request.locationRack(),
+                        request.locationLevel(),
+                        request.locationPosition(),
+                        request.availableQuantity(),
+                        request.reorderLevel()
+                )
+        );
+        if (previousStock != stock.getAvailableQuantity()) {
+            movementService.recordMovement(
+                    item,
+                    stock.getWarehouse().getCode(),
+                    MovementType.ADJUSTMENT,
+                    ActionType.UPDATE_STOCK,
+                    Math.abs(stock.getAvailableQuantity() - previousStock),
+                    previousStock,
+                    stock.getAvailableQuantity(),
+                    "Actualizacion manual de stock"
+            );
+        }
+
+        auditLogService.record(
+                "UPDATE_PRODUCT",
+                item.getSku(),
+                item.getProductName(),
+                "Producto actualizado. Stock anterior: " + previousStock
+                        + ", stock nuevo: " + stock.getAvailableQuantity()
+        );
+        increment("smartlogix.inventory.products.updated", "warehouse", stock.getWarehouse().getCode());
+        log.info(
+                "inventory_product_updated sku={} warehouse={} available={} reserved={}",
+                item.getSku(),
+                stock.getWarehouse().getCode(),
+                stock.getAvailableQuantity(),
+                stock.getReservedQuantity()
+        );
+        return toResponse(item);
+    }
+
+    public InventoryItemResponse upsertStock(
+            String sku,
+            String warehouseCode,
+            UpsertInventoryStockRequest request
+    ) {
+        InventoryItem item = loadBySku(sku);
+        String normalizedWarehouseCode = normalizeWarehouseCode(warehouseCode);
+        int previousStock = stockService.findStocks(item).stream()
+                .filter(stock -> stock.getWarehouse().getCode().equals(normalizedWarehouseCode))
+                .mapToInt(InventoryStock::getAvailableQuantity)
+                .findFirst()
+                .orElse(0);
+        InventoryStock stock = stockService.upsertStock(item, normalizedWarehouseCode, request);
+
+        if (previousStock != stock.getAvailableQuantity()) {
+            movementService.recordMovement(
+                    item,
+                    stock.getWarehouse().getCode(),
+                    MovementType.ADJUSTMENT,
+                    ActionType.UPDATE_STOCK,
+                    Math.abs(stock.getAvailableQuantity() - previousStock),
+                    previousStock,
+                    stock.getAvailableQuantity(),
+                    previousStock == 0 ? "Existencia creada en bodega" : "Existencia actualizada en bodega"
+            );
+        }
+        auditLogService.record(
+                "UPSERT_STOCK",
+                item.getSku(),
+                item.getProductName(),
+                "Existencia actualizada en " + normalizedWarehouseCode
+        );
+        increment("smartlogix.inventory.stock.updated", "warehouse", normalizedWarehouseCode);
+        return toResponse(item);
+    }
+
+    public void deleteStock(String sku, String warehouseCode) {
+        InventoryItem item = loadBySku(sku);
+        String normalizedWarehouseCode = normalizeWarehouseCode(warehouseCode);
+        stockService.deleteStock(item, normalizedWarehouseCode);
+        auditLogService.record(
+                "DELETE_STOCK",
+                item.getSku(),
+                item.getProductName(),
+                "Existencia eliminada de " + normalizedWarehouseCode
+        );
+        increment("smartlogix.inventory.stock.deleted", "warehouse", normalizedWarehouseCode);
+    }
+
+    public void deleteItem(String sku) {
+        InventoryItem item = loadBySku(sku);
+        List<InventoryStock> stocks = stockService.findStocksForUpdate(item.getSku());
+        for (InventoryStock stock : stocks) {
+            movementService.recordMovement(
+                    item,
+                    stock.getWarehouse().getCode(),
+                    MovementType.EXIT,
+                    ActionType.DELETE_PRODUCT,
+                    stock.getAvailableQuantity() + stock.getReservedQuantity(),
+                    stock.getAvailableQuantity(),
+                    0,
+                    "Producto eliminado"
+            );
+        }
+        auditLogService.record(
+                "DELETE_PRODUCT",
+                item.getSku(),
+                item.getProductName(),
+                "Producto eliminado del inventario"
+        );
+        stockService.deleteAllStocks(item);
+        repository.delete(item);
+        increment("smartlogix.inventory.products.deleted", "warehouse", item.getWarehouseCode());
+        log.info("inventory_product_deleted sku={}", item.getSku());
     }
 
     private InventoryItem loadBySku(String sku) {
-        return repository.findBySku(sku.trim().toUpperCase())
+        return repository.findBySku(normalizeSku(sku))
                 .orElseThrow(() -> new InventoryNotFoundException("No existe inventario para SKU: " + sku));
     }
 
     private InventoryItemResponse toResponse(InventoryItem item) {
+        List<InventoryStock> stocks = stockService.findStocks(item);
+        InventoryStock primary = stocks.stream().findFirst()
+                .orElseThrow(() -> new InventoryNotFoundException("No existen existencias para SKU: " + item.getSku()));
+        int available = stocks.stream().mapToInt(InventoryStock::getAvailableQuantity).sum();
+        int reserved = stocks.stream().mapToInt(InventoryStock::getReservedQuantity).sum();
+        int reorder = stocks.stream().mapToInt(InventoryStock::getReorderLevel).sum();
+
         return new InventoryItemResponse(
                 item.getSku(),
                 item.getProductName(),
@@ -267,20 +435,26 @@ public class InventoryService {
                 item.isFastShipping(),
                 item.isFreeShipping(),
                 item.isStorePickup(),
-                item.getWarehouseCode(),
-                item.getLocationZone(),
-                item.getLocationAisle(),
-                item.getLocationRack(),
-                item.getLocationLevel(),
-                item.getLocationPosition(),
-                item.getAvailableQuantity(),
-                item.getReservedQuantity(),
-                item.getReorderLevel(),
-                item.getUpdatedAt()
+                primary.getWarehouse().getCode(),
+                primary.getLocationZone(),
+                primary.getLocationAisle(),
+                primary.getLocationRack(),
+                primary.getLocationLevel(),
+                primary.getLocationPosition(),
+                available,
+                reserved,
+                reorder,
+                item.getUpdatedAt(),
+                stockService.toResponses(stocks)
         );
     }
 
     private CatalogProductResponse toCatalogResponse(InventoryItem item) {
+        List<InventoryStock> activeStocks = stockService.findStocks(item).stream()
+                .filter(stock -> stock.getWarehouse().isActive())
+                .toList();
+        int available = activeAvailable(activeStocks);
+        int reorder = activeStocks.stream().mapToInt(InventoryStock::getReorderLevel).sum();
         return new CatalogProductResponse(
                 item.getSku(),
                 item.getProductName(),
@@ -294,222 +468,75 @@ public class InventoryService {
                 item.isFastShipping(),
                 item.isFreeShipping(),
                 item.isStorePickup(),
-                item.getAvailableQuantity(),
-                item.getAvailableQuantity() > 0,
-                item.getAvailableQuantity() > 0
-                        && item.getAvailableQuantity() <= item.getReorderLevel()
+                available,
+                available > 0,
+                available > 0 && available <= reorder
         );
     }
 
-    public InventoryItemResponse updateItem(String sku, UpdateInventoryItemRequest request) {
-        InventoryItem item = loadBySku(sku);
-
-        validateStockState(request.availableQuantity(), request.reservedQuantity());
-        Warehouse warehouse = warehouseService.loadActiveWarehouse(request.warehouseCode());
-
-        int previousStock = item.getAvailableQuantity();
-        item.setProductName(request.productName().trim());
-        item.setImageUrl(normalizeImageUrl(request.imageUrl()));
-        item.setCategory(normalizeCategory(request.category()));
-        if (request.brand() != null) {
-            item.setBrand(normalizeOptionalText(request.brand(), "SmartLogix"));
-        }
-        if (request.shortDescription() != null) {
-            item.setShortDescription(normalizeOptionalText(request.shortDescription(), request.productName().trim()));
-        }
-        item.setSalePrice(request.salePrice());
-        if (request.originalPrice() != null) {
-            item.setOriginalPrice(request.originalPrice());
-        }
-        if (request.featured() != null) {
-            item.setFeatured(request.featured());
-        }
-        if (request.fastShipping() != null) {
-            item.setFastShipping(request.fastShipping());
-        }
-        if (request.freeShipping() != null) {
-            item.setFreeShipping(request.freeShipping());
-        }
-        if (request.storePickup() != null) {
-            item.setStorePickup(request.storePickup());
-        }
-        item.setWarehouseCode(warehouse.getCode());
-        applyLocation(
-                item,
-                request.locationZone(),
-                request.locationAisle(),
-                request.locationRack(),
-                request.locationLevel(),
-                request.locationPosition()
-        );
-        warehouseService.validateLocation(
-                warehouse,
-                item.getLocationAisle(),
-                item.getLocationRack(),
-                item.getLocationLevel(),
-                item.getLocationPosition()
-        );
-        item.setAvailableQuantity(request.availableQuantity());
-        item.setReservedQuantity(request.reservedQuantity());
-        item.setReorderLevel(request.reorderLevel());
-
-        InventoryItem savedItem = repository.save(item);
-        if (previousStock != savedItem.getAvailableQuantity()) {
-            movementService.recordMovement(
-                    savedItem,
-                    MovementType.ADJUSTMENT,
-                    ActionType.UPDATE_STOCK,
-                    Math.abs(savedItem.getAvailableQuantity() - previousStock),
-                    previousStock,
-                    savedItem.getAvailableQuantity(),
-                    "Actualizacion manual de stock"
-            );
-        }
-        auditLogService.record(
-                "UPDATE_PRODUCT",
-                savedItem.getSku(),
-                savedItem.getProductName(),
-                "Producto actualizado. Stock anterior: " + previousStock
-                        + ", stock nuevo: " + savedItem.getAvailableQuantity()
-        );
-        increment("smartlogix.inventory.products.updated", "warehouse", savedItem.getWarehouseCode());
-        log.info(
-                "inventory_product_updated sku={} warehouse={} available={} reserved={}",
-                savedItem.getSku(),
-                savedItem.getWarehouseCode(),
-                savedItem.getAvailableQuantity(),
-                savedItem.getReservedQuantity()
-        );
-
-        return toResponse(savedItem);
+    private void applyProductData(
+            InventoryItem item,
+            String productName,
+            String imageUrl,
+            String category,
+            String brand,
+            String shortDescription,
+            java.math.BigDecimal salePrice,
+            java.math.BigDecimal originalPrice,
+            Boolean featured,
+            Boolean fastShipping,
+            Boolean freeShipping,
+            Boolean storePickup
+    ) {
+        item.setProductName(productName.trim());
+        item.setImageUrl(normalizeImageUrl(imageUrl));
+        item.setCategory(normalizeCategory(category));
+        item.setBrand(normalizeOptionalText(brand, "SmartLogix"));
+        item.setShortDescription(normalizeOptionalText(shortDescription, productName.trim()));
+        item.setSalePrice(salePrice);
+        item.setOriginalPrice(originalPrice == null ? salePrice : originalPrice);
+        item.setFeatured(Boolean.TRUE.equals(featured));
+        item.setFastShipping(Boolean.TRUE.equals(fastShipping));
+        item.setFreeShipping(Boolean.TRUE.equals(freeShipping));
+        item.setStorePickup(storePickup == null || storePickup);
     }
 
-    @Transactional
-    public void deleteItem(String sku) {
-        InventoryItem item = repository.findBySku(sku)
-                .orElseThrow(() ->
-                        new InventoryNotFoundException("No existe el SKU " + sku));
+    private int activeAvailable(List<InventoryStock> stocks) {
+        return stocks.stream()
+                .filter(stock -> stock.getWarehouse().isActive())
+                .mapToInt(InventoryStock::getAvailableQuantity)
+                .sum();
+    }
 
-        movementService.recordMovement(
-                item,
-                MovementType.EXIT,
-                ActionType.DELETE_PRODUCT,
-                item.getAvailableQuantity() + item.getReservedQuantity(),
-                item.getAvailableQuantity(),
-                0,
-                "Producto eliminado"
-        );
-        auditLogService.record(
-                "DELETE_PRODUCT",
-                item.getSku(),
-                item.getProductName(),
-                "Producto eliminado del inventario"
-        );
+    private void validatePositiveQuantity(int quantity) {
+        if (quantity <= 0) {
+            throw new InventoryOperationException("La cantidad debe ser mayor a 0.");
+        }
+    }
 
-        repository.delete(item);
-        increment("smartlogix.inventory.products.deleted", "warehouse", item.getWarehouseCode());
-        log.info("inventory_product_deleted sku={} warehouse={}", item.getSku(), item.getWarehouseCode());
+    private String normalizeSku(String sku) {
+        return sku == null ? "" : sku.trim().toUpperCase(Locale.ROOT);
+    }
+
+    private String normalizeWarehouseCode(String warehouseCode) {
+        return warehouseCode == null ? "" : warehouseCode.trim().toUpperCase(Locale.ROOT);
     }
 
     private String normalizeImageUrl(String imageUrl) {
-        if (imageUrl == null || imageUrl.isBlank()) {
-            return null;
-        }
-
-        return imageUrl.trim();
+        return imageUrl == null || imageUrl.isBlank() ? null : imageUrl.trim();
     }
 
     private String normalizeCategory(String category) {
-        if (category == null || category.isBlank()) {
-            return "General";
-        }
-
-        return category.trim();
+        return category == null || category.isBlank() ? "General" : category.trim();
     }
 
     private String normalizeOptionalText(String value, String fallback) {
-        if (value == null || value.isBlank()) {
-            return fallback;
-        }
-        return value.trim();
+        return value == null || value.isBlank() ? fallback : value.trim();
     }
 
-    private void applyLocation(
-            InventoryItem item,
-            String zone,
-            String aisle,
-            Integer rack,
-            Integer level,
-            Integer position
-    ) {
-        LocationParts fallback = buildFallbackLocation(item);
-
-        item.setLocationZone(normalizeLocationText(zone, fallback.zone()));
-        item.setLocationAisle(normalizeLocationText(aisle, fallback.aisle()));
-        item.setLocationRack(normalizeLocationNumber(rack, fallback.rack()));
-        item.setLocationLevel(normalizeLocationNumber(level, fallback.level()));
-        item.setLocationPosition(normalizeLocationNumber(position, fallback.position()));
-    }
-
-    private LocationParts buildFallbackLocation(InventoryItem item) {
-        int hash = hashText(item.getWarehouseCode() + "-" + item.getSku() + "-" + item.getCategory());
-        String zone = switch (item.getCategory()) {
-            case "Accesorios" -> "A";
-            case "Componentes" -> "C";
-            case "Monitores" -> "M";
-            case "Notebooks" -> "N";
-            case "Perifericos" -> "P";
-            default -> "G";
-        };
-        String aisle = String.valueOf((char) ('A' + (hash % 5)));
-        int rack = ((hash / 5) % 8) + 1;
-        int level = ((hash / 41) % 4) + 1;
-        int position = ((hash / 163) % 12) + 1;
-
-        return new LocationParts(zone, aisle, rack, level, position);
-    }
-
-    private int hashText(String value) {
-        int hash = 0x811c9dc5;
-
-        for (int index = 0; index < value.length(); index++) {
-            hash ^= Character.toUpperCase(value.charAt(index));
-            hash *= 0x01000193;
-        }
-
-        return hash & 0x7fffffff;
-    }
-
-    private String normalizeLocationText(String value, String fallback) {
-        if (value == null || value.isBlank()) {
-            return fallback;
-        }
-
-        return value.trim().toUpperCase();
-    }
-
-    private int normalizeLocationNumber(Integer value, int fallback) {
-        if (value == null || value <= 0) {
-            return fallback;
-        }
-
-        return value;
-    }
-
-    private void validateStockState(int availableQuantity, int reservedQuantity) {
-        if (availableQuantity < reservedQuantity) {
-            throw new InventoryOperationException(
-                    "El stock disponible no puede ser menor al stock reservado."
-            );
-        }
-    }
-
-    private void increment(String name, String tagName, String tagValue) {
+    private void increment(String metricName, String tagName, String tagValue) {
         if (meterRegistry != null) {
-            meterRegistry.counter(name, tagName, tagValue).increment();
+            meterRegistry.counter(metricName, tagName, tagValue).increment();
         }
-    }
-
-    private record LocationParts(String zone, String aisle, int rack, int level, int position) {
     }
 }

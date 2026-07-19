@@ -444,7 +444,7 @@ function Warehouse3DExplorer({
 
       camera.aspect = width / height;
       camera.updateProjectionMatrix();
-      renderer.setSize(width, height, false);
+      renderer.setSize(width, height);
       renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     }
 
@@ -660,7 +660,7 @@ function Warehouse3DExplorer({
 
       <div className="flex flex-col xl:flex-row gap-4 w-full">
         {/* Contenedor 3D - ocupa todo el espacio disponible */}
-        <div className="flex-1 min-h-[500px]">
+        <div className="min-h-[500px] min-w-0 flex-1">
           <div className="relative w-full h-[calc(100vh-480px)] min-h-[500px] rounded-2xl border border-white/10 bg-slate-950 overflow-hidden">
             <div ref={mountRef} className="w-full h-full" />
             <div className="pointer-events-none absolute left-4 top-4 rounded-2xl border border-white/10 bg-slate-950/70 p-3 backdrop-blur">
@@ -684,7 +684,7 @@ function Warehouse3DExplorer({
         </div>
 
         {/* Panel lateral - ancho fijo */}
-        <aside className="xl:w-[340px] w-full rounded-2xl border border-white/10 bg-slate-900/90 p-5 text-white h-[calc(100vh-480px)] min-h-[500px] overflow-y-auto">
+        <aside className="h-[calc(100vh-480px)] min-h-[500px] w-full shrink-0 overflow-y-auto rounded-2xl border border-white/10 bg-slate-900/90 p-5 text-white xl:w-[340px]">
           <div className="mb-5 flex items-start justify-between gap-3">
             <div>
               <p className="text-sm font-black text-slate-300">Detalle de ubicacion</p>

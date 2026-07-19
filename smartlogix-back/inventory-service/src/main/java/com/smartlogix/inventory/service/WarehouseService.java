@@ -1,13 +1,13 @@
 package com.smartlogix.inventory.service;
 
-import com.smartlogix.inventory.domain.InventoryItem;
+import com.smartlogix.inventory.domain.InventoryStock;
 import com.smartlogix.inventory.domain.Warehouse;
 import com.smartlogix.inventory.dto.CreateWarehouseRequest;
 import com.smartlogix.inventory.dto.UpdateWarehouseRequest;
 import com.smartlogix.inventory.dto.WarehouseResponse;
 import com.smartlogix.inventory.exception.InventoryNotFoundException;
 import com.smartlogix.inventory.exception.InventoryOperationException;
-import com.smartlogix.inventory.repository.InventoryItemRepository;
+import com.smartlogix.inventory.repository.InventoryStockRepository;
 import com.smartlogix.inventory.repository.WarehouseRepository;
 import java.util.List;
 import java.util.Locale;
@@ -23,16 +23,16 @@ public class WarehouseService {
     private static final Logger log = LoggerFactory.getLogger(WarehouseService.class);
 
     private final WarehouseRepository warehouseRepository;
-    private final InventoryItemRepository itemRepository;
+    private final InventoryStockRepository stockRepository;
     private final InventoryAuditLogService auditLogService;
 
     public WarehouseService(
             WarehouseRepository warehouseRepository,
-            InventoryItemRepository itemRepository,
+            InventoryStockRepository stockRepository,
             InventoryAuditLogService auditLogService
     ) {
         this.warehouseRepository = warehouseRepository;
-        this.itemRepository = itemRepository;
+        this.stockRepository = stockRepository;
         this.auditLogService = auditLogService;
     }
 
@@ -101,7 +101,7 @@ public class WarehouseService {
 
     public void delete(String code) {
         Warehouse warehouse = loadWarehouse(code);
-        long productCount = itemRepository.countByWarehouseCode(warehouse.getCode());
+        long productCount = stockRepository.countByWarehouse_Code(warehouse.getCode());
         if (productCount > 0) {
             throw new InventoryOperationException(
                     "No se puede eliminar una bodega con productos. Desactivala o traslada su inventario."
@@ -148,14 +148,14 @@ public class WarehouseService {
     }
 
     private void validateLayoutReduction(Warehouse warehouse, UpdateWarehouseRequest request) {
-        for (InventoryItem item : itemRepository.findByWarehouseCodeOrderByProductNameAsc(warehouse.getCode())) {
-            int aisleNumber = aisleNumber(item.getLocationAisle());
+        for (InventoryStock stock : stockRepository.findByWarehouse_CodeOrderByItem_ProductNameAsc(warehouse.getCode())) {
+            int aisleNumber = aisleNumber(stock.getLocationAisle());
             if (aisleNumber > request.aisleCount()
-                    || item.getLocationRack() > request.rackCount()
-                    || item.getLocationLevel() > request.levelCount()
-                    || item.getLocationPosition() > request.positionsPerLevel()) {
+                    || stock.getLocationRack() > request.rackCount()
+                    || stock.getLocationLevel() > request.levelCount()
+                    || stock.getLocationPosition() > request.positionsPerLevel()) {
                 throw new InventoryOperationException(
-                        "El nuevo plano dejaria fuera la ubicacion del SKU " + item.getSku() + "."
+                        "El nuevo plano dejaria fuera la ubicacion del SKU " + stock.getItem().getSku() + "."
                 );
             }
         }
@@ -198,11 +198,12 @@ public class WarehouseService {
     }
 
     private WarehouseResponse toResponse(Warehouse warehouse) {
-        List<InventoryItem> items = itemRepository.findByWarehouseCodeOrderByProductNameAsc(warehouse.getCode());
-        int available = items.stream().mapToInt(InventoryItem::getAvailableQuantity).sum();
-        int reserved = items.stream().mapToInt(InventoryItem::getReservedQuantity).sum();
-        long critical = items.stream()
-                .filter(item -> item.getAvailableQuantity() <= item.getReorderLevel())
+        List<InventoryStock> stocks = stockRepository
+                .findByWarehouse_CodeOrderByItem_ProductNameAsc(warehouse.getCode());
+        int available = stocks.stream().mapToInt(InventoryStock::getAvailableQuantity).sum();
+        int reserved = stocks.stream().mapToInt(InventoryStock::getReservedQuantity).sum();
+        long critical = stocks.stream()
+                .filter(stock -> stock.getAvailableQuantity() <= stock.getReorderLevel())
                 .count();
         long capacity = (long) warehouse.getAisleCount()
                 * warehouse.getRackCount()
@@ -221,12 +222,12 @@ public class WarehouseService {
                 warehouse.getRackCount(),
                 warehouse.getLevelCount(),
                 warehouse.getPositionsPerLevel(),
-                items.size(),
+                stocks.size(),
                 available + reserved,
                 available,
                 reserved,
                 critical,
-                items.size(),
+                stocks.size(),
                 capacity,
                 warehouse.getUpdatedAt()
         );

@@ -8,12 +8,13 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.smartlogix.inventory.domain.InventoryItem;
+import com.smartlogix.inventory.domain.InventoryStock;
 import com.smartlogix.inventory.domain.Warehouse;
 import com.smartlogix.inventory.dto.CreateWarehouseRequest;
 import com.smartlogix.inventory.dto.UpdateWarehouseRequest;
 import com.smartlogix.inventory.dto.WarehouseResponse;
 import com.smartlogix.inventory.exception.InventoryOperationException;
-import com.smartlogix.inventory.repository.InventoryItemRepository;
+import com.smartlogix.inventory.repository.InventoryStockRepository;
 import com.smartlogix.inventory.repository.WarehouseRepository;
 import java.util.List;
 import java.util.Optional;
@@ -30,7 +31,7 @@ class WarehouseServiceTest {
     private WarehouseRepository warehouseRepository;
 
     @Mock
-    private InventoryItemRepository itemRepository;
+    private InventoryStockRepository stockRepository;
 
     @Mock
     private InventoryAuditLogService auditLogService;
@@ -39,7 +40,7 @@ class WarehouseServiceTest {
 
     @BeforeEach
     void setUp() {
-        warehouseService = new WarehouseService(warehouseRepository, itemRepository, auditLogService);
+        warehouseService = new WarehouseService(warehouseRepository, stockRepository, auditLogService);
     }
 
     @Test
@@ -47,7 +48,7 @@ class WarehouseServiceTest {
         when(warehouseRepository.existsById("WH-TEM-05")).thenReturn(false);
         when(warehouseRepository.save(any(Warehouse.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
-        when(itemRepository.findByWarehouseCodeOrderByProductNameAsc("WH-TEM-05"))
+        when(stockRepository.findByWarehouse_CodeOrderByItem_ProductNameAsc("WH-TEM-05"))
                 .thenReturn(List.of());
 
         WarehouseResponse response = warehouseService.create(new CreateWarehouseRequest(
@@ -77,7 +78,7 @@ class WarehouseServiceTest {
     void deleteRejectsWarehouseWithProducts() {
         Warehouse warehouse = warehouse("WH-SCL-01", true);
         when(warehouseRepository.findById("WH-SCL-01")).thenReturn(Optional.of(warehouse));
-        when(itemRepository.countByWarehouseCode("WH-SCL-01")).thenReturn(3L);
+        when(stockRepository.countByWarehouse_Code("WH-SCL-01")).thenReturn(3L);
 
         assertThatThrownBy(() -> warehouseService.delete("WH-SCL-01"))
                 .isInstanceOf(InventoryOperationException.class)
@@ -96,9 +97,16 @@ class WarehouseServiceTest {
         item.setLocationRack(8);
         item.setLocationLevel(4);
         item.setLocationPosition(12);
+        InventoryStock stock = new InventoryStock();
+        stock.setItem(item);
+        stock.setWarehouse(warehouse);
+        stock.setLocationAisle("F");
+        stock.setLocationRack(8);
+        stock.setLocationLevel(4);
+        stock.setLocationPosition(12);
         when(warehouseRepository.findById("WH-SCL-01")).thenReturn(Optional.of(warehouse));
-        when(itemRepository.findByWarehouseCodeOrderByProductNameAsc("WH-SCL-01"))
-                .thenReturn(List.of(item));
+        when(stockRepository.findByWarehouse_CodeOrderByItem_ProductNameAsc("WH-SCL-01"))
+                .thenReturn(List.of(stock));
 
         UpdateWarehouseRequest request = new UpdateWarehouseRequest(
                 "Bodega Santiago",

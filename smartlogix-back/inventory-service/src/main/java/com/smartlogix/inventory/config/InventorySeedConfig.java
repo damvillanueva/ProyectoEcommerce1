@@ -1,7 +1,10 @@
 package com.smartlogix.inventory.config;
 
 import com.smartlogix.inventory.domain.InventoryItem;
+import com.smartlogix.inventory.domain.InventoryStock;
 import com.smartlogix.inventory.repository.InventoryItemRepository;
+import com.smartlogix.inventory.repository.InventoryStockRepository;
+import com.smartlogix.inventory.repository.WarehouseRepository;
 import java.math.BigDecimal;
 import java.util.List;
 import org.springframework.boot.CommandLineRunner;
@@ -14,7 +17,11 @@ public class InventorySeedConfig {
 
     @Bean
     @Order(1)
-    CommandLineRunner inventorySeeder(InventoryItemRepository repository) {
+    CommandLineRunner inventorySeeder(
+            InventoryItemRepository repository,
+            InventoryStockRepository stockRepository,
+            WarehouseRepository warehouseRepository
+    ) {
         return args -> {
             if (repository.count() > 0) {
                 return;
@@ -50,7 +57,22 @@ public class InventorySeedConfig {
             );
 
             for (int index = 0; index < products.size(); index++) {
-                repository.save(buildItem(products.get(index), index));
+                InventoryItem item = repository.save(buildItem(products.get(index), index));
+                InventoryStock stock = new InventoryStock();
+                stock.setItem(item);
+                stock.setWarehouse(warehouseRepository.findById(item.getWarehouseCode())
+                        .orElseThrow(() -> new IllegalStateException(
+                                "No existe la bodega inicial " + item.getWarehouseCode()
+                        )));
+                stock.setLocationZone(item.getLocationZone());
+                stock.setLocationAisle(item.getLocationAisle());
+                stock.setLocationRack(item.getLocationRack());
+                stock.setLocationLevel(item.getLocationLevel());
+                stock.setLocationPosition(item.getLocationPosition());
+                stock.setAvailableQuantity(item.getAvailableQuantity());
+                stock.setReservedQuantity(item.getReservedQuantity());
+                stock.setReorderLevel(item.getReorderLevel());
+                stockRepository.save(stock);
             }
         };
     }

@@ -14,6 +14,7 @@ public record InventoryMovementResponse(
         Integer newStock,
         String username,
         String reason,
+        String warehouseCode,
         LocalDateTime createdAt
 ) {
 }

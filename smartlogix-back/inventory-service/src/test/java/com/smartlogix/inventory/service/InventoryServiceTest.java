@@ -1,18 +1,24 @@
 package com.smartlogix.inventory.service;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.smartlogix.inventory.domain.InventoryItem;
+import com.smartlogix.inventory.domain.InventoryStock;
+import com.smartlogix.inventory.domain.Warehouse;
 import com.smartlogix.inventory.dto.CreateInventoryItemRequest;
-import com.smartlogix.inventory.dto.UpdateInventoryItemRequest;
+import com.smartlogix.inventory.dto.InventoryAvailabilityResponse;
+import com.smartlogix.inventory.dto.InventoryItemResponse;
 import com.smartlogix.inventory.exception.InventoryOperationException;
 import com.smartlogix.inventory.repository.InventoryItemRepository;
-import java.util.Optional;
 import java.math.BigDecimal;
+import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -32,51 +38,53 @@ class InventoryServiceTest {
     private InventoryAuditLogService auditLogService;
 
     @Mock
-    private WarehouseService warehouseService;
+    private InventoryStockService stockService;
 
     @InjectMocks
     private InventoryService inventoryService;
 
     @Test
-    void updateItemRejectsAvailableQuantityLowerThanReservedQuantity() {
-        InventoryItem item = new InventoryItem();
-        item.setSku("SKU-100");
-        item.setProductName("Mouse");
-        item.setWarehouseCode("WH-SCL-01");
-        item.setAvailableQuantity(10);
-        item.setReservedQuantity(4);
-        item.setReorderLevel(2);
+    void reserveSplitsQuantityAcrossActiveWarehousesByPriority() {
+        InventoryItem item = item("SKU-100");
+        InventoryStock first = stock(item, warehouse("WH-SCL-01", true, 10), 3, 0);
+        InventoryStock second = stock(item, warehouse("WH-CON-03", true, 20), 6, 0);
+        List<InventoryStock> stocks = List.of(first, second);
 
         when(repository.findBySku("SKU-100")).thenReturn(Optional.of(item));
+        when(stockService.findStocksForUpdate("SKU-100")).thenReturn(stocks);
+        when(stockService.findStocks(item)).thenReturn(stocks);
+        when(stockService.toResponses(stocks)).thenReturn(List.of());
+        doAnswer(invocation -> {
+            item.setAvailableQuantity(first.getAvailableQuantity() + second.getAvailableQuantity());
+            item.setReservedQuantity(first.getReservedQuantity() + second.getReservedQuantity());
+            return null;
+        }).when(stockService).saveAndSynchronize(item, stocks);
 
-        UpdateInventoryItemRequest request = new UpdateInventoryItemRequest(
-                "Mouse",
-                null,
-                "Perifericos",
-                null,
-                null,
-                BigDecimal.valueOf(12990),
-                null,
-                null,
-                null,
-                null,
-                null,
-                "WH-SCL-01",
-                null,
-                null,
-                null,
-                null,
-                null,
-                3,
-                5,
-                2
+        InventoryItemResponse response = inventoryService.reserve("sku-100", 7);
+
+        assertThat(first.getAvailableQuantity()).isZero();
+        assertThat(first.getReservedQuantity()).isEqualTo(3);
+        assertThat(second.getAvailableQuantity()).isEqualTo(2);
+        assertThat(second.getReservedQuantity()).isEqualTo(4);
+        assertThat(response.availableQuantity()).isEqualTo(2);
+        assertThat(response.reservedQuantity()).isEqualTo(7);
+        verify(stockService).saveAndSynchronize(item, stocks);
+    }
+
+    @Test
+    void availabilityOnlyCountsActiveWarehouses() {
+        InventoryItem item = item("SKU-100");
+        List<InventoryStock> stocks = List.of(
+                stock(item, warehouse("WH-SCL-01", true, 10), 4, 0),
+                stock(item, warehouse("WH-CON-03", false, 20), 20, 0)
         );
+        when(repository.findBySku("SKU-100")).thenReturn(Optional.of(item));
+        when(stockService.findStocks(item)).thenReturn(stocks);
 
-        assertThrows(InventoryOperationException.class, () ->
-                inventoryService.updateItem("SKU-100", request)
-        );
+        InventoryAvailabilityResponse response = inventoryService.checkAvailability("SKU-100", 5);
 
-        verify(repository, never()).save(item);
+        assertThat(response.availableQuantity()).isEqualTo(4);
+        assertThat(response.available()).isFalse();
     }
 
     @Test
@@ -106,10 +114,50 @@ class InventoryServiceTest {
                 3
         );
 
-        assertThrows(InventoryOperationException.class, () ->
-                inventoryService.createItem(request)
-        );
+        assertThrows(InventoryOperationException.class, () -> inventoryService.createItem(request));
 
         verify(repository, never()).save(any(InventoryItem.class));
+    }
+
+    private InventoryItem item(String sku) {
+        InventoryItem item = new InventoryItem();
+        item.setSku(sku);
+        item.setProductName("Mouse");
+        item.setCategory("Perifericos");
+        item.setBrand("SmartLogix");
+        item.setShortDescription("Mouse de prueba");
+        item.setSalePrice(BigDecimal.valueOf(12990));
+        item.setOriginalPrice(BigDecimal.valueOf(14990));
+        return item;
+    }
+
+    private Warehouse warehouse(String code, boolean active, int priority) {
+        Warehouse warehouse = new Warehouse();
+        warehouse.setCode(code);
+        warehouse.setName(code);
+        warehouse.setCity("Santiago");
+        warehouse.setActive(active);
+        warehouse.setDispatchPriority(priority);
+        return warehouse;
+    }
+
+    private InventoryStock stock(
+            InventoryItem item,
+            Warehouse warehouse,
+            int available,
+            int reserved
+    ) {
+        InventoryStock stock = new InventoryStock();
+        stock.setItem(item);
+        stock.setWarehouse(warehouse);
+        stock.setLocationZone("P");
+        stock.setLocationAisle("A");
+        stock.setLocationRack(1);
+        stock.setLocationLevel(1);
+        stock.setLocationPosition(1);
+        stock.setAvailableQuantity(available);
+        stock.setReservedQuantity(reserved);
+        stock.setReorderLevel(2);
+        return stock;
     }
 }

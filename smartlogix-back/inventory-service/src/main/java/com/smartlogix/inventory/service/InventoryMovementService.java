@@ -4,6 +4,7 @@ import com.smartlogix.inventory.domain.ActionType;
 import com.smartlogix.inventory.domain.InventoryHistoryReport;
 import com.smartlogix.inventory.domain.InventoryItem;
 import com.smartlogix.inventory.domain.InventoryMovement;
+import com.smartlogix.inventory.domain.InventoryStock;
 import com.smartlogix.inventory.domain.MovementType;
 import com.smartlogix.inventory.dto.InventoryHistoryReportResponse;
 import com.smartlogix.inventory.dto.InventoryMovementResponse;
@@ -38,19 +39,44 @@ public class InventoryMovementService {
     private final InventoryMovementRepository movementRepository;
     private final InventoryItemRepository itemRepository;
     private final InventoryHistoryReportRepository historyReportRepository;
+    private final InventoryStockService stockService;
 
     public InventoryMovementService(
             InventoryMovementRepository movementRepository,
             InventoryItemRepository itemRepository,
-            InventoryHistoryReportRepository historyReportRepository
+            InventoryHistoryReportRepository historyReportRepository,
+            InventoryStockService stockService
     ) {
         this.movementRepository = movementRepository;
         this.itemRepository = itemRepository;
         this.historyReportRepository = historyReportRepository;
+        this.stockService = stockService;
     }
 
     public InventoryMovementResponse recordMovement(
             InventoryItem item,
+            MovementType movementType,
+            ActionType actionType,
+            int quantity,
+            int previousStock,
+            int newStock,
+            String reason
+    ) {
+        return recordMovement(
+                item,
+                item.getWarehouseCode(),
+                movementType,
+                actionType,
+                quantity,
+                previousStock,
+                newStock,
+                reason
+        );
+    }
+
+    public InventoryMovementResponse recordMovement(
+            InventoryItem item,
+            String warehouseCode,
             MovementType movementType,
             ActionType actionType,
             int quantity,
@@ -69,6 +95,7 @@ public class InventoryMovementService {
         movement.setNewStock(newStock);
         movement.setUsername(resolveUsername());
         movement.setReason(normalizeReason(reason));
+        movement.setWarehouseCode(warehouseCode);
 
         return toResponse(movementRepository.save(movement));
     }
@@ -97,7 +124,9 @@ public class InventoryMovementService {
                 .orElseThrow(() -> new InventoryNotFoundException("No existe inventario para SKU: " + request.sku()));
 
         MovementType movementType = parseMovementType(request.movementType());
-        int previousStock = item.getAvailableQuantity();
+        List<InventoryStock> stocks = stockService.findStocksForUpdate(item.getSku());
+        InventoryStock stock = stockService.resolveStock(stocks, request.warehouseCode());
+        int previousStock = stock.getAvailableQuantity();
         int newStock = calculateManualStock(previousStock, request.quantity(), movementType);
         int movementQuantity = movementType == MovementType.ADJUSTMENT
                 ? Math.abs(newStock - previousStock)
@@ -110,11 +139,12 @@ public class InventoryMovementService {
             throw new InventoryOperationException("Stock insuficiente para registrar la salida.");
         }
 
-        item.setAvailableQuantity(newStock);
-        InventoryItem savedItem = itemRepository.save(item);
+        stock.setAvailableQuantity(newStock);
+        stockService.saveAndSynchronize(item, stocks);
 
         return recordMovement(
-                savedItem,
+                item,
+                stock.getWarehouse().getCode(),
                 movementType,
                 resolveManualAction(movementType),
                 movementQuantity,
@@ -141,7 +171,7 @@ public class InventoryMovementService {
         );
 
         StringBuilder csv = new StringBuilder();
-        csv.append("Fecha,Producto,SKU,Movimiento,Accion,Cantidad,Stock anterior,Stock nuevo,Usuario,Motivo\n");
+        csv.append("Fecha,Producto,SKU,Bodega,Movimiento,Accion,Cantidad,Stock anterior,Stock nuevo,Usuario,Motivo\n");
 
         for (InventoryMovement movement : movements) {
             csv.append(csvValue(movement.getCreatedAt()))
@@ -149,6 +179,8 @@ public class InventoryMovementService {
                     .append(csvValue(movement.getProductName()))
                     .append(",")
                     .append(csvValue(movement.getSku()))
+                    .append(",")
+                    .append(csvValue(movement.getWarehouseCode()))
                     .append(",")
                     .append(csvValue(movement.getMovementType()))
                     .append(",")
@@ -357,6 +389,7 @@ public class InventoryMovementService {
                 movement.getNewStock(),
                 movement.getUsername(),
                 movement.getReason(),
+                movement.getWarehouseCode(),
                 movement.getCreatedAt()
         );
     }

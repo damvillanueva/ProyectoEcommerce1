@@ -4,11 +4,13 @@ import com.smartlogix.inventory.dto.CreateInventoryItemRequest;
 import com.smartlogix.inventory.dto.UpdateInventoryItemRequest;
 import com.smartlogix.inventory.dto.InventoryAvailabilityResponse;
 import com.smartlogix.inventory.dto.InventoryItemResponse;
+import com.smartlogix.inventory.dto.UpsertInventoryStockRequest;
 import com.smartlogix.inventory.service.InventoryService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
 import java.util.List;
 import org.springframework.validation.annotation.Validated;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -91,6 +93,22 @@ public class InventoryController {
             @PathVariable String sku,
             @Valid @RequestBody UpdateInventoryItemRequest request) {
         return inventoryService.updateItem(sku, request);
+    }
+
+    @PutMapping("/items/{sku}/stocks/{warehouseCode}")
+    public InventoryItemResponse upsertStock(
+            @PathVariable String sku,
+            @PathVariable String warehouseCode,
+            @Valid @RequestBody UpsertInventoryStockRequest request) {
+        return inventoryService.upsertStock(sku, warehouseCode, request);
+    }
+
+    @DeleteMapping("/items/{sku}/stocks/{warehouseCode}")
+    public ResponseEntity<Void> deleteStock(
+            @PathVariable String sku,
+            @PathVariable String warehouseCode) {
+        inventoryService.deleteStock(sku, warehouseCode);
+        return ResponseEntity.noContent().build();
     }
 
     @DeleteMapping("/items/{sku}")

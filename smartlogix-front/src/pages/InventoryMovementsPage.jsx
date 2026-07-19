@@ -79,6 +79,7 @@ const EMPTY_FILTERS = {
 
 const EMPTY_MANUAL_FORM = {
   sku: "",
+  warehouseCode: "",
   movementType: "ENTRY",
   quantity: "1",
   reason: "",
@@ -468,6 +469,11 @@ function InventoryMovementsPage() {
       setManualForm((previousForm) => ({
         ...previousForm,
         sku: previousForm.sku || data[0]?.sku || "",
+        warehouseCode:
+          previousForm.warehouseCode
+          || data[0]?.stocks?.[0]?.warehouseCode
+          || data[0]?.warehouseCode
+          || "",
       }));
     } catch (loadError) {
       console.error(loadError);
@@ -513,10 +519,18 @@ function InventoryMovementsPage() {
 
   function handleManualChange(event) {
     const { name, value } = event.target;
-    setManualForm((previousForm) => ({
-      ...previousForm,
-      [name]: value,
-    }));
+    setManualForm((previousForm) => {
+      if (name === "sku") {
+        const product = inventoryItems.find((item) => item.sku === value);
+        return {
+          ...previousForm,
+          sku: value,
+          warehouseCode: product?.stocks?.[0]?.warehouseCode || product?.warehouseCode || "",
+        };
+      }
+
+      return { ...previousForm, [name]: value };
+    });
   }
 
   async function handleFilterSubmit(event) {
@@ -565,6 +579,12 @@ function InventoryMovementsPage() {
       return;
     }
 
+    if (!manualForm.warehouseCode) {
+      setError("Selecciona una bodega para registrar el movimiento.");
+      showToast("Selecciona una bodega para registrar el movimiento.", "error");
+      return;
+    }
+
     if (!Number.isInteger(parsedQuantity) || parsedQuantity < 0) {
       setError("Ingresa una cantidad valida.");
       showToast("Ingresa una cantidad valida.", "error");
@@ -582,6 +602,7 @@ function InventoryMovementsPage() {
       setError("");
       await registerManualInventoryMovement({
         sku: manualForm.sku,
+        warehouseCode: manualForm.warehouseCode,
         movementType: manualForm.movementType,
         quantity: parsedQuantity,
         reason: manualForm.reason.trim() || "Movimiento manual",
@@ -590,6 +611,7 @@ function InventoryMovementsPage() {
       setManualForm((previousForm) => ({
         ...EMPTY_MANUAL_FORM,
         sku: previousForm.sku,
+        warehouseCode: previousForm.warehouseCode,
       }));
       setIsRegisterOpen(false);
       showToast("Movimiento registrado correctamente.", "success");
@@ -1418,6 +1440,7 @@ function MovementDetailPanel({ imageUrl, movement }) {
         <DetailItem icon={FiBox} label="Producto" value={movement.productName || "Producto"} />
         <DetailItem icon={FiUser} label="Usuario" value={movement.username || "system"} />
         <DetailItem icon={FiHash} label="SKU" value={movement.sku || "-"} />
+        <DetailItem icon={FiArchive} label="Bodega" value={movement.warehouseCode || "-"} />
         <DetailItem icon={FiCalendar} label="Fecha y hora" value={formatDate(movement.createdAt)} />
         <DetailItem label="Tipo de movimiento" value={meta.shortLabel} valueClass={meta.text} />
         <DetailItem label="Motivo" value={movement.reason || getActionLabel(movement.actionType)} />
@@ -1577,6 +1600,12 @@ function RegisterMovementModal({
   onSubmit,
 }) {
   const reasonOptions = MANUAL_REASON_OPTIONS[manualForm.movementType] || [];
+  const selectedItem = inventoryItems.find((item) => item.sku === manualForm.sku);
+  const selectedStocks = selectedItem?.stocks?.length
+    ? selectedItem.stocks
+    : selectedItem
+      ? [selectedItem]
+      : [];
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm">
@@ -1606,6 +1635,22 @@ function RegisterMovementModal({
               {inventoryItems.map((item) => (
                 <option key={item.sku} value={item.sku}>
                   {item.sku} - {item.productName}
+                </option>
+              ))}
+            </select>
+          </FilterField>
+
+          <FilterField label="Bodega y ubicacion">
+            <select
+              name="warehouseCode"
+              value={manualForm.warehouseCode}
+              onChange={onChange}
+              className="field-control"
+            >
+              <option value="">Seleccionar bodega</option>
+              {selectedStocks.map((stock) => (
+                <option key={stock.warehouseCode} value={stock.warehouseCode}>
+                  {stock.warehouseCode} - Disponible {stock.availableQuantity} - {stock.locationAisle}-{stock.locationRack}-{stock.locationLevel}-{stock.locationPosition}
                 </option>
               ))}
             </select>

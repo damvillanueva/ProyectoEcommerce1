@@ -2,6 +2,7 @@ package com.smartlogix.inventory.dto;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
+import java.util.List;
 
 public record InventoryItemResponse(
         String sku,
@@ -25,6 +26,7 @@ public record InventoryItemResponse(
         int availableQuantity,
         int reservedQuantity,
         int reorderLevel,
-        OffsetDateTime updatedAt
+        OffsetDateTime updatedAt,
+        List<InventoryStockResponse> stocks
 ) {
 }

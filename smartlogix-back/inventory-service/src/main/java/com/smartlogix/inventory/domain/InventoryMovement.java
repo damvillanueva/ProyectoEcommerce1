@@ -36,6 +36,9 @@ public class InventoryMovement {
     @Column(length = 60)
     private String sku;
 
+    @Column(length = 40)
+    private String warehouseCode;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "movement_type", nullable = false, length = 30)
     private MovementType movementType;
@@ -96,6 +99,9 @@ public class InventoryMovement {
     public void setSku(String sku) {
         this.sku = sku;
     }
+
+    public String getWarehouseCode() { return warehouseCode; }
+    public void setWarehouseCode(String warehouseCode) { this.warehouseCode = warehouseCode; }
 
     public MovementType getMovementType() {
         return movementType;

@@ -12,6 +12,8 @@ import {
   createInventoryItem,
   updateInventoryItem,
   deleteInventoryItem,
+  upsertInventoryStock,
+  deleteInventoryStock,
   getWarehouses,
   createWarehouse,
   updateWarehouse,
@@ -30,7 +32,7 @@ export async function getInventoryItemsWithAvailable() {
 
   return items.map((item) => ({
     ...item,
-    available: item.availableQuantity - item.reservedQuantity,
+    available: item.availableQuantity,
   }));
 }
 
@@ -44,6 +46,14 @@ export async function editInventoryItem(sku, itemData) {
 
 export async function removeInventoryItem(sku) {
   return await deleteInventoryItem(sku);
+}
+
+export async function saveInventoryStock(sku, warehouseCode, stockData) {
+  return await upsertInventoryStock(sku, warehouseCode, stockData);
+}
+
+export async function removeInventoryStock(sku, warehouseCode) {
+  return await deleteInventoryStock(sku, warehouseCode);
 }
 
 export async function fetchWarehouses() {

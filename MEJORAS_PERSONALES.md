@@ -44,7 +44,7 @@ Registro de funcionalidades y mejoras incorporadas al proyecto de portafolio.
 - [x] Correccion de flujo pedido-envio: al eliminar un pedido aprobado se libera la reserva de inventario y se elimina el envio asociado.
 - [x] Lint frontend limpio con `npm run lint`.
 - [x] Tests unitarios de `order-service` para reserva, envio y limpieza al eliminar pedido.
-- [x] Traslado avanzado entre bodegas desde el detalle del producto, manteniendo stock y reservas.
+- [ ] Traslados reales entre bodegas con cantidad parcial y movimientos de origen/destino.
 - [x] Documentacion tecnica y guion de demostracion del flujo completo.
 - [x] Checkout ecommerce con carrito separado, despacho/retiro, descuentos y pagos simulados.
 - [x] Cuenta de cliente con perfil, direcciones, favoritos, compras y seguimiento privado.
@@ -122,9 +122,9 @@ Registro de funcionalidades y mejoras incorporadas al proyecto de portafolio.
    - Mejorar `warehouseCode` con selector.
    - Ver stock por bodega.
    - Estado: implementado completo a nivel visual: selector, filtro, panel separado por bodega, mapa visual por ubicacion, productos dentro de cada bodega, categorias, stock total, disponible, reservado, productos criticos, barra de capacidad visual y acciones rapidas de detalle/QR.
-   - Estado backend: implementada tabla persistente de bodegas, migracion Flyway, API CRUD, validacion del plano fisico, bloqueo de eliminacion con productos y permisos por rol.
-   - Estado frontend: implementado panel administrativo para crear, editar, activar, desactivar y eliminar bodegas; los selectores y resumen consumen la API real.
-   - Pendiente: stock separado por SKU/bodega, ubicaciones unicas y traslados con movimientos de origen/destino.
+   - Estado backend: implementadas bodegas persistentes y existencias reales por SKU/bodega, migraciones Flyway, API CRUD, reservas distribuidas por prioridad, validacion del plano fisico y permisos por rol.
+   - Estado frontend: implementados panel administrativo, desglose y edicion de existencias por bodega, selector de bodega para movimientos, mapa visual y vista 3D conectada al stock real.
+   - Pendiente: ubicaciones unicas y traslados parciales con movimientos de origen/destino.
 
 9.1. Etiquetas por SKU
    - Generar QR escaneable por SKU.
