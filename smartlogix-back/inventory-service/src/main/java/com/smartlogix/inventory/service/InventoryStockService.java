@@ -21,15 +21,18 @@ public class InventoryStockService {
     private final InventoryStockRepository stockRepository;
     private final InventoryItemRepository itemRepository;
     private final WarehouseService warehouseService;
+    private final WarehouseLocationService locationService;
 
     public InventoryStockService(
             InventoryStockRepository stockRepository,
             InventoryItemRepository itemRepository,
-            WarehouseService warehouseService
+            WarehouseService warehouseService,
+            WarehouseLocationService locationService
     ) {
         this.stockRepository = stockRepository;
         this.itemRepository = itemRepository;
         this.warehouseService = warehouseService;
+        this.locationService = locationService;
     }
 
     public InventoryStock createInitialStock(
@@ -47,14 +50,11 @@ public class InventoryStockService {
         InventoryStock stock = new InventoryStock();
         stock.setItem(item);
         stock.setWarehouse(warehouse);
-        applyLocation(stock, item, zone, aisle, rack, level, position);
-        warehouseService.validateLocation(
-                warehouse,
-                stock.getLocationAisle(),
-                stock.getLocationRack(),
-                stock.getLocationLevel(),
-                stock.getLocationPosition()
+        LocationParts location = resolveLocation(item, warehouse.getCode(), zone, aisle, rack, level, position);
+        locationService.validateAvailable(
+                warehouse, location.zone(), location.aisle(), location.rack(), location.level(), location.position(), null
         );
+        applyLocation(stock, location);
         stock.setAvailableQuantity(availableQuantity);
         stock.setReservedQuantity(0);
         stock.setReorderLevel(reorderLevel);
@@ -82,22 +82,19 @@ public class InventoryStockService {
                     return created;
                 });
 
-        applyLocation(
-                stock,
+        LocationParts location = resolveLocation(
                 item,
+                warehouse.getCode(),
                 request.locationZone(),
                 request.locationAisle(),
                 request.locationRack(),
                 request.locationLevel(),
                 request.locationPosition()
         );
-        warehouseService.validateLocation(
-                warehouse,
-                stock.getLocationAisle(),
-                stock.getLocationRack(),
-                stock.getLocationLevel(),
-                stock.getLocationPosition()
+        locationService.validateAvailable(
+                warehouse, location.zone(), location.aisle(), location.rack(), location.level(), location.position(), stock.getId()
         );
+        applyLocation(stock, location);
         stock.setAvailableQuantity(request.availableQuantity());
         stock.setReorderLevel(request.reorderLevel());
         InventoryStock saved = stockRepository.saveAndFlush(stock);
@@ -126,14 +123,11 @@ public class InventoryStockService {
         InventoryStock stock = new InventoryStock();
         stock.setItem(item);
         stock.setWarehouse(warehouse);
-        applyLocation(stock, item, zone, aisle, rack, level, position);
-        warehouseService.validateLocation(
-                warehouse,
-                stock.getLocationAisle(),
-                stock.getLocationRack(),
-                stock.getLocationLevel(),
-                stock.getLocationPosition()
+        LocationParts location = resolveLocation(item, warehouse.getCode(), zone, aisle, rack, level, position);
+        locationService.validateAvailable(
+                warehouse, location.zone(), location.aisle(), location.rack(), location.level(), location.position(), null
         );
+        applyLocation(stock, location);
         stock.setAvailableQuantity(0);
         stock.setReservedQuantity(0);
         stock.setReorderLevel(reorderLevel == null ? 0 : Math.max(reorderLevel, 0));
@@ -257,21 +251,31 @@ public class InventoryStockService {
         item.setReorderLevel(stocks.stream().mapToInt(InventoryStock::getReorderLevel).sum());
     }
 
-    private void applyLocation(
-            InventoryStock stock,
+    private LocationParts resolveLocation(
             InventoryItem item,
+            String warehouseCode,
             String zone,
             String aisle,
             Integer rack,
             Integer level,
             Integer position
     ) {
-        LocationParts fallback = buildFallbackLocation(item, stock.getWarehouse().getCode());
-        stock.setLocationZone(normalizeLocationText(zone, fallback.zone()));
-        stock.setLocationAisle(normalizeLocationText(aisle, fallback.aisle()));
-        stock.setLocationRack(normalizeLocationNumber(rack, fallback.rack()));
-        stock.setLocationLevel(normalizeLocationNumber(level, fallback.level()));
-        stock.setLocationPosition(normalizeLocationNumber(position, fallback.position()));
+        LocationParts fallback = buildFallbackLocation(item, warehouseCode);
+        return new LocationParts(
+                normalizeLocationText(zone, fallback.zone()),
+                normalizeLocationText(aisle, fallback.aisle()),
+                normalizeLocationNumber(rack, fallback.rack()),
+                normalizeLocationNumber(level, fallback.level()),
+                normalizeLocationNumber(position, fallback.position())
+        );
+    }
+
+    private void applyLocation(InventoryStock stock, LocationParts location) {
+        stock.setLocationZone(location.zone());
+        stock.setLocationAisle(location.aisle());
+        stock.setLocationRack(location.rack());
+        stock.setLocationLevel(location.level());
+        stock.setLocationPosition(location.position());
     }
 
     private LocationParts buildFallbackLocation(InventoryItem item, String warehouseCode) {

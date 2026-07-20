@@ -151,12 +151,41 @@ function Warehouse3DExplorer({
   );
 
   const zones = useMemo(
-    () =>
-      Array.from(new Set(enrichedItems.map((item) => item.location.zone)))
-        .filter(Boolean)
-        .sort(),
-    [enrichedItems]
+    () => {
+      const configured = activeWarehouseMeta.zoneCodes || [];
+      return configured.length
+        ? configured
+        : Array.from(new Set(enrichedItems.map((item) => item.location.zone)))
+            .filter(Boolean)
+            .sort();
+    },
+    [activeWarehouseMeta.zoneCodes, enrichedItems]
   );
+
+  const configuredAisles = useMemo(
+    () => Array.from(
+      { length: Math.max(1, activeWarehouseMeta.aisleCount || AISLES.length) },
+      (_, index) => String.fromCharCode(65 + index)
+    ),
+    [activeWarehouseMeta.aisleCount]
+  );
+
+  const configuredLevels = useMemo(
+    () => Array.from(
+      { length: Math.max(1, activeWarehouseMeta.levelCount || LEVELS.length) },
+      (_, index) => index + 1
+    ),
+    [activeWarehouseMeta.levelCount]
+  );
+
+  const occupiedLocations = Number(
+    activeWarehouseMeta.occupiedLocations ?? enrichedItems.length
+  );
+  const locationCapacity = Number(activeWarehouseMeta.locationCapacity || 0);
+  const availableLocations = Math.max(0, locationCapacity - occupiedLocations);
+  const occupancyPercent = locationCapacity > 0
+    ? Math.round((occupiedLocations / locationCapacity) * 100)
+    : 0;
 
   const filteredItems = useMemo(() => {
     return enrichedItems.filter((item) => {
@@ -632,7 +661,7 @@ function Warehouse3DExplorer({
           className="rounded-xl border border-white/10 bg-slate-950/80 px-4 py-3 font-bold text-white outline-none focus:ring-2 focus:ring-sky-400"
         >
           <option value="">Todos los pasillos</option>
-          {AISLES.map((aisle) => (
+          {configuredAisles.map((aisle) => (
             <option key={aisle} value={aisle}>
               Pasillo {aisle}
             </option>
@@ -644,12 +673,19 @@ function Warehouse3DExplorer({
           className="rounded-xl border border-white/10 bg-slate-950/80 px-4 py-3 font-bold text-white outline-none focus:ring-2 focus:ring-sky-400"
         >
           <option value="">Todos los niveles</option>
-          {LEVELS.map((level) => (
+          {configuredLevels.map((level) => (
             <option key={level} value={level}>
               Nivel {level}
             </option>
           ))}
         </select>
+      </div>
+
+      <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <WarehouseCapacityMetric label="Bodega activa" value={activeWarehouseMeta.code || "-"} />
+        <WarehouseCapacityMetric label="Zonas" value={zones.length} detail={zones.join(", ") || "Sin zonas"} />
+        <WarehouseCapacityMetric label="Espacios ocupados" value={occupiedLocations} detail={`${occupancyPercent}% del plano`} tone="warning" />
+        <WarehouseCapacityMetric label="Espacios libres" value={availableLocations} detail={`${locationCapacity} totales`} tone="success" />
       </div>
 
       {searchFeedback && (
@@ -759,6 +795,22 @@ function LegendDot({ className, label }) {
       <span className={`h-3 w-3 rounded-full ${className}`} />
       {label}
     </span>
+  );
+}
+
+function WarehouseCapacityMetric({ detail, label, tone = "default", value }) {
+  const valueClass = tone === "success"
+    ? "text-emerald-300"
+    : tone === "warning"
+    ? "text-amber-200"
+    : "text-white";
+
+  return (
+    <div className="min-w-0 rounded-xl border border-white/10 bg-slate-900/80 p-4">
+      <p className="text-xs font-black uppercase text-slate-500">{label}</p>
+      <p className={`mt-2 break-words text-xl font-black ${valueClass}`}>{value}</p>
+      {detail && <p className="mt-1 truncate text-xs font-semibold text-slate-400">{detail}</p>}
+    </div>
   );
 }
 

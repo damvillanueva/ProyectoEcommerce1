@@ -18,10 +18,19 @@ import java.time.OffsetDateTime;
 @Entity
 @Table(
         name = "inventory_stocks",
-        uniqueConstraints = @UniqueConstraint(
-                name = "uk_inventory_stocks_item_warehouse",
-                columnNames = {"inventory_item_id", "warehouse_code"}
-        ),
+        uniqueConstraints = {
+                @UniqueConstraint(
+                        name = "uk_inventory_stocks_item_warehouse",
+                        columnNames = {"inventory_item_id", "warehouse_code"}
+                ),
+                @UniqueConstraint(
+                        name = "uk_inventory_stocks_warehouse_location",
+                        columnNames = {
+                                "warehouse_code", "location_zone", "location_aisle",
+                                "location_rack", "location_level", "location_position"
+                        }
+                )
+        },
         indexes = {
                 @Index(name = "idx_inventory_stocks_item", columnList = "inventory_item_id"),
                 @Index(name = "idx_inventory_stocks_warehouse", columnList = "warehouse_code")
@@ -41,10 +50,10 @@ public class InventoryStock {
     @JoinColumn(name = "warehouse_code", nullable = false)
     private Warehouse warehouse;
 
-    @Column(length = 20)
+    @Column(nullable = false, length = 20)
     private String locationZone;
 
-    @Column(length = 20)
+    @Column(nullable = false, length = 20)
     private String locationAisle;
 
     @Column(nullable = false)

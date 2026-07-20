@@ -34,11 +34,16 @@ class InventoryStockServiceTest {
     @Mock
     private WarehouseService warehouseService;
 
+    @Mock
+    private WarehouseLocationService locationService;
+
     private InventoryStockService stockService;
 
     @BeforeEach
     void setUp() {
-        stockService = new InventoryStockService(stockRepository, itemRepository, warehouseService);
+        stockService = new InventoryStockService(
+                stockRepository, itemRepository, warehouseService, locationService
+        );
     }
 
     @Test

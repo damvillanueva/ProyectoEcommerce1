@@ -1,6 +1,7 @@
 package com.smartlogix.inventory.exception;
 
 import java.time.OffsetDateTime;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -30,6 +31,13 @@ public class GlobalExceptionHandler {
                 .orElse("Solicitud invalida");
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(new ErrorResponse(OffsetDateTime.now(), HttpStatus.BAD_REQUEST.value(), message));
+    }
+
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ErrorResponse> handleIntegrity(DataIntegrityViolationException ex) {
+        String message = "La operacion entra en conflicto con un registro existente.";
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(new ErrorResponse(OffsetDateTime.now(), HttpStatus.CONFLICT.value(), message));
     }
 
     @ExceptionHandler(Exception.class)

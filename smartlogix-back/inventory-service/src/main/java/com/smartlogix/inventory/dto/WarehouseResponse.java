@@ -1,6 +1,7 @@
 package com.smartlogix.inventory.dto;
 
 import java.time.OffsetDateTime;
+import java.util.List;
 
 public record WarehouseResponse(
         String code,
@@ -14,6 +15,7 @@ public record WarehouseResponse(
         int rackCount,
         int levelCount,
         int positionsPerLevel,
+        List<String> zoneCodes,
         long productCount,
         int totalQuantity,
         int availableQuantity,

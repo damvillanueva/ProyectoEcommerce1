@@ -32,6 +32,15 @@ public interface InventoryStockRepository extends JpaRepository<InventoryStock, 
 
     Optional<InventoryStock> findByItem_SkuAndWarehouse_Code(String sku, String warehouseCode);
 
+    Optional<InventoryStock> findByWarehouse_CodeAndLocationZoneAndLocationAisleAndLocationRackAndLocationLevelAndLocationPosition(
+            String warehouseCode,
+            String locationZone,
+            String locationAisle,
+            int locationRack,
+            int locationLevel,
+            int locationPosition
+    );
+
     List<InventoryStock> findByWarehouse_CodeOrderByItem_ProductNameAsc(String warehouseCode);
 
     long countByWarehouse_Code(String warehouseCode);

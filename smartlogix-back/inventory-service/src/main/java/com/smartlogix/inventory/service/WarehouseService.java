@@ -10,6 +10,7 @@ import com.smartlogix.inventory.exception.InventoryOperationException;
 import com.smartlogix.inventory.repository.InventoryStockRepository;
 import com.smartlogix.inventory.repository.WarehouseRepository;
 import java.util.List;
+import java.util.LinkedHashSet;
 import java.util.Locale;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -21,6 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class WarehouseService {
 
     private static final Logger log = LoggerFactory.getLogger(WarehouseService.class);
+    private static final List<String> DEFAULT_ZONE_CODES = List.of("A", "C", "G", "M", "N", "O", "P", "R");
 
     private final WarehouseRepository warehouseRepository;
     private final InventoryStockRepository stockRepository;
@@ -67,7 +69,8 @@ public class WarehouseService {
                 valueOrDefault(request.aisleCount(), 6),
                 valueOrDefault(request.rackCount(), 8),
                 valueOrDefault(request.levelCount(), 4),
-                valueOrDefault(request.positionsPerLevel(), 12)
+                valueOrDefault(request.positionsPerLevel(), 12),
+                request.zoneCodes()
         );
 
         Warehouse saved = warehouseRepository.save(warehouse);
@@ -90,7 +93,8 @@ public class WarehouseService {
                 request.aisleCount(),
                 request.rackCount(),
                 request.levelCount(),
-                request.positionsPerLevel()
+                request.positionsPerLevel(),
+                request.zoneCodes()
         );
 
         Warehouse saved = warehouseRepository.save(warehouse);
@@ -148,9 +152,11 @@ public class WarehouseService {
     }
 
     private void validateLayoutReduction(Warehouse warehouse, UpdateWarehouseRequest request) {
+        List<String> requestedZones = normalizeZoneCodes(request.zoneCodes(), warehouse.getZoneCodes());
         for (InventoryStock stock : stockRepository.findByWarehouse_CodeOrderByItem_ProductNameAsc(warehouse.getCode())) {
             int aisleNumber = aisleNumber(stock.getLocationAisle());
-            if (aisleNumber > request.aisleCount()
+            if (!requestedZones.contains(normalizeZoneCode(stock.getLocationZone()))
+                    || aisleNumber > request.aisleCount()
                     || stock.getLocationRack() > request.rackCount()
                     || stock.getLocationLevel() > request.levelCount()
                     || stock.getLocationPosition() > request.positionsPerLevel()) {
@@ -183,7 +189,8 @@ public class WarehouseService {
             int aisleCount,
             int rackCount,
             int levelCount,
-            int positionsPerLevel
+            int positionsPerLevel,
+            List<String> zoneCodes
     ) {
         warehouse.setName(name.trim());
         warehouse.setCity(city.trim());
@@ -195,6 +202,7 @@ public class WarehouseService {
         warehouse.setRackCount(rackCount);
         warehouse.setLevelCount(levelCount);
         warehouse.setPositionsPerLevel(positionsPerLevel);
+        warehouse.setZoneCodes(normalizeZoneCodes(zoneCodes, warehouse.getZoneCodes()));
     }
 
     private WarehouseResponse toResponse(Warehouse warehouse) {
@@ -208,7 +216,8 @@ public class WarehouseService {
         long capacity = (long) warehouse.getAisleCount()
                 * warehouse.getRackCount()
                 * warehouse.getLevelCount()
-                * warehouse.getPositionsPerLevel();
+                * warehouse.getPositionsPerLevel()
+                * warehouse.getZoneCodes().size();
 
         return new WarehouseResponse(
                 warehouse.getCode(),
@@ -222,6 +231,7 @@ public class WarehouseService {
                 warehouse.getRackCount(),
                 warehouse.getLevelCount(),
                 warehouse.getPositionsPerLevel(),
+                List.copyOf(warehouse.getZoneCodes()),
                 stocks.size(),
                 available + reserved,
                 available,
@@ -239,5 +249,27 @@ public class WarehouseService {
 
     private int valueOrDefault(Integer value, int fallback) {
         return value == null ? fallback : value;
+    }
+
+    private List<String> normalizeZoneCodes(List<String> zoneCodes, List<String> fallback) {
+        LinkedHashSet<String> normalized = new LinkedHashSet<>();
+        if (zoneCodes != null) {
+            zoneCodes.stream()
+                    .filter(value -> value != null && !value.isBlank())
+                    .map(this::normalizeZoneCode)
+                    .forEach(normalized::add);
+        }
+        if (normalized.isEmpty() && fallback != null) {
+            fallback.stream()
+                    .filter(value -> value != null && !value.isBlank())
+                    .map(this::normalizeZoneCode)
+                    .forEach(normalized::add);
+        }
+        if (normalized.isEmpty()) normalized.addAll(DEFAULT_ZONE_CODES);
+        return List.copyOf(normalized);
+    }
+
+    private String normalizeZoneCode(String value) {
+        return value.trim().toUpperCase(Locale.ROOT);
     }
 }

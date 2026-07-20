@@ -3,10 +3,16 @@ import {
   FiArchive,
   FiCheck,
   FiEdit2,
+  FiMapPin,
   FiPlus,
   FiTrash2,
   FiX,
 } from "react-icons/fi";
+
+const DEFAULT_ZONE_CODES = ["A", "C", "G", "M", "N", "O", "P", "R"];
+const AVAILABLE_ZONE_CODES = Array.from({ length: 26 }, (_, index) =>
+  String.fromCharCode(65 + index)
+);
 
 const EMPTY_FORM = {
   code: "",
@@ -20,6 +26,7 @@ const EMPTY_FORM = {
   rackCount: "8",
   levelCount: "4",
   positionsPerLevel: "12",
+  zoneCodes: DEFAULT_ZONE_CODES,
 };
 
 const NUMBER_FIELDS = [
@@ -40,6 +47,7 @@ function toForm(warehouse) {
       region: warehouse.region,
       address: warehouse.address,
       active: warehouse.active,
+      zoneCodes: warehouse.zoneCodes?.length ? warehouse.zoneCodes : DEFAULT_ZONE_CODES,
     }
   );
 }
@@ -56,6 +64,7 @@ function toPayload(form, includeCode) {
     rackCount: Number(form.rackCount),
     levelCount: Number(form.levelCount),
     positionsPerLevel: Number(form.positionsPerLevel),
+    zoneCodes: form.zoneCodes,
   };
 
   return includeCode ? { code: form.code.trim().toUpperCase(), ...payload } : payload;
@@ -89,8 +98,18 @@ function WarehouseManagementPanel({
   }
 
   function resetForm() {
-    setForm(EMPTY_FORM);
+    setForm({ ...EMPTY_FORM, zoneCodes: [...DEFAULT_ZONE_CODES] });
     setEditingCode("");
+  }
+
+  function handleZoneChange(event) {
+    const { checked, value } = event.target;
+    setForm((current) => ({
+      ...current,
+      zoneCodes: checked
+        ? [...current.zoneCodes, value].sort()
+        : current.zoneCodes.filter((zone) => zone !== value),
+    }));
   }
 
   function startEdit(warehouse) {
@@ -204,6 +223,38 @@ function WarehouseManagementPanel({
             <WarehouseField label="Posiciones por nivel" name="positionsPerLevel" value={form.positionsPerLevel} onChange={handleChange} type="number" min="1" max="30" />
           </div>
 
+          <fieldset className="mt-5 rounded-lg border border-white/10 bg-slate-950/45 p-4">
+            <legend className="flex items-center gap-2 px-2 text-xs font-black uppercase text-slate-300">
+              <FiMapPin aria-hidden="true" />
+              Zonas habilitadas
+            </legend>
+            <div className="mt-2 grid grid-cols-7 gap-2 sm:grid-cols-[repeat(13,minmax(0,1fr))]">
+              {AVAILABLE_ZONE_CODES.map((zone) => (
+                <label
+                  key={zone}
+                  className={`flex cursor-pointer items-center justify-center rounded-lg border px-2 py-2 text-xs font-black transition ${
+                    form.zoneCodes.includes(zone)
+                      ? "border-sky-300/60 bg-sky-500/20 text-sky-100"
+                      : "border-white/10 bg-slate-900 text-slate-500 hover:text-slate-200"
+                  }`}
+                  title={`Zona ${zone}`}
+                >
+                  <input
+                    type="checkbox"
+                    value={zone}
+                    checked={form.zoneCodes.includes(zone)}
+                    onChange={handleZoneChange}
+                    className="sr-only"
+                  />
+                  {zone}
+                </label>
+              ))}
+            </div>
+            <p className="mt-3 text-xs font-semibold text-slate-500">
+              Cada zona comparte los limites de pasillos, racks, niveles y posiciones del plano.
+            </p>
+          </fieldset>
+
           <div className="mt-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <label className="inline-flex cursor-pointer items-center gap-3 text-sm font-black text-slate-200">
               <input
@@ -217,7 +268,7 @@ function WarehouseManagementPanel({
             </label>
             <button
               type="submit"
-              disabled={saving}
+              disabled={saving || form.zoneCodes.length === 0}
               className="inline-flex min-w-44 items-center justify-center gap-2 rounded-lg bg-emerald-500 px-5 py-3 text-sm font-black text-slate-950 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-60"
             >
               <FiCheck aria-hidden="true" />
@@ -266,7 +317,10 @@ function WarehouseManagementPanel({
                     </p>
                   </td>
                   <td className="px-5 py-4 font-semibold text-slate-300">
-                    {warehouse.aisleCount}P | {warehouse.rackCount}R | {warehouse.levelCount}N | {warehouse.positionsPerLevel}U
+                    {(warehouse.zoneCodes || []).length}Z | {warehouse.aisleCount}P | {warehouse.rackCount}R | {warehouse.levelCount}N | {warehouse.positionsPerLevel}U
+                    <p className="mt-1 text-xs text-slate-500">
+                      {(warehouse.zoneCodes || []).join(", ") || "Sin zonas"}
+                    </p>
                   </td>
                   <td className="px-5 py-4">
                     <div className="h-2 w-36 overflow-hidden rounded-full bg-slate-950">

@@ -5,6 +5,7 @@ import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
+import java.util.List;
 
 public record CreateWarehouseRequest(
         @NotBlank
@@ -19,6 +20,8 @@ public record CreateWarehouseRequest(
         @Min(1) @Max(12) Integer aisleCount,
         @Min(1) @Max(20) Integer rackCount,
         @Min(1) @Max(8) Integer levelCount,
-        @Min(1) @Max(30) Integer positionsPerLevel
+        @Min(1) @Max(30) Integer positionsPerLevel,
+        @Size(min = 1, max = 26)
+        List<@Pattern(regexp = "[A-Za-z0-9-]{1,20}") String> zoneCodes
 ) {
 }

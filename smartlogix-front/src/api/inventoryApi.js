@@ -82,6 +82,18 @@ export async function getWarehouses() {
   return response.data;
 }
 
+export async function getWarehouseLocationSuggestion(code, zone = "") {
+  const response = await axios.get(
+    `${API_URL}/api/inventory/warehouses/${encodeURIComponent(code)}/locations/suggestion`,
+    {
+      headers: getAuthHeaders(),
+      params: compactParams({ zone }),
+    }
+  );
+
+  return response.data;
+}
+
 export async function createWarehouse(warehouseData) {
   const response = await axios.post(
     `${API_URL}/api/inventory/warehouses`,

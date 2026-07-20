@@ -1,5 +1,6 @@
 import { Suspense, lazy, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import { FiMapPin } from "react-icons/fi";
 import {
 getInventoryItemsWithAvailable,
 saveInventoryItem,
@@ -11,6 +12,7 @@ moveInventoryStock,
 fetchInventoryMovements,
 fetchInventoryAuditLogs,
 fetchWarehouses,
+fetchWarehouseLocationSuggestion,
 saveWarehouse,
 editWarehouse,
 removeWarehouse,
@@ -121,6 +123,7 @@ const [detailError, setDetailError] = useState("");
 const [savingStockKey, setSavingStockKey] = useState("");
 const [deletingStockKey, setDeletingStockKey] = useState("");
 const [transferringStock, setTransferringStock] = useState(false);
+const [suggestingFormLocation, setSuggestingFormLocation] = useState(false);
 const [auditLogs, setAuditLogs] = useState([]);
 const [auditLoading, setAuditLoading] = useState(false);
 const [auditError, setAuditError] = useState("");
@@ -321,6 +324,13 @@ initialQuantity: "25",
 reorderLevel: "5",
 });
 
+const formWarehouse = warehouseOptions.find(
+(warehouse) => warehouse.code === formData.warehouseCode
+);
+const formZoneOptions = formWarehouse?.zoneCodes?.length
+? formWarehouse.zoneCodes
+: [formData.locationZone || "A"];
+
 useEffect(() => {
 async function loadInventoryPage() {
 const [inventoryResult, warehouseResult] = await Promise.allSettled([
@@ -421,7 +431,49 @@ const { name, value } = event.target;
 setFormData((prevData) => ({
 ...prevData,
 [name]: value,
+...(name === "warehouseCode"
+? {
+locationZone: warehouseOptions.find((warehouse) => warehouse.code === value)?.zoneCodes?.includes(prevData.locationZone)
+? prevData.locationZone
+: warehouseOptions.find((warehouse) => warehouse.code === value)?.zoneCodes?.[0] || prevData.locationZone,
+}
+: {}),
 }));
+}
+
+async function handleSuggestLocation(warehouseCode, zone) {
+if (!warehouseCode) {
+showPageError("Selecciona una bodega para buscar una ubicacion libre.");
+return null;
+}
+
+try {
+const suggestion = await fetchWarehouseLocationSuggestion(warehouseCode, zone);
+showPageSuccess(`Ubicacion libre sugerida: ${suggestion.code}.`);
+return suggestion;
+} catch (err) {
+console.error(err);
+showPageError(err.response?.data?.message || "No se pudo sugerir una ubicacion libre.");
+return null;
+}
+}
+
+async function handleSuggestFormLocation() {
+setSuggestingFormLocation(true);
+try {
+const suggestion = await handleSuggestLocation(formData.warehouseCode, formData.locationZone);
+if (!suggestion) return;
+setFormData((current) => ({
+...current,
+locationZone: suggestion.zone,
+locationAisle: suggestion.aisle,
+locationRack: String(suggestion.rack),
+locationLevel: String(suggestion.level),
+locationPosition: String(suggestion.position),
+}));
+} finally {
+setSuggestingFormLocation(false);
+}
 }
 
 function handleImageUpload(event) {
@@ -602,9 +654,9 @@ reorderLevel: "5",
 } catch (err) {
 console.error(err);
 showPageError(
-editingSku
+err.response?.data?.message || (editingSku
 ? "No se pudo actualizar el producto."
-: "No se pudo agregar el producto al inventario."
+: "No se pudo agregar el producto al inventario.")
 );
 } finally {
 setSaving(false);
@@ -1052,14 +1104,16 @@ className="bg-slate-950/80 border border-white/10 text-white rounded-xl px-4 py-
 ))}
 </select>
 
-<input
-type="text"
+<select
 name="locationZone"
 value={formData.locationZone}
 onChange={handleChange}
-placeholder="Zona"
 className="bg-slate-950/80 border border-white/10 text-white placeholder:text-slate-500 rounded-xl px-4 py-3 focus:ring-2 focus:ring-indigo-400 outline-none"
-/>
+>
+{formZoneOptions.map((zone) => (
+<option key={zone} value={zone}>Zona {zone}</option>
+))}
+</select>
 
 <input
 type="text"
@@ -1102,6 +1156,16 @@ min="1"
 required
 className="bg-slate-950/80 border border-white/10 text-white placeholder:text-slate-500 rounded-xl px-4 py-3 focus:ring-2 focus:ring-indigo-400 outline-none"
 />
+
+<button
+type="button"
+onClick={handleSuggestFormLocation}
+disabled={suggestingFormLocation || !formData.warehouseCode}
+className="inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-300/30 bg-emerald-500/10 px-4 py-3 text-sm font-black text-emerald-100 transition hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+>
+<FiMapPin aria-hidden="true" />
+{suggestingFormLocation ? "Buscando espacio..." : "Sugerir ubicacion libre"}
+</button>
 
 <input
 type="number"
@@ -1402,6 +1466,7 @@ canViewMovements={canViewMovements}
 onSaveStock={handleSaveProductStock}
 onDeleteStock={handleDeleteProductStock}
 onTransferStock={handleTransferProductStock}
+onSuggestLocation={handleSuggestLocation}
 savingStockKey={savingStockKey}
 deletingStockKey={deletingStockKey}
 transferringStock={transferringStock}
@@ -2201,6 +2266,7 @@ onClose,
 onSaveStock,
 onDeleteStock,
 onTransferStock,
+onSuggestLocation,
 savingStockKey,
 deletingStockKey,
 transferringStock,
@@ -2287,10 +2353,12 @@ onDelete={onDeleteStock}
 savingStockKey={savingStockKey}
 deletingStockKey={deletingStockKey}
 warehouseOptions={warehouseOptions}
+onSuggestLocation={onSuggestLocation}
 />
 <WarehouseTransferPanel
 item={item}
 onTransfer={onTransferStock}
+onSuggestLocation={onSuggestLocation}
 transferring={transferringStock}
 warehouseOptions={warehouseOptions}
 />
@@ -2382,7 +2450,7 @@ className="grid gap-3 rounded-2xl border border-white/10 bg-slate-900/80 p-4 sm:
 );
 }
 
-function WarehouseTransferPanel({ item, onTransfer, transferring, warehouseOptions }) {
+function WarehouseTransferPanel({ item, onSuggestLocation, onTransfer, transferring, warehouseOptions }) {
 const stocks = item.stocks || [];
 const activeWarehouses = warehouseOptions.filter((warehouse) => warehouse.active !== false);
 
@@ -2399,13 +2467,18 @@ const destination = activeWarehouses.find(
 const destinationStock = stocks.find(
 (stock) => stock.warehouseCode === destination?.code
 );
+const preferredZone = item.category?.slice(0, 1).toUpperCase();
+const destinationZone = destinationStock?.locationZone
+|| destination?.zoneCodes?.find((zone) => zone === preferredZone)
+|| destination?.zoneCodes?.[0]
+|| "G";
 
 return {
 sourceWarehouseCode: source?.warehouseCode || "",
 destinationWarehouseCode: destination?.code || "",
 quantity: "1",
 reason: "Reposicion interna",
-destinationLocationZone: destinationStock?.locationZone || item.category?.slice(0, 1).toUpperCase() || "G",
+destinationLocationZone: destinationZone,
 destinationLocationAisle: destinationStock?.locationAisle || "A",
 destinationLocationRack: String(destinationStock?.locationRack || 1),
 destinationLocationLevel: String(destinationStock?.locationLevel || 1),
@@ -2415,6 +2488,7 @@ destinationReorderLevel: String(destinationStock?.reorderLevel ?? source?.reorde
 }
 
 const [transferData, setTransferData] = useState(createInitialData);
+const [suggestingLocation, setSuggestingLocation] = useState(false);
 
 useEffect(() => {
 setTransferData(createInitialData());
@@ -2429,6 +2503,9 @@ const destinationStock = stocks.find(
 const destinationOptions = activeWarehouses.filter(
 (warehouse) => warehouse.code !== transferData.sourceWarehouseCode
 );
+const destinationWarehouse = activeWarehouses.find(
+(warehouse) => warehouse.code === transferData.destinationWarehouseCode
+);
 const quantity = Number(transferData.quantity || 0);
 const sourceAvailable = Number(sourceStock?.availableQuantity || 0);
 const destinationAvailable = Number(destinationStock?.availableQuantity || 0);
@@ -2439,7 +2516,11 @@ const stock = stocks.find((candidate) => candidate.warehouseCode === warehouseCo
 return {
 ...current,
 destinationWarehouseCode: warehouseCode,
-destinationLocationZone: stock?.locationZone || item.category?.slice(0, 1).toUpperCase() || "G",
+destinationLocationZone: stock?.locationZone
+|| (activeWarehouses.find((warehouse) => warehouse.code === warehouseCode)?.zoneCodes || [])
+.find((zone) => zone === item.category?.slice(0, 1).toUpperCase())
+|| activeWarehouses.find((warehouse) => warehouse.code === warehouseCode)?.zoneCodes?.[0]
+|| "G",
 destinationLocationAisle: stock?.locationAisle || "A",
 destinationLocationRack: String(stock?.locationRack || 1),
 destinationLocationLevel: String(stock?.locationLevel || 1),
@@ -2471,6 +2552,27 @@ setTransferData((current) => ({ ...current, [name]: value }));
 function handleSubmit(event) {
 event.preventDefault();
 onTransfer(item, transferData);
+}
+
+async function handleSuggestDestinationLocation() {
+setSuggestingLocation(true);
+try {
+const suggestion = await onSuggestLocation(
+transferData.destinationWarehouseCode,
+transferData.destinationLocationZone
+);
+if (!suggestion) return;
+setTransferData((current) => ({
+...current,
+destinationLocationZone: suggestion.zone,
+destinationLocationAisle: suggestion.aisle,
+destinationLocationRack: String(suggestion.rack),
+destinationLocationLevel: String(suggestion.level),
+destinationLocationPosition: String(suggestion.position),
+}));
+} finally {
+setSuggestingLocation(false);
+}
 }
 
 if (activeWarehouses.length < 2) {
@@ -2568,13 +2670,28 @@ onChange={handleChange}
 Este SKU aun no existe en el destino. Define su ubicacion inicial.
 </p>
 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-<StockInput label="Zona" name="destinationLocationZone" value={transferData.destinationLocationZone} onChange={handleChange} />
+<WarehouseZoneSelect
+label="Zona"
+name="destinationLocationZone"
+value={transferData.destinationLocationZone}
+onChange={handleChange}
+warehouse={destinationWarehouse}
+/>
 <StockInput label="Pasillo" name="destinationLocationAisle" value={transferData.destinationLocationAisle} onChange={handleChange} />
 <StockInput label="Rack" name="destinationLocationRack" value={transferData.destinationLocationRack} onChange={handleChange} type="number" />
 <StockInput label="Nivel" name="destinationLocationLevel" value={transferData.destinationLocationLevel} onChange={handleChange} type="number" />
 <StockInput label="Posicion" name="destinationLocationPosition" value={transferData.destinationLocationPosition} onChange={handleChange} type="number" />
 <StockInput label="Reposicion" name="destinationReorderLevel" value={transferData.destinationReorderLevel} onChange={handleChange} type="number" min="0" />
 </div>
+<button
+type="button"
+onClick={handleSuggestDestinationLocation}
+disabled={suggestingLocation}
+className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-amber-200/30 bg-amber-300/10 px-4 py-3 text-sm font-black text-amber-100 transition hover:bg-amber-300/20 disabled:opacity-50"
+>
+<FiMapPin aria-hidden="true" />
+{suggestingLocation ? "Buscando espacio..." : "Sugerir espacio libre en destino"}
+</button>
 </div>
 )}
 
@@ -2596,6 +2713,7 @@ deletingStockKey,
 item,
 location,
 onDelete,
+onSuggestLocation,
 onSave,
 savingStockKey,
 warehouseOptions,
@@ -2618,12 +2736,18 @@ reorderLevel: item.reorderLevel,
 const initialWarehouseCode = stocks[0]?.warehouseCode || warehouseOptions[0]?.code || "";
 const [selectedWarehouseCode, setSelectedWarehouseCode] = useState(initialWarehouseCode);
 const [confirmDeleteCode, setConfirmDeleteCode] = useState("");
+const [suggestingLocation, setSuggestingLocation] = useState(false);
 
 function createFormData(warehouseCode) {
 const stock = stocks.find((candidate) => candidate.warehouseCode === warehouseCode);
+const warehouse = warehouseOptions.find((candidate) => candidate.code === warehouseCode);
+const preferredZone = item.category?.slice(0, 1).toUpperCase();
 return {
 warehouseCode,
-locationZone: stock?.locationZone || item.category?.slice(0, 1).toUpperCase() || location.zone,
+locationZone: stock?.locationZone
+|| warehouse?.zoneCodes?.find((zone) => zone === preferredZone)
+|| warehouse?.zoneCodes?.[0]
+|| location.zone,
 locationAisle: stock?.locationAisle || "A",
 locationRack: String(stock?.locationRack || 1),
 locationLevel: String(stock?.locationLevel || 1),
@@ -2661,6 +2785,24 @@ setStockData((current) => ({ ...current, [name]: value }));
 function handleSubmit(event) {
 event.preventDefault();
 onSave(item, stockData);
+}
+
+async function handleSuggestStockLocation() {
+setSuggestingLocation(true);
+try {
+const suggestion = await onSuggestLocation(selectedWarehouseCode, stockData.locationZone);
+if (!suggestion) return;
+setStockData((current) => ({
+...current,
+locationZone: suggestion.zone,
+locationAisle: suggestion.aisle,
+locationRack: String(suggestion.rack),
+locationLevel: String(suggestion.level),
+locationPosition: String(suggestion.position),
+}));
+} finally {
+setSuggestingLocation(false);
+}
 }
 
 const selectedWarehouse = warehouseOptions.find(
@@ -2777,11 +2919,26 @@ className="rounded-xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm f
 ))}
 </select>
 
-<StockInput label="Zona" name="locationZone" value={stockData.locationZone} onChange={handleChange} />
+<WarehouseZoneSelect
+label="Zona"
+name="locationZone"
+value={stockData.locationZone}
+onChange={handleChange}
+warehouse={selectedWarehouse}
+/>
 <StockInput label="Pasillo" name="locationAisle" value={stockData.locationAisle} onChange={handleChange} />
 <StockInput label="Rack" name="locationRack" value={stockData.locationRack} onChange={handleChange} type="number" />
 <StockInput label="Nivel" name="locationLevel" value={stockData.locationLevel} onChange={handleChange} type="number" />
 <StockInput label="Posicion" name="locationPosition" value={stockData.locationPosition} onChange={handleChange} type="number" />
+<button
+type="button"
+onClick={handleSuggestStockLocation}
+disabled={suggestingLocation || selectedWarehouse?.active === false}
+className="inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-300/30 bg-emerald-500/10 px-4 py-3 text-sm font-black text-emerald-100 transition hover:bg-emerald-500/20 disabled:opacity-50"
+>
+<FiMapPin aria-hidden="true" />
+{suggestingLocation ? "Buscando..." : "Sugerir espacio libre"}
+</button>
 <StockInput label="Disponible" name="availableQuantity" value={stockData.availableQuantity} onChange={handleChange} type="number" min="0" />
 <StockInput label="Reposicion" name="reorderLevel" value={stockData.reorderLevel} onChange={handleChange} type="number" min="0" />
 
@@ -2809,6 +2966,26 @@ onChange={onChange}
 min={type === "number" ? min ?? "1" : undefined}
 className="w-full min-w-0 max-w-full rounded-xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm font-black text-white outline-none focus:ring-2 focus:ring-sky-400"
 />
+</label>
+);
+}
+
+function WarehouseZoneSelect({ label, name, onChange, value, warehouse }) {
+const zones = warehouse?.zoneCodes?.length ? warehouse.zoneCodes : [value || "A"];
+
+return (
+<label className="block min-w-0">
+<span className="mb-1 block text-xs font-black uppercase text-slate-500">{label}</span>
+<select
+name={name}
+value={zones.includes(value) ? value : zones[0]}
+onChange={onChange}
+className="w-full min-w-0 max-w-full rounded-xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm font-black text-white outline-none focus:ring-2 focus:ring-sky-400"
+>
+{zones.map((zone) => (
+<option key={zone} value={zone}>Zona {zone}</option>
+))}
+</select>
 </label>
 );
 }

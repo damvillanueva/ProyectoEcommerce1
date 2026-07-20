@@ -62,6 +62,7 @@ class WarehouseServiceTest {
                 null,
                 null,
                 null,
+                null,
                 null
         ));
 
@@ -100,6 +101,7 @@ class WarehouseServiceTest {
         InventoryStock stock = new InventoryStock();
         stock.setItem(item);
         stock.setWarehouse(warehouse);
+        stock.setLocationZone("P");
         stock.setLocationAisle("F");
         stock.setLocationRack(8);
         stock.setLocationLevel(4);
@@ -118,7 +120,8 @@ class WarehouseServiceTest {
                 5,
                 7,
                 3,
-                10
+                10,
+                List.of("P")
         );
 
         assertThatThrownBy(() -> warehouseService.update("WH-SCL-01", request))
@@ -149,6 +152,7 @@ class WarehouseServiceTest {
         warehouse.setRackCount(8);
         warehouse.setLevelCount(4);
         warehouse.setPositionsPerLevel(12);
+        warehouse.setZoneCodes(List.of("A", "C", "G", "M", "N", "O", "P", "R"));
         return warehouse;
     }
 }

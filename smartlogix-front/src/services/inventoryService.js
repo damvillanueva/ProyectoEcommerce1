@@ -16,6 +16,7 @@ import {
   deleteInventoryStock,
   transferInventoryStock,
   getWarehouses,
+  getWarehouseLocationSuggestion,
   createWarehouse,
   updateWarehouse,
   deleteWarehouse,
@@ -63,6 +64,10 @@ export async function moveInventoryStock(sku, transferData) {
 
 export async function fetchWarehouses() {
   return await getWarehouses();
+}
+
+export async function fetchWarehouseLocationSuggestion(code, zone) {
+  return await getWarehouseLocationSuggestion(code, zone);
 }
 
 export async function saveWarehouse(warehouseData) {

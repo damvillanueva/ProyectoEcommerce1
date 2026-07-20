@@ -15,14 +15,12 @@ secretos y un commit con push al repositorio personal.
 
 ## Orden actual de prioridades
 
-1. Consistencia de inventario y bodegas: CRUD real, ubicaciones, stock por
-   bodega, traslados y conexion con la vista 3D.
-2. Calidad automatizada: pruebas de integracion, contratos, flujo end-to-end y
-   CI para impedir regresiones.
-3. Proveedores y reposicion: compras, recepcion, costos, margenes y alertas.
-4. Punto de venta fisico conectado al mismo inventario.
-5. Postventa, documentos comerciales, notificaciones y textos legales.
-6. Responsive, accesibilidad y limpieza final de la plantilla reutilizable.
+1. Responsive completo de tienda, administracion, POS y vista 3D.
+2. Panel de accesibilidad y auditoria WCAG 2.2 AA.
+3. Optimizacion del bundle y carga diferida de modulos pesados.
+4. Pruebas end-to-end y CI para impedir regresiones.
+5. Proveedores, reposicion y punto de venta fisico conectado al inventario.
+6. Limpieza final y arquitectura reutilizable, una vez cerrados los modulos.
 
 El orden prioriza la integridad de los datos antes de agregar nuevos canales de
 venta. Cada punto se cerrara en bloques pequenos con su propio commit y push.
@@ -52,8 +50,8 @@ PostgreSQL puede ejecutarse localmente en Docker sin pagar un servicio externo.
 ## Fase 3 - Bodegas reales
 
 - [x] Crear entidad, migracion, API y panel CRUD de bodegas.
-- [ ] Administrar zonas, pasillos, racks, niveles y posiciones.
-- [ ] Impedir ubicaciones fisicas duplicadas.
+- [x] Administrar zonas, pasillos, racks, niveles y posiciones.
+- [x] Impedir ubicaciones fisicas duplicadas.
 - [x] Guardar stock del mismo SKU en varias bodegas.
 - [x] Registrar traslados parciales con movimientos de origen y destino enlazados.
 - [x] Seleccionar automaticamente la bodega de despacho por prioridad y disponibilidad.

@@ -45,6 +45,7 @@ Registro de funcionalidades y mejoras incorporadas al proyecto de portafolio.
 - [x] Lint frontend limpio con `npm run lint`.
 - [x] Tests unitarios de `order-service` para reserva, envio y limpieza al eliminar pedido.
 - [x] Traslados reales entre bodegas con cantidad parcial y movimientos de origen/destino enlazados.
+- [x] Ubicaciones fisicas seguras: zonas configurables por bodega, sugerencia del primer espacio libre y bloqueo de coordenadas duplicadas en servicio y PostgreSQL.
 - [x] Documentacion tecnica y guion de demostracion del flujo completo.
 - [x] Checkout ecommerce con carrito separado, despacho/retiro, descuentos y pagos simulados.
 - [x] Cuenta de cliente con perfil, direcciones, favoritos, compras y seguimiento privado.
@@ -124,7 +125,7 @@ Registro de funcionalidades y mejoras incorporadas al proyecto de portafolio.
    - Estado: implementado completo a nivel visual: selector, filtro, panel separado por bodega, mapa visual por ubicacion, productos dentro de cada bodega, categorias, stock total, disponible, reservado, productos criticos, barra de capacidad visual y acciones rapidas de detalle/QR.
    - Estado backend: implementadas bodegas persistentes y existencias reales por SKU/bodega, migraciones Flyway, API CRUD, reservas distribuidas por prioridad, validacion del plano fisico y permisos por rol.
    - Estado frontend: implementados panel administrativo, desglose y edicion de existencias por bodega, selector de bodega para movimientos, mapa visual y vista 3D conectada al stock real.
-   - Pendiente: ubicaciones unicas y traslados parciales con movimientos de origen/destino.
+   - Estado de integridad: implementadas ubicaciones unicas, zonas configurables, sugerencia de espacios libres y traslados parciales con movimientos de origen/destino.
 
 9.1. Etiquetas por SKU
    - Generar QR escaneable por SKU.
@@ -194,12 +195,22 @@ Registro de funcionalidades y mejoras incorporadas al proyecto de portafolio.
     - Registra una salida y una entrada enlazadas por referencia `TRF-...`, ademas de auditoria.
     - Estado: implementado con transaccion, bloqueo pesimista y permisos de administrador/bodeguero.
 
+20. Ubicaciones fisicas seguras
+    - Cada bodega administra sus zonas habilitadas y conserva limites para pasillos, racks, niveles y posiciones.
+    - El backend sugiere el primer espacio libre, valida los limites y rechaza una coordenada ya ocupada por otro SKU.
+    - PostgreSQL mantiene una restriccion unica como segunda barrera ante solicitudes simultaneas.
+    - El formulario de producto, la edicion de existencias y los traslados pueden solicitar una ubicacion libre.
+    - La vista 3D muestra zonas configuradas, espacios ocupados, libres y capacidad total.
+    - Estado: implementado y validado con migracion Flyway V5, API real y pruebas unitarias.
+
 ## Validacion actual
 
-- Backend completo: `mvn test` OK en los 7 modulos, con 48 pruebas sin fallos.
-- Inventario: 18 pruebas, incluidas 4 de traslados entre bodegas.
+- Backend completo: `mvn test` OK en los 7 modulos, con 51 pruebas sin fallos.
+- Inventario: 21 pruebas, incluidas 4 de traslados y 3 de ubicaciones seguras.
 - Seguridad de traslados: usuario comun recibe `403`; administrador y bodeguero conservan el permiso operativo.
 - API real: traslado parcial y reversion OK, con dos movimientos enlazados por la misma referencia `TRF-...` y datos de demostracion restaurados.
+- API real de ubicaciones: sugerencia libre OK; coordenada duplicada devuelve `400` y usuario de solo lectura recibe `403`. Los datos temporales fueron eliminados.
+- PostgreSQL: migracion Flyway V5 aplicada correctamente sobre la base persistente.
 - Frontend: `npm.cmd run lint` y `npm.cmd run build` OK.
 - Frontend responsivo: modal de producto y formulario de traslado revisados en escritorio y a 390 x 844 px, sin desborde horizontal del formulario.
 - Frontend 3D: Playwright con Edge OK en desktop y movil; busqueda `SKU-3001` encontro `WH-VAP-02-MC-R1-N2-P3`; capturas con pixeles no vacios.
