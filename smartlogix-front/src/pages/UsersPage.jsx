@@ -135,14 +135,14 @@ function UsersPage() {
   }
 
     return (
-      <div className="min-h-screen bg-slate-950 p-6 text-white">
+      <div className="min-h-screen bg-slate-950 p-2 text-white sm:p-6">
           <PageContainer>
-            <div className="rounded-3xl overflow-hidden border border-white/10 shadow-2xl">
+            <div className="overflow-hidden rounded-lg border border-white/10 shadow-2xl sm:rounded-3xl">
               <Navbar />
 
-              <section className="bg-gradient-to-br from-slate-900 via-slate-900 to-indigo-950 p-8">
+              <section className="bg-gradient-to-br from-slate-900 via-slate-900 to-indigo-950 p-4 sm:p-8">
             <div className="mb-8">
-              <h1 className="text-4xl font-black mb-2">Usuarios</h1>
+              <h1 className="mb-2 text-3xl font-black sm:text-4xl">Usuarios</h1>
               <p className="text-slate-300">
                 Administración de accesos, roles y estado de cuentas.
               </p>
@@ -154,8 +154,8 @@ function UsersPage() {
               </div>
             )}
 
-            <div className="grid grid-cols-1 xl:grid-cols-[420px_1fr] gap-6">
-              <div className="bg-slate-800/80 border border-white/10 rounded-3xl p-6">
+            <div className="grid min-w-0 grid-cols-1 gap-6 xl:grid-cols-[420px_minmax(0,1fr)]">
+              <div className="rounded-lg border border-white/10 bg-slate-800/80 p-4 sm:rounded-3xl sm:p-6">
                 <h2 className="text-2xl font-black mb-2">
                   {editingId ? "Editar usuario" : "Crear usuario"}
                 </h2>
@@ -198,11 +198,18 @@ function UsersPage() {
                 </form>
               </div>
 
-              <div className="bg-slate-800/80 border border-white/10 rounded-3xl p-6">
+              <div className="min-w-0 rounded-lg border border-white/10 bg-slate-800/80 p-4 sm:rounded-3xl sm:p-6">
                 <h2 className="text-2xl font-black mb-6">Usuarios registrados</h2>
 
                 <div className="overflow-x-auto">
-                  <table className="w-full border-collapse">
+                  <table className="w-full min-w-[760px] table-fixed border-collapse">
+                    <colgroup>
+                      <col className="w-[16%]" />
+                      <col className="w-[24%]" />
+                      <col className="w-[28%]" />
+                      <col className="w-[14%]" />
+                      <col className="w-[18%]" />
+                    </colgroup>
                     <thead>
                       <tr className="bg-slate-900/80 text-slate-300 uppercase text-sm">
                         <th className="p-4 text-left rounded-l-xl">Usuario</th>
@@ -216,15 +223,15 @@ function UsersPage() {
                     <tbody>
                       {users.map((user) => (
                         <tr key={user.id} className="border-b border-white/10 hover:bg-white/5 transition">
-                          <td className="p-4">
+                          <td className="break-words p-4">
                             <strong>{user.displayName || user.username}</strong>
                             <p className="text-slate-400">@{user.username}</p>
                           </td>
 
-                          <td className="p-4">{user.email}</td>
+                          <td className="break-all p-4">{user.email}</td>
 
                           <td className="p-4">
-                            <span className="rounded-full bg-blue-500/20 text-blue-300 px-3 py-1 font-bold">
+                            <span className="inline-flex max-w-full break-all rounded-full bg-blue-500/20 px-2 py-1 text-xs font-bold text-blue-300">
                               {user.role}
                             </span>
                           </td>
@@ -240,12 +247,12 @@ function UsersPage() {
                           </td>
 
                           <td className="p-4">
-                            <div className="flex gap-2">
-                              <button onClick={() => handleEdit(user)} className="rounded-xl bg-amber-500 px-4 py-2 font-bold text-white hover:bg-amber-400">
+                            <div className="flex flex-col gap-2">
+                              <button onClick={() => handleEdit(user)} className="w-full rounded-lg bg-amber-500 px-2 py-2 text-xs font-bold text-white hover:bg-amber-400">
                                 Editar permisos
                               </button>
 
-                              <button onClick={() => handleToggleEnabled(user)} className={`rounded-xl px-4 py-2 font-bold text-white transition ${
+                              <button onClick={() => handleToggleEnabled(user)} className={`w-full rounded-lg px-2 py-2 text-xs font-bold text-white transition ${
                                 user.enabled
                                   ? "bg-red-500 hover:bg-red-400"
                                   : "bg-emerald-500 hover:bg-emerald-400"

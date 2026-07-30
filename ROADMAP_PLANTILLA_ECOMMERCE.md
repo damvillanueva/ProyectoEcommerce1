@@ -104,11 +104,13 @@ eliminar codigo que todavia pueda reutilizarse durante su construccion.
 
 ## Fase 8 - Responsive completo
 
-- [ ] Auditar tienda, checkout, cuenta, administracion, POS y vista 3D.
-- [ ] Definir navegacion movil para cada tipo de usuario.
+- [x] Auditar login, tienda, dashboard, inventario, pedidos, envios, usuarios y descuentos.
+- [ ] Auditar detalle de producto, carrito, checkout, cuenta, movimientos, POS y vista 3D.
+- [x] Definir navegacion movil por rol para el panel interno.
+- [ ] Completar navegacion movil especializada de tienda, cuenta y POS.
 - [ ] Adaptar tablas a listas o vistas resumidas en pantallas pequenas.
 - [ ] Verificar modales, formularios, textos largos y controles tactiles.
-- [ ] Probar anchos de 320, 390, 768, 1024 y 1440 pixeles.
+- [x] Probar el primer bloque en anchos de 320, 390, 768, 1024 y 1440 pixeles.
 - [ ] Automatizar capturas y controles de desbordamiento.
 
 ## Fase 9 - Accesibilidad transversal

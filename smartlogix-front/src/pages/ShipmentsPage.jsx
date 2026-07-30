@@ -379,14 +379,14 @@ function ShipmentPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 p-6 text-white">
+    <div className="min-h-screen bg-slate-950 p-2 text-white sm:p-6">
       <PageContainer>
-        <div className="rounded-3xl overflow-hidden border border-white/10 shadow-2xl">
+        <div className="overflow-hidden rounded-lg border border-white/10 shadow-2xl sm:rounded-3xl">
           <Navbar />
 
-          <section className="bg-gradient-to-br from-slate-900 via-slate-900 to-indigo-950 p-8">
+          <section className="bg-gradient-to-br from-slate-900 via-slate-900 to-indigo-950 p-4 sm:p-8">
             <div className="mb-8">
-              <h1 className="text-4xl font-black mb-2">Envios</h1>
+              <h1 className="mb-2 text-3xl font-black sm:text-4xl">Envios</h1>
 
               <p className="text-slate-300">
                 Seguimiento visual y trazabilidad de despachos desde la bodega central.

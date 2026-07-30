@@ -380,15 +380,15 @@ function OrdersPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 p-6 text-white">
+    <div className="min-h-screen bg-slate-950 p-2 text-white sm:p-6">
       <PageContainer>
-        <div className="overflow-hidden rounded-3xl border border-white/10 shadow-2xl">
+        <div className="overflow-hidden rounded-lg border border-white/10 shadow-2xl sm:rounded-3xl">
           <Navbar />
 
-          <section className="bg-gradient-to-br from-slate-900 via-slate-900 to-indigo-950 p-8">
-            <div className="mb-8 flex items-start justify-between gap-6">
+          <section className="bg-gradient-to-br from-slate-900 via-slate-900 to-indigo-950 p-4 sm:p-8">
+            <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
               <div>
-                <h1 className="mb-2 text-4xl font-black">Pedidos</h1>
+                <h1 className="mb-2 text-3xl font-black sm:text-4xl">Pedidos</h1>
                 <p className="text-slate-300">
                   Creacion, seguimiento y trazabilidad de ordenes comerciales.
                 </p>
@@ -397,7 +397,7 @@ function OrdersPage() {
               {canOpenShipments && (
                 <Link
                   to="/shipments"
-                  className="rounded-xl bg-white/10 px-5 py-3 font-bold text-white transition hover:bg-white/20"
+                  className="inline-flex w-full items-center justify-center rounded-lg bg-white/10 px-5 py-3 font-bold text-white transition hover:bg-white/20 sm:w-auto sm:rounded-xl"
                 >
                   Ver envios
                 </Link>
@@ -410,7 +410,7 @@ function OrdersPage() {
               </div>
             )}
 
-            <div className="mb-8 rounded-3xl border border-white/10 bg-slate-800/80 p-6">
+            <div className="mb-8 rounded-lg border border-white/10 bg-slate-800/80 p-4 sm:rounded-3xl sm:p-6">
               <h2 className="mb-2 text-2xl font-black">
                 {editingOrderNumber ? "Actualizar pedido" : "Crear pedido"}
               </h2>
@@ -687,10 +687,10 @@ function OrderProductPicker({
     : null;
 
   return (
-    <section className="mb-6 rounded-2xl border border-sky-300/15 bg-slate-950/35 p-4">
-      <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
-        <div>
-          <label className="block">
+    <section className="mb-6 min-w-0 rounded-lg border border-sky-300/15 bg-slate-950/35 p-3 sm:rounded-2xl sm:p-4">
+      <div className="grid min-w-0 gap-4 lg:grid-cols-[1.1fr_0.9fr]">
+        <div className="min-w-0">
+          <label className="block min-w-0">
             <span className="mb-2 block text-xs font-black uppercase text-sky-300">
               Catalogo de inventario
             </span>
@@ -698,7 +698,7 @@ function OrderProductPicker({
               value={query}
               onChange={(event) => onQueryChange(event.target.value)}
               placeholder="Buscar producto por nombre, SKU, categoria o bodega..."
-              className="w-full rounded-xl border border-white/10 bg-slate-950/80 px-4 py-3 font-bold text-white outline-none placeholder:text-slate-500 focus:ring-2 focus:ring-sky-400"
+              className="w-full min-w-0 rounded-xl border border-white/10 bg-slate-950/80 px-3 py-3 font-bold text-white outline-none placeholder:text-slate-500 focus:ring-2 focus:ring-sky-400 sm:px-4"
             />
           </label>
 
@@ -713,12 +713,12 @@ function OrderProductPicker({
           )}
         </div>
 
-        <div className="rounded-2xl bg-white/5 p-4">
+        <div className="min-w-0 rounded-lg bg-white/5 p-3 sm:rounded-2xl sm:p-4">
           <p className="text-xs font-black uppercase text-slate-500">
             Producto seleccionado
           </p>
           {selectedProduct ? (
-            <div className="mt-3 flex items-center gap-4">
+            <div className="mt-3 flex min-w-0 items-center gap-3 sm:gap-4">
               <OrderProductThumbnail
                 imageUrl={selectedProduct.imageUrl}
                 productName={selectedProduct.productName}
@@ -727,10 +727,10 @@ function OrderProductPicker({
                 <p className="truncate font-black text-white">
                   {selectedProduct.productName}
                 </p>
-                <p className="mt-1 text-xs font-bold text-slate-400">
+                <p className="mt-1 break-words text-xs font-bold text-slate-400">
                   {selectedProduct.sku} | {selectedProduct.category || "General"}
                 </p>
-                <p className="mt-2 text-xs font-black uppercase text-sky-200">
+                <p className="mt-2 break-words text-xs font-black uppercase text-sky-200">
                   {selectedLocation.label}
                 </p>
               </div>
@@ -768,20 +768,20 @@ function OrderProductCard({ isSelected, item, onSelectProduct }) {
   const location = getProductStorageLocation(item);
 
   return (
-    <article className={`rounded-2xl border p-4 transition ${
+    <article className={`min-w-0 rounded-lg border p-3 transition sm:rounded-2xl sm:p-4 ${
       isSelected
         ? "border-sky-300/60 bg-sky-500/10"
         : "border-white/10 bg-slate-900/70 hover:bg-slate-900"
     }`}>
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex min-w-0 flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex min-w-0 items-center gap-4">
           <OrderProductThumbnail imageUrl={item.imageUrl} productName={item.productName} />
           <div className="min-w-0">
             <p className="truncate font-black text-white">{item.productName}</p>
-            <p className="mt-1 text-xs font-bold text-slate-400">
+            <p className="mt-1 break-words text-xs font-bold text-slate-400">
               {item.sku} | {item.category || "General"}
             </p>
-            <p className="mt-2 text-xs font-black uppercase text-sky-200">
+            <p className="mt-2 break-words text-xs font-black uppercase text-sky-200">
               {location.warehouse.name} | {location.shortLabel}
             </p>
           </div>
@@ -790,7 +790,7 @@ function OrderProductCard({ isSelected, item, onSelectProduct }) {
         <button
           type="button"
           onClick={() => onSelectProduct(item)}
-          className={`rounded-xl px-4 py-2 text-sm font-black text-white transition ${
+          className={`w-full rounded-xl px-4 py-2 text-sm font-black text-white transition sm:w-auto ${
             isSelected ? "bg-emerald-500 hover:bg-emerald-400" : "bg-sky-500 hover:bg-sky-400"
           }`}
         >
@@ -798,18 +798,18 @@ function OrderProductCard({ isSelected, item, onSelectProduct }) {
         </button>
       </div>
 
-      <div className="mt-4 grid grid-cols-3 gap-2 text-center text-xs">
-        <div className="rounded-xl bg-white/5 p-2">
-          <p className="text-[10px] font-black uppercase text-slate-500">Disponible</p>
+      <div className="mt-4 grid min-w-0 grid-cols-3 gap-1.5 text-center text-xs sm:gap-2">
+        <div className="min-w-0 rounded-xl bg-white/5 p-1.5 sm:p-2">
+          <p className="break-words text-[9px] font-black uppercase text-slate-500 sm:text-[10px]">Disponible</p>
           <p className="mt-1 text-sm font-black text-emerald-300">{available}</p>
         </div>
-        <div className="rounded-xl bg-white/5 p-2">
-          <p className="text-[10px] font-black uppercase text-slate-500">Reservado</p>
+        <div className="min-w-0 rounded-xl bg-white/5 p-1.5 sm:p-2">
+          <p className="break-words text-[9px] font-black uppercase text-slate-500 sm:text-[10px]">Reservado</p>
           <p className="mt-1 text-sm font-black text-amber-200">{item.reservedQuantity}</p>
         </div>
-        <div className="rounded-xl bg-white/5 p-2">
-          <p className="text-[10px] font-black uppercase text-slate-500">Ubicacion</p>
-          <p className="mt-1 text-sm font-black text-sky-200">{location.shortLabel}</p>
+        <div className="min-w-0 rounded-xl bg-white/5 p-1.5 sm:p-2">
+          <p className="break-words text-[9px] font-black uppercase text-slate-500 sm:text-[10px]">Ubicacion</p>
+          <p className="mt-1 break-words text-sm font-black text-sky-200">{location.shortLabel}</p>
         </div>
       </div>
     </article>

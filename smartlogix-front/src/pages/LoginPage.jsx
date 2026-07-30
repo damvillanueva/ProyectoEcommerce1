@@ -30,10 +30,10 @@ function LoginPage() {
   }
 
     return (
-      <div className="min-h-screen bg-gradient-to-br from-[#08142d] via-[#07152f] to-[#020617] text-white flex items-center justify-center p-6">
-        <div className="w-full max-w-lg rounded-3xl bg-gradient-to-br from-slate-900 via-slate-900 to-violet-950 border border-white/10 shadow-2xl p-10">
+      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-[#08142d] via-[#07152f] to-[#020617] p-4 text-white sm:p-6">
+        <div className="w-full max-w-lg rounded-lg border border-white/10 bg-gradient-to-br from-slate-900 via-slate-900 to-violet-950 p-5 shadow-2xl sm:rounded-3xl sm:p-10">
           <div className="flex flex-col items-center mb-8">
-            <img src={logoLogin} alt="SmartLogix" className="h-32 w-auto mb-4"/>
+            <img src={logoLogin} alt="SmartLogix" className="mb-4 h-24 w-auto sm:h-32"/>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-5">

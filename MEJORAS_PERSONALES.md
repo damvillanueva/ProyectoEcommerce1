@@ -46,6 +46,7 @@ Registro de funcionalidades y mejoras incorporadas al proyecto de portafolio.
 - [x] Tests unitarios de `order-service` para reserva, envio y limpieza al eliminar pedido.
 - [x] Traslados reales entre bodegas con cantidad parcial y movimientos de origen/destino enlazados.
 - [x] Ubicaciones fisicas seguras: zonas configurables por bodega, sugerencia del primer espacio libre y bloqueo de coordenadas duplicadas en servicio y PostgreSQL.
+- [x] Primer bloque responsive: login interno, navegacion movil por rol, estructura del panel, cabecera de tienda, localizador de inventario, catalogo de pedidos y grillas administrativas.
 - [x] Documentacion tecnica y guion de demostracion del flujo completo.
 - [x] Checkout ecommerce con carrito separado, despacho/retiro, descuentos y pagos simulados.
 - [x] Cuenta de cliente con perfil, direcciones, favoritos, compras y seguimiento privado.
@@ -212,7 +213,8 @@ Registro de funcionalidades y mejoras incorporadas al proyecto de portafolio.
 - API real de ubicaciones: sugerencia libre OK; coordenada duplicada devuelve `400` y usuario de solo lectura recibe `403`. Los datos temporales fueron eliminados.
 - PostgreSQL: migracion Flyway V5 aplicada correctamente sobre la base persistente.
 - Frontend: `npm.cmd run lint` y `npm.cmd run build` OK.
-- Frontend responsivo: modal de producto y formulario de traslado revisados en escritorio y a 390 x 844 px, sin desborde horizontal del formulario.
+- Frontend responsivo: login, dashboard, inventario, pedidos, tienda, envios, usuarios y descuentos revisados a 320, 390, 768, 1024 y 1440 px, sin desborde global ni elementos fuera de pantalla.
+- Navegacion interna: menu movil por rol probado al abrir, cerrar y navegar hacia inventario.
 - Frontend 3D: Playwright con Edge OK en desktop y movil; busqueda `SKU-3001` encontro `WH-VAP-02-MC-R1-N2-P3`; capturas con pixeles no vacios.
 - Flujo pedido-envio: pedido creado desde catalogo con `SKU-3001`, comuna `Providencia`, estado legible y envio generado con tracking.
 - Flujo borrar pedido: `ORD-5D401FAB` creo reserva/envio temporal, al eliminarlo el monitor volvio de disponible 44/reservado 1 a disponible 45/reservado 0 y el tracking desaparecio.

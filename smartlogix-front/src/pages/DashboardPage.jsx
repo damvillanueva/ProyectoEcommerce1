@@ -157,15 +157,15 @@ function DashboardPage() {
   }, {});
 
   return (
-    <div className="min-h-screen bg-slate-950 p-6 text-white">
+    <div className="min-h-screen bg-slate-950 p-2 text-white sm:p-6">
       <PageContainer>
-        <div className="rounded-3xl overflow-hidden border border-white/10 shadow-2xl">
+        <div className="overflow-hidden rounded-lg border border-white/10 shadow-2xl sm:rounded-3xl">
           <Navbar />
 
-          <section className="bg-gradient-to-br from-slate-900 via-slate-900 to-indigo-950 p-8">
-          <div className="flex justify-between items-start gap-6 mb-8">
+          <section className="bg-gradient-to-br from-slate-900 via-slate-900 to-indigo-950 p-4 sm:p-8">
+          <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
             <div>
-              <h1 className="text-4xl font-black">Resumen ejecutivo</h1>
+              <h1 className="text-3xl font-black sm:text-4xl">Resumen ejecutivo</h1>
               <p className="text-slate-400 mt-2">
                 Panorama general de la operación logística.
               </p>
@@ -173,7 +173,7 @@ function DashboardPage() {
 
             <button
               onClick={loadDashboard}
-              className="rounded-2xl bg-white/10 px-5 py-3 font-bold text-white hover:bg-white/20 transition"
+              className="w-full rounded-lg bg-white/10 px-5 py-3 font-bold text-white transition hover:bg-white/20 sm:w-auto sm:rounded-2xl"
             >
               Actualizar datos
             </button>
@@ -417,7 +417,7 @@ function DashboardMetric({ icon, label, value, hint, to }) {
     >
       <div className="text-3xl text-indigo-300 mb-4">{icon}</div>
       <p className="text-slate-300 font-semibold">{label}</p>
-      <strong className="block text-4xl font-black mt-2">{value}</strong>
+      <strong className="mt-2 block text-3xl font-black sm:text-4xl">{value}</strong>
       <span className="block text-slate-400 text-sm mt-3">{hint}</span>
     </Link>
   );

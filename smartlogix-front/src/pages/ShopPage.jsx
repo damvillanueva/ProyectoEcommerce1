@@ -493,13 +493,13 @@ function StoreHeader({ cartUnits, categories, onCategory, onLogout, onQueryChang
         </div>
       </div>
 
-      <div className="mx-auto grid max-w-[1500px] items-center gap-4 px-4 py-4 md:grid-cols-[210px_minmax(280px,1fr)_auto] lg:px-6">
-        <Link to="/shop" className="flex items-center gap-3">
+      <div className="mx-auto grid max-w-[1500px] grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-4 py-3 md:grid-cols-[210px_minmax(280px,1fr)_auto] md:gap-4 md:py-4 lg:px-6">
+        <Link to="/shop" className="flex min-w-0 items-center gap-3">
           <img src={logo} alt="SmartLogix" className="h-8 w-auto" />
           <span className="hidden border-l border-white/15 pl-3 text-xs font-black uppercase text-sky-300 xl:block">Tienda</span>
         </Link>
 
-        <form onSubmit={submitSearch} className="relative order-3 md:order-none">
+        <form onSubmit={submitSearch} className="relative order-3 col-span-2 md:order-none md:col-span-1">
           <FiSearch className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" />
           <input
             value={query}
@@ -512,7 +512,7 @@ function StoreHeader({ cartUnits, categories, onCategory, onLogout, onQueryChang
           </button>
         </form>
 
-        <div className="flex items-center justify-end gap-2">
+        <div className="flex shrink-0 items-center justify-end gap-2">
           {isStaff && (
             <Link to="/dashboard" className="hidden h-11 items-center rounded-md border border-white/15 px-3 text-xs font-black hover:bg-white/10 lg:flex">Panel</Link>
           )}

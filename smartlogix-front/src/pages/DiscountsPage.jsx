@@ -136,15 +136,15 @@ function DiscountsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 p-6 text-white">
+    <div className="min-h-screen bg-slate-950 p-2 text-white sm:p-6">
       <PageContainer>
-        <div className="rounded-3xl overflow-hidden border border-white/10 shadow-2xl">
+        <div className="overflow-hidden rounded-lg border border-white/10 shadow-2xl sm:rounded-3xl">
           <Navbar />
 
-          <section className="bg-gradient-to-br from-slate-900 via-slate-900 to-indigo-950 p-8">
-            <div className="flex justify-between items-start gap-6 mb-8">
+          <section className="bg-gradient-to-br from-slate-900 via-slate-900 to-indigo-950 p-4 sm:p-8">
+            <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
               <div>
-                <h1 className="text-4xl font-black">Gestión de descuentos</h1>
+                <h1 className="text-3xl font-black sm:text-4xl">Gestión de descuentos</h1>
                 <p className="text-slate-400 mt-2">
                   Administra códigos promocionales, vigencia y descuentos para nuevos usuarios.
                 </p>
@@ -157,8 +157,8 @@ function DiscountsPage() {
               </div>
             )}
 
-            <div className="grid grid-cols-1 xl:grid-cols-[420px_1fr] gap-6">
-              <div className="rounded-3xl border border-white/10 bg-white/10 p-6 shadow-xl">
+            <div className="grid min-w-0 grid-cols-1 gap-6 xl:grid-cols-[420px_minmax(0,1fr)]">
+              <div className="rounded-lg border border-white/10 bg-white/10 p-4 shadow-xl sm:rounded-3xl sm:p-6">
                 <h2 className="text-2xl font-black mb-2">
                   {editingId ? "Editar descuento" : "Nuevo descuento"}
                 </h2>
@@ -268,7 +268,7 @@ function DiscountsPage() {
                 </form>
               </div>
 
-              <div className="rounded-3xl border border-white/10 bg-white/10 p-6 shadow-xl">
+              <div className="min-w-0 rounded-lg border border-white/10 bg-white/10 p-4 shadow-xl sm:rounded-3xl sm:p-6">
                 <h2 className="text-2xl font-black mb-6">
                   Descuentos registrados
                 </h2>

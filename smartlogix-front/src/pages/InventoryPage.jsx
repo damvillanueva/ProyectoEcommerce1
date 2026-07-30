@@ -966,13 +966,13 @@ return (
 <div className="min-h-screen bg-slate-950 p-2 text-white sm:p-6">
 <ToastStack onDismiss={dismissToast} toasts={toasts} />
 <PageContainer>
-<div className="rounded-3xl overflow-hidden border border-white/10 shadow-2xl">
+<div className="overflow-hidden rounded-lg border border-white/10 shadow-2xl sm:rounded-3xl">
 <Navbar />
 
 <section className="bg-gradient-to-br from-slate-900 via-slate-900 to-indigo-950 p-4 sm:p-8">
-<div className="flex justify-between items-start mb-8">
+<div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
 <div>
-<h1 className="text-4xl font-black mb-2">Inventario</h1>
+<h1 className="mb-2 text-3xl font-black sm:text-4xl">Inventario</h1>
 <p className="text-slate-300">
 Gestión de productos, stock disponible y reposición.
 </p>
@@ -980,7 +980,7 @@ Gestión de productos, stock disponible y reposición.
 {canViewMovements && (
 <Link
 to="/inventory/movements"
-className="rounded-xl bg-white/10 px-5 py-3 font-bold text-white transition hover:bg-white/20"
+className="inline-flex w-full items-center justify-center rounded-lg bg-white/10 px-5 py-3 font-bold text-white transition hover:bg-white/20 sm:w-auto sm:rounded-xl"
 >
 Ver historial
 </Link>
@@ -1676,7 +1676,7 @@ const activeWarehouses = warehouses.filter((warehouse) => warehouse.items > 0).l
 const totalCritical = warehouses.reduce((total, warehouse) => total + warehouse.critical, 0);
 
 return (
-<section className="mb-8 rounded-3xl border border-white/10 bg-slate-800/80 p-6">
+<section className="mb-8 min-w-0 rounded-lg border border-white/10 bg-slate-800/80 p-3 sm:rounded-3xl sm:p-6">
 <div className="mb-5 flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
 <div>
 <p className="text-sm font-black uppercase text-sky-300">Bodegas multiples visuales</p>
@@ -1743,7 +1743,7 @@ onLocateProduct={onLocateProduct}
 )}
 </div>
 
-<div className="grid gap-4 xl:grid-cols-2">
+<div className="grid min-w-0 gap-4 xl:grid-cols-2">
 {visibleWarehouses.map((warehouse) => (
 <WarehouseLane
 focusedSku={focusedSku}
@@ -1823,7 +1823,7 @@ tone === "success"
 : "text-white";
 
 return (
-<div className="min-w-[150px] rounded-2xl border border-white/10 bg-slate-950/45 p-4">
+<div className="min-w-0 rounded-xl border border-white/10 bg-slate-950/45 p-3 sm:min-w-[150px] sm:rounded-2xl sm:p-4">
 <p className="text-xs font-black uppercase text-slate-500">{label}</p>
 <p className={`mt-1 text-xl font-black ${toneClass}`}>{value}</p>
 </div>
@@ -1847,9 +1847,9 @@ const visibleProducts = locationSearch
 : warehouse.products;
 
 return (
-<article className="rounded-2xl border border-white/10 bg-slate-950/35 p-3 sm:p-5">
+<article className="min-w-0 rounded-2xl border border-white/10 bg-slate-950/35 p-3 sm:p-5">
 <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-<div>
+<div className="min-w-0">
 <div className="flex flex-wrap items-center gap-2">
 <span className="rounded-full bg-indigo-500/20 px-3 py-1 text-xs font-black text-indigo-200">
 {warehouse.code}
@@ -1881,7 +1881,7 @@ className="rounded-xl bg-white/10 px-4 py-2 text-sm font-black text-white transi
 </div>
 
 <div className="mt-5">
-<div className="mb-2 flex items-center justify-between text-xs font-black uppercase text-slate-500">
+<div className="mb-2 flex flex-col gap-1 text-xs font-black uppercase text-slate-500 sm:flex-row sm:items-center sm:justify-between">
 <span>Capacidad visual por stock disponible</span>
 <span>{warehouse.available} unidades</span>
 </div>
@@ -1961,13 +1961,13 @@ item.isCriticalVisual
 <p className="mt-1 text-xs font-bold text-slate-400">
 {item.sku} | {item.category || "General"}
 </p>
-<p className="mt-2 text-xs font-black uppercase text-sky-200">
+<p className="mt-2 break-words text-xs font-black uppercase text-sky-200">
 {location.label}
 </p>
 </div>
 </div>
 
-<div className="grid grid-cols-2 gap-2 text-center text-xs sm:grid-cols-4 lg:min-w-[340px]">
+<div className="grid min-w-0 grid-cols-2 gap-2 text-center text-xs sm:grid-cols-4 lg:min-w-[340px]">
 <WarehouseMiniStock label="Stock" value={item.availableQuantity + item.reservedQuantity} />
 <WarehouseMiniStock label="Reservado" value={item.reservedQuantity} tone="warning" />
 <WarehouseMiniStock label="Disponible" value={item.availableVisual} tone={item.isCriticalVisual ? "warning" : "success"} />
@@ -2012,9 +2012,9 @@ tone === "success"
 : "text-white";
 
 return (
-<div className="rounded-xl bg-white/5 p-2">
+<div className="min-w-0 rounded-xl bg-white/5 p-2">
 <p className="text-[10px] font-black uppercase text-slate-500">{label}</p>
-<p className={`mt-1 text-sm font-black ${toneClass}`}>{value}</p>
+<p className={`mt-1 break-words text-sm font-black ${toneClass}`}>{value}</p>
 </div>
 );
 }
