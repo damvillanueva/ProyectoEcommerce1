@@ -110,11 +110,11 @@ eliminar codigo que todavia pueda reutilizarse durante su construccion.
 - [x] Definir navegacion movil por rol para el panel interno.
 - [x] Completar navegacion movil especializada de tienda y cuenta.
 - [ ] Completar navegacion movil especializada de POS cuando exista el modulo.
-- [ ] Adaptar las tablas restantes a listas o vistas resumidas en pantallas pequenas; movimientos y administracion de bodegas ya cuentan con alternativa movil.
-- [ ] Continuar la revision transversal de modales, formularios, textos largos y controles tactiles.
+- [x] Adaptar las tablas restantes a listas o vistas resumidas en pantallas pequenas.
+- [x] Completar la revision responsive de tablas y modales criticos.
 - [x] Probar el primer bloque en anchos de 320, 390, 768, 1024 y 1440 pixeles.
 - [x] Probar el segundo bloque en esos cinco anchos, con sesiones reales de cliente y administrador.
-- [ ] Automatizar capturas y controles de desbordamiento.
+- [x] Automatizar capturas, errores de consola y controles de desbordamiento.
 
 ## Fase 9 - Accesibilidad transversal
 

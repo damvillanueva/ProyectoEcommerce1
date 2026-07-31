@@ -472,10 +472,73 @@ function ShipmentPage() {
             )}
 
             {!loading && (
-              <div className="bg-slate-800/80 border border-white/10 rounded-3xl p-6">
+              <div className="rounded-lg border border-white/10 bg-slate-800/80 p-4 sm:rounded-3xl sm:p-6">
                 <h2 className="text-2xl font-black mb-6">Listado de envios</h2>
 
-                <div className="overflow-x-auto">
+                {shipments.length === 0 && (
+                  <p className="rounded-xl border border-dashed border-white/15 bg-slate-900/50 p-5 text-center font-bold text-slate-400 md:hidden">
+                    No hay envios registrados todavia.
+                  </p>
+                )}
+
+                <div className="grid gap-3 md:hidden">
+                  {shipments.map((shipment) => {
+                    const shipmentStatus = getShipmentStatusMeta(shipment.status);
+                    const destinationInfo = splitDestinationAddress(shipment.destinationAddress);
+
+                    return (
+                      <article key={`mobile-${shipment.trackingCode}`} className="min-w-0 rounded-xl border border-white/10 bg-slate-900/65 p-4">
+                        <div className="flex min-w-0 items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="break-all text-lg font-black text-white">{shipment.trackingCode}</p>
+                            <p className="mt-1 break-all text-sm font-bold text-slate-400">Pedido {shipment.orderNumber}</p>
+                          </div>
+                          <span className={`shrink-0 rounded-full px-3 py-1 text-xs font-bold ${shipmentStatus.classes}`}>
+                            {shipmentStatus.label}
+                          </span>
+                        </div>
+
+                        <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
+                          <div className="min-w-0 rounded-lg bg-white/5 p-3">
+                            <dt className="text-xs font-black uppercase text-slate-500">Transportista</dt>
+                            <dd className="mt-1 break-words font-bold text-slate-200">{shipment.carrier}</dd>
+                          </div>
+                          <div className="min-w-0 rounded-lg bg-white/5 p-3">
+                            <dt className="text-xs font-black uppercase text-slate-500">Entrega estimada</dt>
+                            <dd className="mt-1 break-words font-bold text-slate-200">{formatShipmentDate(shipment.estimatedDeliveryDate)}</dd>
+                          </div>
+                        </dl>
+
+                        <div className="mt-3 min-w-0 rounded-lg bg-white/5 p-3">
+                          <p className="text-xs font-black uppercase text-slate-500">Destino</p>
+                          <p className="mt-1 break-words font-bold text-sky-200">{destinationInfo.commune || "Sin comuna"}</p>
+                          <p className="mt-1 break-words text-sm font-semibold text-slate-300">{destinationInfo.street || shipment.destinationAddress}</p>
+                        </div>
+
+                        <div className="mt-4 grid grid-cols-3 gap-2">
+                          <button
+                            onClick={() => setSelectedTrackingCode(shipment.trackingCode)}
+                            className={`min-h-11 rounded-lg px-2 py-2 text-sm font-bold text-white transition ${
+                              selectedTrackingCode === shipment.trackingCode
+                                ? "bg-sky-500 hover:bg-sky-400"
+                                : "bg-slate-700 hover:bg-slate-600"
+                            }`}
+                          >
+                            Rastrear
+                          </button>
+                          <button onClick={() => handleEdit(shipment)} className="min-h-11 rounded-lg bg-amber-500 px-2 py-2 text-sm font-bold text-white hover:bg-amber-400">
+                            Editar
+                          </button>
+                          <button onClick={() => handleDelete(shipment.trackingCode)} className="min-h-11 rounded-lg bg-red-500 px-2 py-2 text-sm font-bold text-white hover:bg-red-400">
+                            Eliminar
+                          </button>
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
+
+                <div className="hidden overflow-x-auto md:block">
                   <table className="w-full border-collapse">
                     <thead>
                       <tr className="bg-slate-900/80 text-slate-300 uppercase text-sm">

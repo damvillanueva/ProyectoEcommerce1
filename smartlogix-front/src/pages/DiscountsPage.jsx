@@ -273,7 +273,57 @@ function DiscountsPage() {
                   Descuentos registrados
                 </h2>
 
-                <div className="overflow-x-auto">
+                {discounts.length === 0 && (
+                  <p className="text-slate-400">
+                    No hay descuentos registrados.
+                  </p>
+                )}
+
+                <div className="grid gap-3 md:hidden">
+                  {discounts.map((discount) => (
+                    <article key={`mobile-${discount.id}`} className="rounded-xl border border-white/10 bg-slate-900/65 p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <strong className="block break-all text-lg text-white">{discount.code}</strong>
+                          <p className="mt-1 break-words text-sm font-semibold text-slate-300">{discount.name}</p>
+                        </div>
+                        <span className={`shrink-0 rounded-full px-3 py-1 text-xs font-bold ${
+                          discount.active
+                            ? "bg-emerald-500/20 text-emerald-200"
+                            : "bg-red-500/20 text-red-200"
+                        }`}>
+                          {discount.active ? "Activo" : "Inactivo"}
+                        </span>
+                      </div>
+
+                      <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
+                        <div className="rounded-lg bg-white/5 p-3">
+                          <p className="text-xs font-black uppercase text-slate-500">Descuento</p>
+                          <p className="mt-1 text-xl font-black text-indigo-200">{discount.percentage}%</p>
+                        </div>
+                        <div className="rounded-lg bg-white/5 p-3">
+                          <p className="text-xs font-black uppercase text-slate-500">Clientes</p>
+                          <p className="mt-1 font-bold text-slate-200">{discount.onlyNewUsers ? "Solo nuevos" : "Todos"}</p>
+                        </div>
+                      </div>
+
+                      <p className="mt-3 break-words text-sm font-semibold text-slate-400">
+                        {discount.validFrom || "Sin inicio"} a {discount.validUntil || "Sin termino"}
+                      </p>
+
+                      <div className="mt-4 grid grid-cols-2 gap-3">
+                        <button onClick={() => handleEdit(discount)} className="min-h-11 rounded-lg bg-amber-500 px-3 py-2 text-sm font-bold text-white hover:bg-amber-400">
+                          Editar
+                        </button>
+                        <button onClick={() => handleDelete(discount)} className="min-h-11 rounded-lg bg-red-500 px-3 py-2 text-sm font-bold text-white hover:bg-red-400">
+                          Eliminar
+                        </button>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+
+                <div className="hidden overflow-x-auto md:block">
                   <table className="w-full border-collapse">
                     <thead>
                       <tr className="text-left text-sm uppercase tracking-wide text-slate-400">
@@ -342,11 +392,6 @@ function DiscountsPage() {
                     </tbody>
                   </table>
 
-                  {discounts.length === 0 && (
-                    <p className="text-slate-400 mt-6">
-                      No hay descuentos registrados.
-                    </p>
-                  )}
                 </div>
               </div>
             </div>

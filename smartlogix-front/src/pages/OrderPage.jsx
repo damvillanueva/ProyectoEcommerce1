@@ -525,10 +525,94 @@ function OrdersPage() {
             )}
 
             {!loading && (
-              <div className="rounded-3xl border border-white/10 bg-slate-800/80 p-6">
+              <div className="rounded-lg border border-white/10 bg-slate-800/80 p-4 sm:rounded-3xl sm:p-6">
                 <h2 className="mb-6 text-2xl font-black">Listado de pedidos</h2>
 
-                <div className="overflow-x-auto">
+                {orders.length === 0 && (
+                  <p className="rounded-xl border border-dashed border-white/15 bg-slate-900/50 p-5 text-center font-bold text-slate-400 md:hidden">
+                    No hay pedidos registrados todavia.
+                  </p>
+                )}
+
+                <div className="grid gap-3 md:hidden">
+                  {orders.map((order) => {
+                    const statusMeta = getOrderStatusMeta(order.status);
+                    const paymentMeta = getPaymentStatusMeta(order.paymentStatus);
+                    const parsedAddress = splitShippingAddress(order.shippingAddress);
+                    const canCancel = ["APPROVED", "FAILED", "SHIPMENT_REQUESTED"].includes(order.status);
+
+                    return (
+                      <article key={`mobile-${order.orderNumber}`} className="min-w-0 rounded-xl border border-white/10 bg-slate-900/65 p-4">
+                        <div className="flex min-w-0 items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="break-all text-lg font-black text-white">{order.orderNumber}</p>
+                            <p className="mt-1 break-words text-sm font-bold text-slate-300">{order.customerName || "Cliente"}</p>
+                            <p className="mt-1 break-all text-xs font-semibold text-slate-500">{order.customerEmail || "-"}</p>
+                          </div>
+                          <span className={`shrink-0 rounded-full px-3 py-1 text-xs font-bold ${statusMeta.classes}`}>
+                            {statusMeta.label}
+                          </span>
+                        </div>
+
+                        <div className="mt-4 min-w-0 rounded-lg bg-white/5 p-3">
+                          <p className="text-xs font-black uppercase text-slate-500">Entrega</p>
+                          <p className="mt-1 break-words font-bold text-sky-200">{order.shippingCommune || parsedAddress.commune || "Sin comuna"}</p>
+                          <p className="mt-1 break-words text-sm font-semibold text-slate-300">{parsedAddress.street || "-"}</p>
+                        </div>
+
+                        <dl className="mt-3 grid grid-cols-2 gap-3 text-sm">
+                          <div className="min-w-0 rounded-lg bg-white/5 p-3">
+                            <dt className="text-xs font-black uppercase text-slate-500">Pago</dt>
+                            <dd className={`mt-2 inline-flex rounded-full px-3 py-1 text-xs font-bold ${paymentMeta.classes}`}>{paymentMeta.label}</dd>
+                          </div>
+                          <div className="min-w-0 rounded-lg bg-white/5 p-3">
+                            <dt className="text-xs font-black uppercase text-slate-500">Total</dt>
+                            <dd className="mt-1 break-all text-xl font-black text-emerald-300">${order.totalAmount}</dd>
+                            {Number(order.discountAmount || 0) > 0 && (
+                              <dd className="mt-1 break-words text-xs font-bold text-slate-400">Ahorro ${order.discountAmount} | {order.discountCode || "Sin codigo"}</dd>
+                            )}
+                          </div>
+                        </dl>
+
+                        <div className="mt-3 flex min-w-0 flex-wrap items-center justify-between gap-3 rounded-lg bg-white/5 p-3 text-sm">
+                          <div className="min-w-0">
+                            <p className="text-xs font-black uppercase text-slate-500">Envio</p>
+                            <p className="mt-1 break-all font-bold text-slate-200">{order.trackingCode || "Sin tracking"}</p>
+                          </div>
+                          {order.trackingCode && canOpenShipments && (
+                            <Link to="/shipments" className="min-h-11 rounded-lg bg-sky-500/15 px-3 py-3 text-sm font-black text-sky-200 hover:bg-sky-500/25">
+                              Ver envio
+                            </Link>
+                          )}
+                        </div>
+
+                        {order.rejectionReason && (
+                          <p className="mt-3 break-words rounded-lg border border-amber-300/20 bg-amber-500/10 p-3 text-sm font-semibold text-amber-200">
+                            {order.rejectionReason}
+                          </p>
+                        )}
+
+                        <p className="mt-3 text-xs font-semibold text-slate-500">{formatOrderDate(order.createdAt)}</p>
+
+                        <div className={`mt-4 grid gap-2 ${canCancel ? "grid-cols-3" : "grid-cols-2"}`}>
+                          {canCancel && (
+                            <button type="button" onClick={() => { setCancelError(""); setCancelTarget(order); }} className="min-h-11 rounded-lg bg-red-500 px-2 py-2 text-sm font-bold text-white hover:bg-red-400">
+                              Cancelar
+                            </button>
+                          )}
+                          <button onClick={() => handleEdit(order)} className="min-h-11 rounded-lg bg-amber-500 px-2 py-2 text-sm font-bold text-white hover:bg-amber-400">
+                            Editar
+                          </button>
+                          <button onClick={() => handleDelete(order.orderNumber)} className="min-h-11 rounded-lg bg-red-500 px-2 py-2 text-sm font-bold text-white hover:bg-red-400">
+                            Eliminar
+                          </button>
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
+
+                <div className="hidden overflow-x-auto md:block">
                   <table className="w-full min-w-[1320px] border-collapse">
                     <thead>
                       <tr className="bg-slate-900/80 text-sm uppercase text-slate-300">

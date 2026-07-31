@@ -1634,7 +1634,7 @@ function RegisterMovementModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm">
       <form
         onSubmit={onSubmit}
-        className="w-full max-w-xl rounded-lg border border-white/10 bg-[#111a2b] p-5 text-white shadow-2xl"
+        className="max-h-[calc(100vh-2rem)] w-full max-w-xl overflow-y-auto rounded-lg border border-white/10 bg-[#111a2b] p-4 text-white shadow-2xl sm:p-5"
       >
         <div className="mb-5 flex items-center justify-between gap-4">
           <div>
@@ -1735,18 +1735,18 @@ function RegisterMovementModal({
           </FilterField>
         </div>
 
-        <div className="mt-6 flex justify-end gap-3">
+        <div className="mt-6 grid gap-3 sm:grid-cols-2">
           <button
             type="button"
             onClick={onClose}
-            className="rounded-md bg-white/10 px-5 py-3 text-sm font-black text-white transition hover:bg-white/15"
+            className="min-h-11 rounded-md bg-white/10 px-5 py-3 text-sm font-black text-white transition hover:bg-white/15"
           >
             Cancelar
           </button>
           <button
             type="submit"
             disabled={saving || inventoryItems.length === 0}
-            className="inline-flex items-center gap-2 rounded-md bg-blue-500 px-5 py-3 text-sm font-black text-white transition hover:bg-blue-400 disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-blue-500 px-5 py-3 text-sm font-black text-white transition hover:bg-blue-400 disabled:cursor-not-allowed disabled:opacity-60"
           >
             <FiPlus />
             {saving ? "Guardando" : "Guardar movimiento"}

@@ -201,7 +201,49 @@ function UsersPage() {
               <div className="min-w-0 rounded-lg border border-white/10 bg-slate-800/80 p-4 sm:rounded-3xl sm:p-6">
                 <h2 className="text-2xl font-black mb-6">Usuarios registrados</h2>
 
-                <div className="overflow-x-auto">
+                {users.length === 0 && (
+                  <p className="text-slate-400">No hay usuarios registrados.</p>
+                )}
+
+                <div className="grid gap-3 md:hidden">
+                  {users.map((user) => (
+                    <article key={`mobile-${user.id}`} className="rounded-xl border border-white/10 bg-slate-900/65 p-4">
+                      <div className="flex min-w-0 items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <strong className="block break-words text-lg">{user.displayName || user.username}</strong>
+                          <p className="mt-1 break-all text-sm font-semibold text-slate-400">@{user.username} | {user.email}</p>
+                        </div>
+                        <span className={`shrink-0 rounded-full px-3 py-1 text-xs font-bold ${
+                          user.enabled
+                            ? "bg-emerald-500/20 text-emerald-300"
+                            : "bg-red-500/20 text-red-300"
+                        }`}>
+                          {user.enabled ? "Activo" : "Suspendido"}
+                        </span>
+                      </div>
+
+                      <p className="mt-4 text-xs font-black uppercase text-slate-500">Rol asignado</p>
+                      <span className="mt-2 inline-flex max-w-full break-all rounded-full bg-blue-500/20 px-3 py-1 text-xs font-bold text-blue-300">
+                        {user.role}
+                      </span>
+
+                      <div className="mt-4 grid grid-cols-2 gap-3">
+                        <button onClick={() => handleEdit(user)} className="min-h-11 rounded-lg bg-amber-500 px-3 py-2 text-sm font-bold text-white hover:bg-amber-400">
+                          Editar permisos
+                        </button>
+                        <button onClick={() => handleToggleEnabled(user)} className={`min-h-11 rounded-lg px-3 py-2 text-sm font-bold text-white transition ${
+                          user.enabled
+                            ? "bg-red-500 hover:bg-red-400"
+                            : "bg-emerald-500 hover:bg-emerald-400"
+                        }`}>
+                          {user.enabled ? "Suspender" : "Activar"}
+                        </button>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+
+                <div className="hidden overflow-x-auto md:block">
                   <table className="w-full min-w-[760px] table-fixed border-collapse">
                     <colgroup>
                       <col className="w-[16%]" />
@@ -266,9 +308,6 @@ function UsersPage() {
                     </tbody>
                   </table>
 
-                  {users.length === 0 && (
-                    <p className="text-slate-400 mt-6">No hay usuarios registrados.</p>
-                  )}
                 </div>
               </div>
             </div>

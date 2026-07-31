@@ -440,16 +440,16 @@ function WarehouseManagementPanel({
 
       {deleteTarget && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/85 p-4 backdrop-blur-sm">
-          <section role="dialog" aria-modal="true" aria-labelledby="delete-warehouse-title" className="w-full max-w-md rounded-2xl border border-white/10 bg-slate-900 p-6 shadow-2xl">
+          <section role="dialog" aria-modal="true" aria-labelledby="delete-warehouse-title" className="max-h-[calc(100vh-2rem)] w-full max-w-md overflow-y-auto rounded-2xl border border-white/10 bg-slate-900 p-4 shadow-2xl sm:p-6">
             <h3 id="delete-warehouse-title" className="text-xl font-black">Eliminar bodega</h3>
             <p className="mt-3 text-sm font-semibold text-slate-300">
               Se eliminara {deleteTarget.name}. La API rechazara la operacion si aun tiene productos asignados.
             </p>
-            <div className="mt-6 flex justify-end gap-3">
-              <button type="button" onClick={() => setDeleteTarget(null)} disabled={deleting} className="rounded-lg bg-white/10 px-4 py-2.5 text-sm font-black text-white transition hover:bg-white/15">
+            <div className="mt-6 grid gap-3 sm:grid-cols-2">
+              <button type="button" onClick={() => setDeleteTarget(null)} disabled={deleting} className="min-h-11 rounded-lg bg-white/10 px-4 py-2.5 text-sm font-black text-white transition hover:bg-white/15">
                 Cancelar
               </button>
-              <button type="button" onClick={confirmDelete} disabled={deleting} className="rounded-lg bg-red-500 px-4 py-2.5 text-sm font-black text-white transition hover:bg-red-400 disabled:opacity-60">
+              <button type="button" onClick={confirmDelete} disabled={deleting} className="min-h-11 rounded-lg bg-red-500 px-4 py-2.5 text-sm font-black text-white transition hover:bg-red-400 disabled:opacity-60">
                 {deleting ? "Eliminando..." : "Eliminar"}
               </button>
             </div>

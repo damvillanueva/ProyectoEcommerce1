@@ -1263,7 +1263,7 @@ o bodegueros.
 </div>
 )}
 
-<div className="bg-slate-800/80 border border-white/10 rounded-3xl p-6">
+<div className="rounded-lg border border-white/10 bg-slate-800/80 p-3 sm:rounded-3xl sm:p-6">
 <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
 <div>
 <h2 className="text-2xl font-black">
@@ -1307,7 +1307,92 @@ className="w-full rounded-xl border border-white/10 bg-slate-950/80 px-4 py-3 fo
 </div>
 </div>
 
-<div className="overflow-x-auto">
+{filteredItems.length === 0 && (
+<p className="rounded-xl border border-dashed border-white/15 bg-slate-900/50 p-5 text-center font-bold text-slate-400 md:hidden">
+No hay productos para los filtros seleccionados.
+</p>
+)}
+
+<div className="grid gap-3 md:hidden">
+{filteredItems.map((item) => {
+const location = getProductStorageLocation(item);
+
+return (
+<article key={`mobile-${item.sku}`} className="min-w-0 rounded-xl border border-white/10 bg-slate-900/65 p-4">
+<div className="flex min-w-0 items-start gap-3">
+<ProductThumbnail imageUrl={item.imageUrl} productName={item.productName} />
+<div className="min-w-0 flex-1">
+<h3 className="break-words text-lg font-black text-white">{item.productName}</h3>
+<p className="mt-1 break-all text-xs font-bold text-slate-400">{item.sku}</p>
+<div className="mt-2">
+<StockBadge item={item} />
+</div>
+<div className="mt-3 flex flex-wrap gap-2">
+<span className="rounded-full bg-sky-500/15 px-3 py-1 text-xs font-bold text-sky-200">
+{item.category || "General"}
+</span>
+<span className="rounded-full bg-indigo-500/15 px-3 py-1 text-xs font-bold text-indigo-200">
+{item.stocks?.length || 1} bodega(s)
+</span>
+</div>
+</div>
+</div>
+
+<div className="mt-4 grid grid-cols-3 gap-2 text-center">
+<div className="rounded-lg bg-white/5 p-2">
+<p className="text-[10px] font-black uppercase text-slate-500">Stock</p>
+<p className="mt-1 text-lg font-black text-white">{item.availableQuantity + item.reservedQuantity}</p>
+</div>
+<div className="rounded-lg bg-white/5 p-2">
+<p className="text-[10px] font-black uppercase text-slate-500">Reservado</p>
+<p className="mt-1 text-lg font-black text-amber-200">{item.reservedQuantity}</p>
+</div>
+<div className="rounded-lg bg-white/5 p-2">
+<p className="text-[10px] font-black uppercase text-slate-500">Disponible</p>
+<p className="mt-1 text-lg font-black text-emerald-300">{item.availableQuantity}</p>
+</div>
+</div>
+
+<div className="mt-3 flex min-w-0 items-center justify-between gap-3 rounded-lg bg-white/5 p-3">
+<div className="min-w-0">
+<p className="text-xs font-black uppercase text-slate-500">Ubicacion</p>
+<p className="mt-1 break-words text-sm font-black text-sky-200">{location.shortLabel}</p>
+<p className="mt-1 break-words text-xs font-semibold text-slate-400">{location.label}</p>
+</div>
+<p className="shrink-0 text-base font-black text-emerald-300">
+{new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(item.salePrice || 0)}
+</p>
+</div>
+
+<div className="mt-4 grid grid-cols-2 gap-2">
+<button onClick={() => handleOpenDetail(item)} className="min-h-11 rounded-lg bg-white/10 px-3 py-2 text-sm font-bold text-white hover:bg-white/20">
+Detalle
+</button>
+<button type="button" onClick={() => setLabelItem(item)} className="min-h-11 rounded-lg bg-indigo-500 px-3 py-2 text-sm font-bold text-white hover:bg-indigo-400">
+Etiqueta QR
+</button>
+{canManageInventory && (
+<button onClick={() => handleEdit(item)} className="min-h-11 rounded-lg bg-amber-500 px-3 py-2 text-sm font-bold text-white hover:bg-amber-400">
+Editar
+</button>
+)}
+{canManageInventory && canDeleteInventory && (
+<button onClick={() => handleDeleteRequest(item)} className="min-h-11 rounded-lg bg-red-500 px-3 py-2 text-sm font-bold text-white hover:bg-red-400">
+Eliminar
+</button>
+)}
+{canViewMovements && (
+<Link to={`/inventory/movements?product=${encodeURIComponent(item.sku)}`} className="col-span-2 min-h-11 rounded-lg bg-sky-500 px-3 py-3 text-center text-sm font-bold text-white hover:bg-sky-400">
+Ver movimientos
+</Link>
+)}
+</div>
+</article>
+);
+})}
+</div>
+
+<div className="hidden overflow-x-auto md:block">
 <table className="w-full border-collapse">
 <thead>
 <tr className="bg-slate-900/80 text-slate-300 uppercase text-sm">
@@ -1496,7 +1581,7 @@ onClose={() => setLabelItem(null)}
 
 function InventoryAuditPanel({ error, loading, logs, onRefresh }) {
 return (
-<section className="mt-8 rounded-3xl border border-white/10 bg-slate-800/80 p-6">
+<section className="mt-8 rounded-lg border border-white/10 bg-slate-800/80 p-3 sm:rounded-3xl sm:p-6">
 <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 <div>
 <h2 className="text-2xl font-black">Auditoria de inventario</h2>
@@ -1532,7 +1617,36 @@ Todavia no hay eventos de auditoria.
 )}
 
 {!loading && !error && logs.length > 0 && (
-<div className="overflow-x-auto">
+<>
+<div className="grid gap-3 md:hidden">
+{logs.map((log) => (
+<article key={`mobile-audit-${log.id}`} className="min-w-0 rounded-xl border border-white/10 bg-slate-900/65 p-4">
+<div className="flex min-w-0 items-start justify-between gap-3">
+<div className="min-w-0">
+<p className="break-all font-black text-white">{log.sku || "-"}</p>
+<p className="mt-1 break-words text-sm font-semibold text-slate-300">{log.productName || "-"}</p>
+</div>
+<span className={`shrink-0 rounded-full px-3 py-1 text-xs font-black ${getAuditActionClass(log.action)}`}>
+{formatAuditAction(log.action)}
+</span>
+</div>
+<p className="mt-3 text-xs font-bold text-slate-500">{formatAuditDate(log.createdAt)}</p>
+<div className="mt-3 grid grid-cols-2 gap-2 text-sm">
+<div className="min-w-0 rounded-lg bg-white/5 p-3">
+<p className="text-xs font-black uppercase text-slate-500">Usuario</p>
+<p className="mt-1 break-all font-bold text-slate-200">{log.username || "system"}</p>
+<p className="mt-1 break-words text-xs font-semibold text-slate-400">{formatRole(log.role)}</p>
+</div>
+<div className="min-w-0 rounded-lg bg-white/5 p-3">
+<p className="text-xs font-black uppercase text-slate-500">Direccion IP</p>
+<p className="mt-1 break-all font-mono text-xs text-slate-300">{log.ipAddress || "unknown"}</p>
+</div>
+</div>
+<p className="mt-3 break-words rounded-lg bg-white/5 p-3 text-sm font-semibold text-slate-300">{log.detail || "-"}</p>
+</article>
+))}
+</div>
+<div className="hidden overflow-x-auto md:block">
 <table className="w-full min-w-[980px] border-collapse text-sm">
 <thead>
 <tr className="bg-slate-900/80 text-left text-xs uppercase text-slate-300">
@@ -1566,6 +1680,7 @@ Todavia no hay eventos de auditoria.
 </tbody>
 </table>
 </div>
+</>
 )}
 </section>
 );
@@ -2024,7 +2139,7 @@ const available = item.availableQuantity;
 
 return (
 <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm">
-<section className="w-full max-w-lg rounded-3xl border border-red-300/20 bg-slate-900 p-6 text-white shadow-2xl">
+<section className="max-h-[calc(100vh-2rem)] w-full max-w-lg overflow-y-auto rounded-2xl border border-red-300/20 bg-slate-900 p-4 text-white shadow-2xl sm:rounded-3xl sm:p-6">
 <div className="mb-5 flex items-start gap-4">
 <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-red-500/15 text-2xl font-black text-red-200">
 !
@@ -2047,7 +2162,7 @@ Esta accion eliminara el producto del inventario y quedara registrada en auditor
 </div>
 </div>
 
-<div className="mt-4 grid grid-cols-3 gap-3 text-center text-sm">
+<div className="mt-4 grid grid-cols-3 gap-2 text-center text-sm sm:gap-3">
 <div className="rounded-xl bg-white/5 p-3">
 <p className="text-xs font-black uppercase text-slate-500">Stock</p>
 <p className="mt-1 text-xl font-black">{item.availableQuantity + item.reservedQuantity}</p>
@@ -2211,7 +2326,7 @@ const location = getProductStorageLocation(item);
 
 return (
 <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm">
-<section className="w-full max-w-md rounded-3xl border border-white/10 bg-slate-900 p-6 text-white shadow-2xl">
+<section className="max-h-[calc(100vh-2rem)] w-full max-w-md overflow-y-auto rounded-2xl border border-white/10 bg-slate-900 p-4 text-white shadow-2xl sm:rounded-3xl sm:p-6">
 <div className="mb-5 flex items-start justify-between gap-4">
 <div>
 <p className="text-sm font-black uppercase text-sky-300">Etiqueta de producto</p>
@@ -2279,7 +2394,7 @@ const location = getProductStorageLocation(item);
 return (
 <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm">
 <section className="max-h-[92vh] min-w-0 w-full max-w-5xl overflow-x-hidden overflow-y-auto rounded-3xl border border-white/10 bg-slate-900 text-white shadow-2xl">
-<div className="flex items-start justify-between gap-4 border-b border-white/10 p-6">
+<div className="flex items-start justify-between gap-3 border-b border-white/10 p-4 sm:gap-4 sm:p-6">
 <div className="min-w-0">
 <p className="text-sm font-black uppercase text-sky-300">Detalle de producto</p>
 <h2 className="mt-1 break-words text-2xl font-black sm:text-3xl">{item.productName}</h2>
@@ -2294,7 +2409,7 @@ Cerrar
 </button>
 </div>
 
-<div className="grid min-w-0 gap-6 p-6 lg:grid-cols-[320px_minmax(0,1fr)]">
+<div className="grid min-w-0 gap-5 p-4 sm:p-6 lg:grid-cols-[320px_minmax(0,1fr)] lg:gap-6">
 <div className="min-w-0">
 {item.imageUrl ? (
 <img
