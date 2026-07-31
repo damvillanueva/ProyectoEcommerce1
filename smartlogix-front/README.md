@@ -57,15 +57,19 @@ puede cambiar la URL con `SMARTLOGIX_AUDIT_URL`, el canal del navegador con
 
 ## Accesibilidad
 
-El boton global de accesibilidad ofrece tamaño de texto, alto contraste, escala
-de grises, enlaces subrayados, fuente legible, reduccion de movimiento, cursor
-grande y foco reforzado. Las preferencias se conservan en `localStorage` y se
-aplican por igual a tienda y panel interno.
+El boton global ofrece seis perfiles de accesibilidad, lectura por voz, tamaño y
+espaciado de texto, altura de linea, contraste, grises, saturacion, enlaces,
+fuente legible, reduccion de movimiento, ocultar imagenes, cursor, foco, guia de
+lectura y navegacion por la estructura de la pagina. Tambien permite agrandar,
+mover u ocultar el widget; `Ctrl+U` lo abre o recupera.
 
-La auditoria del widget comprueba su uso por teclado, persistencia, cierre con
-`Escape`, retorno del foco y reflow con texto al 150% en una pantalla de 320
-pixeles. Este panel es una ayuda de personalizacion y no reemplaza una auditoria
-integral WCAG 2.2 AA.
+Las preferencias se conservan en `localStorage` y se aplican por igual a tienda
+y panel interno.
+
+La auditoria comprueba perfiles, herramientas avanzadas, estructura navegable,
+persistencia, mover/ocultar, atajo de recuperacion, cierre con `Escape`, retorno
+del foco y reflow con texto al 150% en una pantalla de 320 pixeles. Este panel es
+una ayuda de personalizacion y no reemplaza una auditoria integral WCAG 2.2 AA.
 
 ## Rendimiento
 

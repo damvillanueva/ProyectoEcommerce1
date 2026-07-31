@@ -8,153 +8,223 @@ const launchOptions = browserExecutable
   ? { executablePath: browserExecutable, headless: true }
   : { channel: browserChannel, headless: true };
 
+const defaultPreferences = {
+  textScale: 100,
+  highContrast: false,
+  grayscale: false,
+  underlineLinks: false,
+  readableFont: false,
+  reduceMotion: false,
+  largeCursor: false,
+  enhancedFocus: false,
+  textSpacing: false,
+  increasedLineHeight: false,
+  hideImages: false,
+  leftAlign: false,
+  highlightHeadings: false,
+  readingGuide: false,
+  largeTargets: false,
+  saturation: "normal",
+  largeWidget: false,
+  widgetPosition: "left",
+  widgetHidden: false,
+  activeProfile: "",
+};
+
 const browser = await chromium.launch(launchOptions);
 const context = await browser.newContext({ viewport: { width: 320, height: 720 } });
 const page = await context.newPage();
+
+await page.addInitScript(() => {
+  window.__speechAudit = { cancelled: 0, spoken: false, language: "" };
+  class TestUtterance {
+    constructor(text) {
+      this.text = text;
+      this.lang = "";
+      this.rate = 1;
+      this.onend = null;
+      this.onerror = null;
+    }
+  }
+  Object.defineProperty(window, "SpeechSynthesisUtterance", {
+    configurable: true,
+    value: TestUtterance,
+  });
+  Object.defineProperty(window, "speechSynthesis", {
+    configurable: true,
+    value: {
+      cancel() {
+        window.__speechAudit.cancelled += 1;
+      },
+      speak(utterance) {
+        window.__speechAudit.spoken = Boolean(utterance.text);
+        window.__speechAudit.language = utterance.lang;
+      },
+    },
+  });
+});
+
+function assertWithinViewport(box, width, height, label) {
+  assert(box, `${label} no tiene dimensiones visibles.`);
+  assert(box.x >= 0, `${label} sale por el borde izquierdo.`);
+  assert(box.x + box.width <= width, `${label} sale por el borde derecho.`);
+  assert(box.y >= 0, `${label} sale por el borde superior.`);
+  assert(box.y + box.height <= height, `${label} sale por el borde inferior.`);
+}
 
 try {
   await page.goto(`${baseUrl}/shop`);
   await page.waitForLoadState("networkidle");
 
-  const trigger = page.getByRole("button", {
-    name: "Abrir herramientas de accesibilidad",
-  });
+  const trigger = page.locator('button[aria-controls="accessibility-panel"]');
   await assert.doesNotReject(() => trigger.waitFor({ state: "visible" }));
-
   await trigger.click();
-  const panel = page.getByRole("dialog", { name: "Accesibilidad" });
+
+  let panel = page.getByRole("dialog", { name: "Accesibilidad" });
   await assert.doesNotReject(() => panel.waitFor({ state: "visible" }));
+  assertWithinViewport(await panel.boundingBox(), 320, 720, "El panel");
 
-  const panelBox = await panel.boundingBox();
-  assert(panelBox, "El panel no tiene dimensiones visibles.");
-  assert(panelBox.x >= 0, "El panel sale por el borde izquierdo.");
-  assert(panelBox.x + panelBox.width <= 320, "El panel sale por el borde derecho.");
-  assert(panelBox.y >= 0, "El panel sale por el borde superior.");
-  assert(panelBox.y + panelBox.height <= 720, "El panel sale por el borde inferior.");
+  const profileButtons = page.locator("#accessibility-profiles button");
+  assert.equal(await profileButtons.count(), 6, "No se mostraron los seis perfiles.");
+  await page.getByRole("button", { name: "Vision baja" }).click();
+  await page.waitForTimeout(100);
 
-  const increaseText = page.getByRole("button", {
-    name: "Aumentar tamaño del texto",
-  });
-  await increaseText.click();
-  await increaseText.click();
-  await increaseText.click();
-  await page.getByRole("button", { name: "Alto contraste" }).click();
-  await page.getByRole("button", { name: "Subrayar enlaces" }).click();
-  await page.getByRole("button", { name: "Reducir animaciones" }).click();
-  await page.getByRole("button", { name: "Foco reforzado" }).click();
-
-  const enabledState = await page.evaluate(() => ({
-    contrast: document.documentElement.dataset.a11yContrast,
-    focus: document.documentElement.dataset.a11yFocus,
+  const profileState = await page.evaluate(() => ({
+    filter: document.documentElement.dataset.a11yFilter,
     fontSize: document.documentElement.style.fontSize,
-    links: document.documentElement.dataset.a11yLinks,
-    motion: document.documentElement.dataset.a11yMotion,
     overflow: {
       clientWidth: document.documentElement.clientWidth,
       scrollWidth: document.documentElement.scrollWidth,
-      offenders: [...document.querySelectorAll("body *")]
-        .filter((element) => {
-          const rect = element.getBoundingClientRect();
-          const style = getComputedStyle(element);
-          const intentionallyScrollable = element.closest(
-            '[class*="overflow-x-auto"], [class*="overflow-x-scroll"]',
-          );
-          return (
-            style.display !== "none"
-            && style.visibility !== "hidden"
-            && rect.width > 1
-            && !intentionallyScrollable
-            && (rect.right > window.innerWidth + 2 || rect.left < -2)
-          );
-        })
-        .slice(0, 8)
-        .map((element) => ({
-          className: String(element.className).slice(0, 140),
-          rect: {
-            left: Math.round(element.getBoundingClientRect().left),
-            right: Math.round(element.getBoundingClientRect().right),
-            width: Math.round(element.getBoundingClientRect().width),
-          },
-          tag: element.tagName.toLowerCase(),
-          text: String(element.textContent || "").trim().replace(/\s+/g, " ").slice(0, 80),
-        })),
-      roots: ["html", "body", "#root", "header", "main", ".a11y-widget", ".a11y-panel"]
-        .map((selector) => document.querySelector(selector))
-        .filter(Boolean)
-        .map((element) => ({
-          className: String(element.className).slice(0, 100),
-          clientWidth: element.clientWidth,
-          rect: {
-            left: Math.round(element.getBoundingClientRect().left),
-            right: Math.round(element.getBoundingClientRect().right),
-            width: Math.round(element.getBoundingClientRect().width),
-          },
-          scrollWidth: element.scrollWidth,
-          tag: element.tagName.toLowerCase(),
-        })),
     },
     saved: JSON.parse(
       localStorage.getItem("smartlogix-accessibility-preferences"),
     ),
   }));
-
-  assert.equal(enabledState.fontSize, "150%");
+  assert.equal(profileState.fontSize, "150%");
+  assert.equal(profileState.filter, "true");
+  assert.equal(profileState.saved.activeProfile, "low-vision");
+  assert.equal(profileState.saved.largeCursor, true);
   assert.equal(
-    enabledState.overflow.scrollWidth > enabledState.overflow.clientWidth + 1,
+    profileState.overflow.scrollWidth > profileState.overflow.clientWidth + 1,
     false,
-    `El texto al 150% genera desbordamiento: ${JSON.stringify(enabledState.overflow)}`,
+    `El perfil de vision baja genera desbordamiento: ${JSON.stringify(profileState.overflow)}`,
   );
-  assert.equal(enabledState.contrast, "true");
-  assert.equal(enabledState.links, "true");
-  assert.equal(enabledState.motion, "true");
-  assert.equal(enabledState.focus, "true");
-  assert.equal(enabledState.saved.highContrast, true);
+  assertWithinViewport(await panel.boundingBox(), 320, 720, "El panel al 150%");
 
-  await page.reload();
-  await page.waitForLoadState("networkidle");
-  assert.equal(
-    await page.evaluate(() => document.documentElement.dataset.a11yContrast),
-    "true",
-    "Las preferencias no persistieron al recargar.",
-  );
-
-  const persistedTrigger = page.getByRole("button", {
-    name: "Abrir herramientas de accesibilidad",
+  await page.getByRole("button", { name: "Estructura" }).click();
+  const structureDialog = page.getByRole("dialog", {
+    name: "Estructura de la pagina",
   });
-  await persistedTrigger.click();
-  await page.keyboard.press("Escape");
-  await assert.doesNotReject(() =>
-    page
-      .getByRole("dialog", { name: "Accesibilidad" })
-      .waitFor({ state: "hidden" }),
+  await assert.doesNotReject(() => structureDialog.waitFor({ state: "visible" }));
+  assert(
+    await page.locator(".a11y-structure-list button").count() > 0,
+    "No se detectaron encabezados o regiones navegables.",
   );
+  await page.getByRole("button", { name: "Volver a herramientas" }).click();
+  panel = page.getByRole("dialog", { name: "Accesibilidad" });
+
+  await page.getByRole("button", { name: "Espaciado de texto" }).click();
+  await page.getByRole("button", { name: "Ocultar imagenes" }).click();
+  await page.getByRole("button", { name: /^Saturacion/ }).click();
+  await page.getByRole("button", { name: "Guia de lectura" }).click();
   assert.equal(
-    await persistedTrigger.evaluate((element) => element === document.activeElement),
+    await page.locator(".a11y-reading-guide").isVisible(),
+    true,
+    "La guia de lectura no se activo.",
+  );
+  await page.getByRole("button", { name: "Guia de lectura" }).click();
+
+  const advancedState = await page.evaluate(() => ({
+    filter: document.documentElement.dataset.a11yFilter,
+    images: document.documentElement.dataset.a11yImages,
+    saturation: document.documentElement.style.getPropertyValue("--a11y-saturation-filter"),
+    spacing: document.documentElement.dataset.a11ySpacing,
+  }));
+  assert.equal(advancedState.filter, "true");
+  assert.equal(advancedState.images, "true");
+  assert.equal(advancedState.saturation, "0.55");
+  assert.equal(advancedState.spacing, "true");
+  const readPage = page.getByRole("button", { name: "Leer pagina" });
+  assert.equal(await readPage.isVisible(), true, "No se encontro la lectura por voz.");
+  await readPage.click();
+  const speechState = await page.evaluate(() => window.__speechAudit);
+  assert.equal(speechState.spoken, true, "No se envio el contenido al lector.");
+  assert.equal(speechState.language, "es-CL");
+  await page.getByRole("button", { name: "Detener lectura" }).click();
+  assert(
+    await page.evaluate(() => window.__speechAudit.cancelled) > 0,
+    "No se detuvo la lectura por voz.",
+  );
+
+  await page.getByRole("button", {
+    name: /Posicion y tamaño del widget/,
+  }).click();
+  await page.getByRole("button", { name: "Widget grande" }).click();
+  await page.getByRole("button", { name: "Derecha" }).click();
+  await page.waitForTimeout(100);
+
+  const movedWidget = await page.locator(".a11y-widget").evaluate((element) => ({
+    classes: element.className,
+    rect: element.getBoundingClientRect().toJSON(),
+  }));
+  assert.match(movedWidget.classes, /is-large/);
+  assert.match(movedWidget.classes, /is-right/);
+  assert(movedWidget.rect.right <= 320, "El widget movido sale por la derecha.");
+  assertWithinViewport(await panel.boundingBox(), 320, 720, "El panel grande");
+
+  await page.getByRole("button", { name: "Ocultar", exact: true }).click();
+  assert.equal(
+    await page.locator(".a11y-widget").evaluate(
+      (element) => getComputedStyle(element).display,
+    ),
+    "none",
+    "El widget no se oculto.",
+  );
+
+  await page.keyboard.press("Control+u");
+  panel = page.getByRole("dialog", { name: "Accesibilidad" });
+  await assert.doesNotReject(() => panel.waitFor({ state: "visible" }));
+  assert.equal(
+    await page.locator(".a11y-widget").evaluate(
+      (element) => getComputedStyle(element).display,
+    ),
+    "block",
+    "El atajo no recupero el widget oculto.",
+  );
+
+  await page.keyboard.press("Escape");
+  await assert.doesNotReject(() => panel.waitFor({ state: "hidden" }));
+  assert.equal(
+    await trigger.evaluate((element) => element === document.activeElement),
     true,
     "El foco no regreso al boton al cerrar con Escape.",
   );
 
-  await persistedTrigger.click();
-  await page.getByRole("button", { name: "Restablecer" }).click();
+  await page.reload();
+  await page.waitForLoadState("networkidle");
+  const persistedState = await page.evaluate(() => ({
+    images: document.documentElement.dataset.a11yImages,
+    position: JSON.parse(
+      localStorage.getItem("smartlogix-accessibility-preferences"),
+    ).widgetPosition,
+    saturation: document.documentElement.style.getPropertyValue("--a11y-saturation-filter"),
+  }));
+  assert.equal(persistedState.images, "true");
+  assert.equal(persistedState.position, "right");
+  assert.equal(persistedState.saturation, "0.55");
+
+  await page.locator('button[aria-controls="accessibility-panel"]').click();
+  await page.getByRole("button", { name: "Restablecer todo" }).click();
   const resetState = await page.evaluate(() => ({
-    contrast: document.documentElement.dataset.a11yContrast,
+    filter: document.documentElement.dataset.a11yFilter,
     fontSize: document.documentElement.style.fontSize,
     saved: JSON.parse(
       localStorage.getItem("smartlogix-accessibility-preferences"),
     ),
   }));
   assert.equal(resetState.fontSize, "100%");
-  assert.equal(resetState.contrast, "false");
-  assert.deepEqual(resetState.saved, {
-    textScale: 100,
-    highContrast: false,
-    grayscale: false,
-    underlineLinks: false,
-    readableFont: false,
-    reduceMotion: false,
-    largeCursor: false,
-    enhancedFocus: false,
-  });
+  assert.equal(resetState.filter, "false");
+  assert.deepEqual(resetState.saved, defaultPreferences);
 
   await page.locator('button[aria-controls="accessibility-panel"]').click();
   await page.reload();
@@ -177,8 +247,13 @@ try {
 
   console.log(JSON.stringify({
     viewport: "320x720",
+    profilesAvailable: 6,
     panelWithinViewport: true,
-    preferencesPersisted: true,
+    maximumTextReflow: true,
+    pageStructureWorks: true,
+    pageReadingWorks: true,
+    advancedToolsPersisted: true,
+    widgetMoveHideShortcutWorks: true,
     escapeReturnsFocus: true,
     skipLinkWorks: true,
   }, null, 2));
