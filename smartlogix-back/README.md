@@ -142,6 +142,18 @@ Iniciar en este orden (cada comando en terminal distinta):
 
 En Docker Compose solo quedan publicados `8761` y `8080`. Los microservicios internos no se exponen al host; deben consumirse por el gateway.
 
+## Pruebas de seguridad
+
+Los permisos se validan en cada microservicio a partir del JWT firmado; cambiar
+el rol o los controles visibles desde las herramientas del navegador no concede
+privilegios. Las pruebas HTTP cubren accesos sin autenticar, permisos por rol,
+operaciones reservadas entre servicios y rechazo de tokens con una firma
+invalida.
+
+```powershell
+.\mvnw.cmd test
+```
+
 ## Pruebas rapidas por Gateway
 
 ### 1) Obtener token JWT

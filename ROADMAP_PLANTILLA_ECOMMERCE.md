@@ -91,6 +91,8 @@ PostgreSQL puede ejecutarse localmente en Docker sin pagar un servicio externo.
 ## Fase 7 - Limpieza y arquitectura reutilizable
 
 - [x] Separar rutas y motores pesados mediante carga diferida y chunks estables.
+- [x] Cubrir permisos HTTP criticos y rechazo de tokens con firma alterada.
+- [x] Actualizar dependencias frontend con correcciones compatibles.
 - [ ] Detectar componentes, servicios, estilos y dependencias sin uso.
 - [ ] Eliminar codigo duplicado y archivos del template inicial.
 - [ ] Separar modulos compartidos de tienda, administracion y POS.

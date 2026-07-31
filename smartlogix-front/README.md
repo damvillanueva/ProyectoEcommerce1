@@ -61,5 +61,12 @@ modulos administrativos al iniciar y los motores de mapas, QR y bodega 3D se
 distribuyen en chunks independientes. Three.js se carga solo al abrir la vista
 3D y Leaflet solo cuando se muestra el seguimiento de un envio.
 
+## Dependencias
+
+Las actualizaciones de seguridad se aplican sin `--force` para conservar
+compatibilidad. React Router se mantiene en la ultima version estable 7.x. Esta
+aplicacion usa `BrowserRouter` como SPA y no habilita React Server Components ni
+acciones RSC.
+
 Las rutas del navegador mejoran la experiencia, pero la autorizacion definitiva
 se aplica en el backend para cada operacion protegida.
