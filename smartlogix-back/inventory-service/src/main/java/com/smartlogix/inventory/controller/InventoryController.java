@@ -5,6 +5,7 @@ import com.smartlogix.inventory.dto.DispatchInventoryBatchRequest;
 import com.smartlogix.inventory.dto.UpdateInventoryItemRequest;
 import com.smartlogix.inventory.dto.InventoryAvailabilityResponse;
 import com.smartlogix.inventory.dto.InventoryItemResponse;
+import com.smartlogix.inventory.dto.RestockInventoryBatchRequest;
 import com.smartlogix.inventory.dto.InventoryTransferResponse;
 import com.smartlogix.inventory.dto.TransferInventoryStockRequest;
 import com.smartlogix.inventory.dto.UpsertInventoryStockRequest;
@@ -102,6 +103,17 @@ public class InventoryController {
             @Valid @RequestBody DispatchInventoryBatchRequest request
     ) {
         return inventoryService.dispatchBatch(request.lines());
+    }
+
+    @PostMapping("/items/restock-batch")
+    public List<InventoryItemResponse> restockBatch(
+            @Valid @RequestBody RestockInventoryBatchRequest request
+    ) {
+        return inventoryService.restockBatch(
+                request.warehouseCode(),
+                request.reference(),
+                request.lines()
+        );
     }
 
     @PutMapping("/items/{sku}")

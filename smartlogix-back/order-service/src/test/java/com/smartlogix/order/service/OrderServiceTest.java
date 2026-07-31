@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.smartlogix.order.client.InventoryAvailabilityResponse;
 import com.smartlogix.order.client.InventoryClient;
+import com.smartlogix.order.client.InventoryBatchLineRequest;
 import com.smartlogix.order.client.CatalogProductResponse;
 import com.smartlogix.order.client.ShipmentClient;
 import com.smartlogix.order.client.ShipmentRequest;
@@ -84,6 +85,32 @@ class OrderServiceTest {
         assertThat(inventoryClient.available("SKU-3001")).isEqualTo(44);
         assertThat(inventoryClient.reserved("SKU-3001")).isEqualTo(1);
         assertThat(shipmentClient.createdTrackingCodes()).containsExactly("SLX-TEST-1");
+    }
+
+    @Test
+    void shippingTransitionDispatchesInventoryExactlyOnce() {
+        inventoryClient.setProduct("SKU-3001", 45, BigDecimal.valueOf(45990));
+        OrderResponse created = orderService.createOrder(new CreateOrderRequest(
+                "Cliente Demo",
+                "cliente.demo@smartlogix.cl",
+                "Providencia | Av. Demo 123",
+                null,
+                List.of(new OrderLineRequest("SKU-3001", 2))
+        ));
+
+        OrderResponse shipped = orderService.updateFulfillmentStatus(
+                created.orderNumber(),
+                OrderStatus.SHIPPED
+        );
+        OrderResponse delivered = orderService.updateFulfillmentStatus(
+                created.orderNumber(),
+                OrderStatus.DELIVERED
+        );
+
+        assertThat(shipped.status()).isEqualTo(OrderStatus.SHIPPED);
+        assertThat(delivered.status()).isEqualTo(OrderStatus.DELIVERED);
+        assertThat(inventoryClient.available("SKU-3001")).isEqualTo(43);
+        assertThat(inventoryClient.reserved("SKU-3001")).isZero();
     }
 
     @Test
@@ -554,6 +581,13 @@ class OrderServiceTest {
         public void release(String sku, int quantity) {
             reservedBySku.put(sku, reserved(sku) - quantity);
             availableBySku.put(sku, available(sku) + quantity);
+        }
+
+        @Override
+        public void dispatchBatch(List<InventoryBatchLineRequest> lines) {
+            for (InventoryBatchLineRequest line : lines) {
+                reservedBySku.put(line.sku(), reserved(line.sku()) - line.quantity());
+            }
         }
     }
 

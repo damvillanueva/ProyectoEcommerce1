@@ -1,6 +1,7 @@
 package com.smartlogix.order.config;
 
 import com.smartlogix.order.controller.OrderController;
+import com.smartlogix.order.domain.OrderStatus;
 import com.smartlogix.order.security.JwtAuthenticationFilter;
 import com.smartlogix.order.service.OrderService;
 import io.jsonwebtoken.Jwts;
@@ -22,6 +23,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(OrderController.class)
@@ -84,6 +86,21 @@ class OrderSecurityTest {
                 .andExpect(status().isUnauthorized());
 
         verifyNoInteractions(orderService);
+    }
+
+    @Test
+    void onlyShipmentServiceCanSynchronizeFulfillment() throws Exception {
+        mockMvc.perform(patch("/api/orders/ORD-1/fulfillment-status")
+                        .queryParam("value", "SHIPPED")
+                        .header("Authorization", bearerToken("admin", "ROLE_ADMIN", SECRET)))
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(patch("/api/orders/ORD-1/fulfillment-status")
+                        .queryParam("value", "SHIPPED")
+                        .header("Authorization", bearerToken("shipment-service", "ROLE_SHIPMENT_SERVICE", SECRET)))
+                .andExpect(status().isOk());
+
+        verify(orderService).updateFulfillmentStatus("ORD-1", OrderStatus.SHIPPED);
     }
 
     private String bearerToken(String subject, String role, String secret) {

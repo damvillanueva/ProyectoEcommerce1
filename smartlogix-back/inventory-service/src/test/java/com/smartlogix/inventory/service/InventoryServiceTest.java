@@ -15,6 +15,7 @@ import com.smartlogix.inventory.dto.CreateInventoryItemRequest;
 import com.smartlogix.inventory.dto.InventoryAvailabilityResponse;
 import com.smartlogix.inventory.dto.InventoryBatchLineRequest;
 import com.smartlogix.inventory.dto.InventoryItemResponse;
+import com.smartlogix.inventory.dto.RestockInventoryLineRequest;
 import com.smartlogix.inventory.exception.InventoryOperationException;
 import com.smartlogix.inventory.repository.InventoryItemRepository;
 import java.math.BigDecimal;
@@ -96,6 +97,34 @@ class InventoryServiceTest {
         assertThat(stock.getReservedQuantity()).isZero();
         assertThat(response).singleElement()
                 .satisfies(value -> assertThat(value.reservedQuantity()).isZero());
+    }
+
+    @Test
+    void customerReturnBatchRestoresAvailableStockInReceivingWarehouse() {
+        InventoryItem item = item("SKU-RET-1");
+        InventoryStock stock = stock(item, warehouse("WH-SCL-01", true, 10), 4, 0);
+        List<InventoryStock> stocks = List.of(stock);
+
+        when(repository.findBySku("SKU-RET-1")).thenReturn(Optional.of(item));
+        when(stockService.findStocksForUpdate("SKU-RET-1")).thenReturn(stocks);
+        when(stockService.resolveStock(stocks, "WH-SCL-01")).thenReturn(stock);
+        when(stockService.findStocks(item)).thenReturn(stocks);
+        when(stockService.toResponses(stocks)).thenReturn(List.of());
+        doAnswer(invocation -> {
+            item.setAvailableQuantity(stock.getAvailableQuantity());
+            return null;
+        }).when(stockService).saveAndSynchronize(item, stocks);
+
+        List<InventoryItemResponse> response = inventoryService.restockBatch(
+                "WH-SCL-01",
+                "PSD-TEST-1",
+                List.of(new RestockInventoryLineRequest("sku-ret-1", 2))
+        );
+
+        assertThat(stock.getAvailableQuantity()).isEqualTo(6);
+        assertThat(response).singleElement()
+                .satisfies(value -> assertThat(value.availableQuantity()).isEqualTo(6));
+        verify(stockService).saveAndSynchronize(item, stocks);
     }
 
     @Test

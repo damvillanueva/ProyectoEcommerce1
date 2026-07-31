@@ -3,6 +3,7 @@ package com.smartlogix.order.service;
 import com.smartlogix.order.client.CatalogProductResponse;
 import com.smartlogix.order.client.InventoryClient;
 import com.smartlogix.order.client.InventoryClientException;
+import com.smartlogix.order.client.InventoryBatchLineRequest;
 import com.smartlogix.order.client.ShipmentClient;
 import com.smartlogix.order.client.ShipmentRequest;
 import com.smartlogix.order.client.ShipmentResponse;
@@ -274,6 +275,34 @@ public class OrderService {
                 shipment == null ? null : shipment.estimatedDeliveryDate(),
                 order.getPickupLocation()
         );
+    }
+
+    public OrderResponse updateFulfillmentStatus(String orderNumber, OrderStatus fulfillmentStatus) {
+        if (fulfillmentStatus != OrderStatus.SHIPPED && fulfillmentStatus != OrderStatus.DELIVERED) {
+            throw new IllegalArgumentException("El estado de cumplimiento no es valido.");
+        }
+
+        PurchaseOrder order = repository.findByOrderNumber(orderNumber)
+                .orElseThrow(() -> new OrderNotFoundException("No existe la orden " + orderNumber));
+        if (order.getFulfillmentMethod() != FulfillmentMethod.DELIVERY) {
+            throw new IllegalArgumentException("Solo los pedidos con despacho usan este flujo.");
+        }
+        if (order.getStatus() == OrderStatus.DELIVERED
+                || order.getStatus() == fulfillmentStatus) {
+            return toResponse(order);
+        }
+        if (order.getStatus() != OrderStatus.SHIPMENT_REQUESTED
+                && order.getStatus() != OrderStatus.SHIPPED) {
+            throw new IllegalArgumentException("El pedido no esta listo para actualizar su cumplimiento.");
+        }
+
+        if (order.getStatus() == OrderStatus.SHIPMENT_REQUESTED) {
+            inventoryClient.dispatchBatch(order.getLines().stream()
+                    .map(line -> new InventoryBatchLineRequest(line.getSku(), line.getQuantity()))
+                    .toList());
+        }
+        order.setStatus(fulfillmentStatus);
+        return toResponse(repository.save(order));
     }
 
     @Transactional(readOnly = true)

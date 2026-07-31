@@ -69,6 +69,7 @@ function Navbar({
     role !== "ROLE_WAREHOUSE_MANAGER" && { to: "/shop", label: "Tienda" },
     role !== "ROLE_WAREHOUSE_MANAGER" && { to: "/orders", label: "Pedidos" },
     role !== "ROLE_WAREHOUSE_MANAGER" && { to: "/pos", label: "POS" },
+    { to: "/returns", label: "Postventa" },
     role !== "ROLE_USER" && { to: "/shipments", label: "Envios" },
     role !== "ROLE_USER" && { to: "/procurement", label: "Compras" },
     role === "ROLE_ADMIN" && { to: "/users", label: "Usuarios" },
@@ -157,7 +158,7 @@ function NavItem({ to, children }) {
     <NavLink
       to={to}
       className={({ isActive }) =>
-        `rounded-lg px-3 py-2.5 transition ${
+        `rounded-lg px-2.5 py-2.5 transition ${
           isActive
             ? "border-b-2 border-indigo-300 bg-white/10 text-white shadow-inner"
             : "text-slate-200 hover:bg-white/10"

@@ -217,10 +217,25 @@ Registro de funcionalidades y mejoras incorporadas al proyecto de portafolio.
     - Seguridad: un cliente recibe `403` y ningun usuario puede vender o cerrar una caja abierta por otra cuenta.
     - Estado: implementado con Flyway V2 de pedidos, ocho pruebas POS y validacion real por Gateway/PostgreSQL.
 
+22. Devoluciones, cambios y garantias
+    - El cliente puede solicitar postventa solo sobre pedidos propios, pagados y entregados, seleccionando productos y cantidades realmente compradas.
+    - Las devoluciones y cambios respetan una ventana de 30 dias; las garantias, una ventana de 180 dias.
+    - El backend impide solicitar mas unidades que las compradas o duplicar cantidades que ya participan en solicitudes activas.
+    - Administrador o vendedor revisan la solicitud; administrador o bodeguero registran la recepcion y condicion fisica del producto.
+    - Los productos sellados o abiertos pueden volver al stock por la cantidad indicada. Los defectuosos o danados no pueden reponerse como disponibles.
+    - La resolucion admite reembolso parcial calculado despues de descuentos, reemplazo con reserva y despacho, o reparacion con trazabilidad.
+    - La cuenta del cliente incorpora `Mi postventa` y el panel interno `/returns` centraliza filtros, indicadores, detalle y acciones segun rol.
+    - Los cambios de envio a `IN_TRANSIT` y `DELIVERED` sincronizan el pedido como `SHIPPED` o `DELIVERED` y descuentan las reservas exactamente una vez.
+    - El cliente HTTP interno usa Apache HttpClient 5 para soportar `PATCH`; una prueba de regresion conserva esta configuracion.
+    - Estado: implementado con Flyway V3 de pedidos, permisos HTTP, pruebas automatizadas y validacion real por Gateway/PostgreSQL.
+
 ## Validacion actual
 
-- Order service: 28 pruebas sin fallos; ocho cubren caja, venta, stock, medios de pago, propiedad de sesion y permisos HTTP del POS.
-- Inventario: 35 pruebas sin fallos, incluidas seguridad del despacho batch, traslados, ubicaciones seguras y compras.
+- Autenticacion: 13 pruebas sin fallos; seguridad HTTP, JWT, recuperacion, verificacion, perfil y proteccion de login.
+- Order service: 36 pruebas sin fallos; cubren POS, postventa, permisos, reembolso, reemplazo, reparacion y despacho idempotente.
+- Inventario: 37 pruebas sin fallos, incluidas seguridad de despacho/reposicion batch, traslados, ubicaciones seguras y compras.
+- Envios: 8 pruebas sin fallos, incluida sincronizacion del pedido y transporte HTTP compatible con `PATCH`.
+- Total backend: 94 pruebas sin fallos.
 - Seguridad de traslados: usuario comun recibe `403`; administrador y bodeguero conservan el permiso operativo.
 - API real: traslado parcial y reversion OK, con dos movimientos enlazados por la misma referencia `TRF-...` y datos de demostracion restaurados.
 - API real de ubicaciones: sugerencia libre OK; coordenada duplicada devuelve `400` y usuario de solo lectura recibe `403`. Los datos temporales fueron eliminados.
@@ -235,6 +250,8 @@ Registro de funcionalidades y mejoras incorporadas al proyecto de portafolio.
 - Flujo pedido-envio: pedido creado desde catalogo con `SKU-3001`, comuna `Providencia`, estado legible y envio generado con tracking.
 - Flujo borrar pedido: `ORD-5D401FAB` creo reserva/envio temporal, al eliminarlo el monitor volvio de disponible 44/reservado 1 a disponible 45/reservado 0 y el tracking desaparecio.
 - Flujo POS real: venta por Gateway con `SKU-1003`, stock de 34 a 33, comprobante persistido, estado `COMPLETED/PAID` y cierre de caja con diferencia $0.
+- Flujo postventa real: `ORD-DEF399D6` paso a `DELIVERED`; la garantia `PSD-C3BFFF9A` termino `RESOLVED/REPAIR`; `SKU-2001` paso de 45 a 44 disponibles y regreso a 0 reservados.
+- Postventa responsive: panel interno y cuenta de cliente revisados con datos reales en escritorio, 390 y 320 px, sin desborde horizontal ni errores de consola.
 - Nota: Vite mantiene advertencia de bundle mayor a 500 KB; no bloquea.
 
 ## Roadmap vigente

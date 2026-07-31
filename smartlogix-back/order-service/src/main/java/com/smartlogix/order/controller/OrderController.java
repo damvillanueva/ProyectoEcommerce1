@@ -8,6 +8,7 @@ import com.smartlogix.order.dto.OrderTrackingResponse;
 import com.smartlogix.order.dto.ShippingQuoteRequest;
 import com.smartlogix.order.dto.ShippingQuoteResponse;
 import com.smartlogix.order.domain.OrderChannel;
+import com.smartlogix.order.domain.OrderStatus;
 import com.smartlogix.order.security.AuthenticatedUser;
 import com.smartlogix.order.service.OrderService;
 import jakarta.validation.Valid;
@@ -92,6 +93,14 @@ public class OrderController {
     @GetMapping("/{orderNumber}")
     public OrderResponse findByOrderNumber(@PathVariable String orderNumber) {
         return orderService.getOrderByNumber(orderNumber);
+    }
+
+    @PatchMapping("/{orderNumber}/fulfillment-status")
+    public OrderResponse updateFulfillmentStatus(
+            @PathVariable String orderNumber,
+            @RequestParam OrderStatus value
+    ) {
+        return orderService.updateFulfillmentStatus(orderNumber, value);
     }
 
     @PostMapping("/{orderNumber}/cancel")

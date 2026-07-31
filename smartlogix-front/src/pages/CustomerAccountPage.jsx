@@ -15,6 +15,7 @@ import {
   FiPackage,
   FiPlus,
   FiRefreshCw,
+  FiRotateCcw,
   FiSave,
   FiShoppingBag,
   FiTrash2,
@@ -26,6 +27,8 @@ import {
 import { Link, useNavigate } from "react-router-dom";
 import logo from "../assets/logo-smartlogix.png";
 import CancelOrderModal from "../components/CancelOrderModal";
+import CustomerPostSalesPanel from "../components/CustomerPostSalesPanel";
+import PostSaleRequestModal from "../components/PostSaleRequestModal";
 import { clearLogin } from "../services/authService";
 import {
   createCustomerAddress,
@@ -38,6 +41,7 @@ import {
 } from "../services/customerAccountService";
 import { getPublicCatalogProducts } from "../services/inventoryService";
 import { cancelCustomerOrder, loadMyOrders, loadMyOrderTracking } from "../services/orderService";
+import { cancelCustomerPostSale, loadMyPostSales, saveMyPostSale } from "../services/postSaleService";
 import { canCancelOrder } from "../utils/orderCancellationUtils";
 
 const CART_STORAGE_KEY = "smartlogix-store-cart";
@@ -124,6 +128,7 @@ function paymentMethodLabel(paymentMethod) {
 
 function paymentStatusMeta(paymentStatus) {
   if (paymentStatus === "PAID") return { label: "Pago confirmado", classes: "text-emerald-300" };
+  if (paymentStatus === "PARTIALLY_REFUNDED") return { label: "Pago reembolsado parcialmente", classes: "text-sky-300" };
   if (paymentStatus === "REFUNDED") return { label: "Pago reembolsado", classes: "text-sky-300" };
   if (paymentStatus === "REJECTED") return { label: "Pago rechazado", classes: "text-red-300" };
   if (paymentStatus === "CANCELLED") return { label: "Pago cancelado", classes: "text-slate-400" };
@@ -150,17 +155,22 @@ function CustomerAccountPage() {
   const [cancelTarget, setCancelTarget] = useState(null);
   const [cancelling, setCancelling] = useState(false);
   const [cancelError, setCancelError] = useState("");
+  const [postSales, setPostSales] = useState([]);
+  const [postSaleTarget, setPostSaleTarget] = useState(null);
+  const [postSaleSaving, setPostSaleSaving] = useState(false);
+  const [postSaleError, setPostSaleError] = useState("");
 
   useEffect(() => {
     let active = true;
 
     async function fetchAccount() {
       try {
-        const [profileData, orderData, catalogData, favoriteData] = await Promise.all([
+        const [profileData, orderData, catalogData, favoriteData, postSaleData] = await Promise.all([
           loadCustomerProfile(),
           loadMyOrders(),
           getPublicCatalogProducts(),
           loadCustomerFavorites(),
+          loadMyPostSales(),
         ]);
         const trackingEntries = await Promise.all((orderData || []).map(async (order) => {
           try {
@@ -182,6 +192,7 @@ function CustomerAccountPage() {
         setTrackingByOrder(Object.fromEntries(trackingEntries));
         setCatalog(Array.isArray(catalogData) ? catalogData : []);
         setFavoriteSkus((favoriteData || []).map((favorite) => favorite.sku));
+        setPostSales(Array.isArray(postSaleData) ? postSaleData : []);
         setSelectedOrderNumber(orderData?.[0]?.orderNumber || null);
         setError("");
       } catch (loadError) {
@@ -381,6 +392,39 @@ function CustomerAccountPage() {
     }
   }
 
+  async function handleCreatePostSale(data) {
+    try {
+      setPostSaleSaving(true);
+      setPostSaleError("");
+      const created = await saveMyPostSale(postSaleTarget.orderNumber, data);
+      setPostSales((current) => [created, ...current]);
+      setPostSaleTarget(null);
+      setActiveView("returns");
+      showMessage("Solicitud de postventa enviada correctamente.");
+    } catch (requestError) {
+      console.error(requestError);
+      setPostSaleError(requestError.response?.data?.message || "No se pudo enviar la solicitud.");
+    } finally {
+      setPostSaleSaving(false);
+    }
+  }
+
+  async function handleCancelPostSale(requestNumber) {
+    try {
+      setPostSaleSaving(true);
+      const updated = await cancelCustomerPostSale(requestNumber);
+      setPostSales((current) => current.map((request) => (
+        request.requestNumber === updated.requestNumber ? updated : request
+      )));
+      showMessage("Solicitud de postventa cancelada.");
+    } catch (requestError) {
+      console.error(requestError);
+      setError(requestError.response?.data?.message || "No se pudo cancelar la solicitud.");
+    } finally {
+      setPostSaleSaving(false);
+    }
+  }
+
   function reorder(order) {
     const nextCart = order.lines
       .map((line) => {
@@ -421,6 +465,7 @@ function CustomerAccountPage() {
           onChange={setActiveView}
           favoriteCount={favoriteSkus.length}
           orderCount={orders.length}
+          postSaleCount={postSales.filter((request) => !["REJECTED", "RESOLVED", "CANCELLED"].includes(request.status)).length}
           profile={profile}
         />
 
@@ -457,12 +502,22 @@ function CustomerAccountPage() {
             <OrdersView
               onCancel={(order) => { setCancelError(""); setCancelTarget(order); }}
               onReorder={reorder}
+              onPostSale={(order) => { setPostSaleError(""); setPostSaleTarget(order); }}
               onSelect={setSelectedOrderNumber}
               orders={orders}
               productsBySku={productsBySku}
               selectedOrder={selectedOrder}
               selectedTracking={selectedTracking}
               trackingByOrder={trackingByOrder}
+              postSales={postSales}
+            />
+          )}
+
+          {activeView === "returns" && (
+            <CustomerPostSalesPanel
+              cancelling={postSaleSaving}
+              onCancel={handleCancelPostSale}
+              requests={postSales}
             />
           )}
 
@@ -503,6 +558,7 @@ function CustomerAccountPage() {
         </main>
       </div>
       <CancelOrderModal error={cancelError} loading={cancelling} onClose={() => { if (!cancelling) setCancelTarget(null); }} onConfirm={handleCancelOrder} orderNumber={cancelTarget?.orderNumber} />
+      <PostSaleRequestModal error={postSaleError} loading={postSaleSaving} onClose={() => { if (!postSaleSaving) setPostSaleTarget(null); }} onSubmit={handleCreatePostSale} order={postSaleTarget} productsBySku={productsBySku} />
     </div>
   );
 }
@@ -541,10 +597,11 @@ function AccountHeader({ onLogout, profile }) {
   );
 }
 
-function AccountSidebar({ activeView, favoriteCount, onChange, orderCount, profile }) {
+function AccountSidebar({ activeView, favoriteCount, onChange, orderCount, postSaleCount, profile }) {
   const items = [
     { id: "summary", icon: FiHome, label: "Resumen" },
     { id: "orders", icon: FiShoppingBag, label: "Mis compras", count: orderCount },
+    { id: "returns", icon: FiRotateCcw, label: "Mi postventa", count: postSaleCount },
     { id: "favorites", icon: FiHeart, label: "Favoritos", count: favoriteCount },
     { id: "addresses", icon: FiMapPin, label: "Direcciones" },
     { id: "profile", icon: FiUser, label: "Mi perfil" },
@@ -713,7 +770,7 @@ function FavoritesView({ onRemove, products, saving }) {
   );
 }
 
-function OrdersView({ onCancel, onReorder, onSelect, orders, productsBySku, selectedOrder, selectedTracking, trackingByOrder }) {
+function OrdersView({ onCancel, onPostSale, onReorder, onSelect, orders, postSales, productsBySku, selectedOrder, selectedTracking, trackingByOrder }) {
   return (
     <div>
       <div className="mb-6">
@@ -762,7 +819,7 @@ function OrdersView({ onCancel, onReorder, onSelect, orders, productsBySku, sele
           </div>
 
           {selectedOrder && (
-            <OrderDetail onCancel={onCancel} order={selectedOrder} productsBySku={productsBySku} onReorder={onReorder} tracking={selectedTracking} />
+            <OrderDetail onCancel={onCancel} onPostSale={onPostSale} order={selectedOrder} postSales={postSales} productsBySku={productsBySku} onReorder={onReorder} tracking={selectedTracking} />
           )}
         </div>
       )}
@@ -770,12 +827,14 @@ function OrdersView({ onCancel, onReorder, onSelect, orders, productsBySku, sele
   );
 }
 
-function OrderDetail({ onCancel, onReorder, order, productsBySku, tracking }) {
+function OrderDetail({ onCancel, onPostSale, onReorder, order, postSales, productsBySku, tracking }) {
   const meta = statusMeta(order, tracking);
   const paymentMeta = paymentStatusMeta(order.paymentStatus);
   const failed = ["REJECTED", "FAILED"].includes(order.status);
   const cancelled = order.status === "CANCELLED";
   const cancellable = canCancelOrder(order, tracking);
+  const postSaleEligible = order.status === "COMPLETED" || tracking?.shipmentStatus === "DELIVERED";
+  const orderPostSales = postSales.filter((request) => request.orderNumber === order.orderNumber);
   return (
     <aside className="overflow-hidden rounded-md border border-white/10 bg-slate-900 xl:sticky xl:top-6">
       <div className="border-b border-white/10 p-5">
@@ -863,10 +922,15 @@ function OrderDetail({ onCancel, onReorder, order, productsBySku, tracking }) {
 
         {cancellable && <button type="button" onClick={() => onCancel(order)} className="mt-6 flex h-11 w-full items-center justify-center gap-2 rounded-md border border-red-400/30 px-4 text-sm font-black text-red-200 transition hover:bg-red-500/10"><FiXCircle /> Cancelar pedido</button>}
 
+        {postSaleEligible && (
+          <button type="button" onClick={() => onPostSale(order)} className={`${cancellable ? "mt-3" : "mt-6"} flex h-11 w-full items-center justify-center gap-2 rounded-md border border-sky-400/30 px-4 text-sm font-black text-sky-200 transition hover:bg-sky-500/10`}><FiRotateCcw /> Solicitar cambio, devolucion o garantia</button>
+        )}
+        {orderPostSales.length > 0 && <p className="mt-3 text-center text-xs font-bold text-slate-500">{orderPostSales.length} solicitud(es) asociada(s) a esta compra.</p>}
+
         <button
           type="button"
           onClick={() => onReorder(order)}
-          className={`${cancellable ? "mt-3" : "mt-6"} flex h-11 w-full items-center justify-center gap-2 rounded-md bg-sky-500 px-4 text-sm font-black transition hover:bg-sky-400`}
+          className={`${cancellable || postSaleEligible ? "mt-3" : "mt-6"} flex h-11 w-full items-center justify-center gap-2 rounded-md bg-sky-500 px-4 text-sm font-black transition hover:bg-sky-400`}
         >
           <FiRefreshCw />
           Comprar nuevamente

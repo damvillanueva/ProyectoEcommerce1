@@ -78,7 +78,7 @@ PostgreSQL puede ejecutarse localmente en Docker sin pagar un servicio externo.
 
 ## Fase 6 - Ecommerce avanzado
 
-- [ ] Agregar cambios, devoluciones y garantias posteriores al despacho.
+- [x] Agregar cambios, devoluciones y garantias posteriores al despacho.
 - [ ] Enviar notificaciones de compra, pago, envio y cancelacion.
 - [ ] Agregar boleta o factura; el comprobante actual no es tributario.
 - [ ] Integrar opcionalmente Webpay, Mercado Pago y transportistas reales.

@@ -45,6 +45,7 @@ const adminRoutes = [
   { label: "discounts", path: "/discounts" },
   { label: "procurement", path: "/procurement" },
   { label: "pos", path: "/pos" },
+  { label: "returns", path: "/returns" },
 ];
 
 if (!adminPassword || !customerPassword) {

@@ -60,6 +60,14 @@ const ORDER_STATUS_META = {
     label: "Requiere revision",
     classes: "bg-amber-500/20 text-amber-200",
   },
+  SHIPPED: {
+    label: "En camino",
+    classes: "bg-sky-500/20 text-sky-200",
+  },
+  DELIVERED: {
+    label: "Entregado",
+    classes: "bg-emerald-500/20 text-emerald-300",
+  },
   CANCELLED: {
     label: "Cancelado",
     classes: "bg-slate-500/20 text-slate-300",
@@ -71,6 +79,7 @@ const PAYMENT_STATUS_META = {
   PENDING: { label: "Pendiente", classes: "bg-amber-500/20 text-amber-200" },
   REJECTED: { label: "Rechazado", classes: "bg-red-500/20 text-red-200" },
   REFUNDED: { label: "Reembolsado", classes: "bg-sky-500/20 text-sky-200" },
+  PARTIALLY_REFUNDED: { label: "Reembolso parcial", classes: "bg-sky-500/20 text-sky-200" },
   CANCELLED: { label: "Cancelado", classes: "bg-slate-500/20 text-slate-300" },
 };
 

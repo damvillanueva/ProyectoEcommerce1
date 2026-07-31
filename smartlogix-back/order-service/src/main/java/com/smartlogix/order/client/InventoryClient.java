@@ -97,6 +97,22 @@ public class InventoryClient {
         }
     }
 
+    public void restockBatch(
+            String warehouseCode,
+            String reference,
+            List<RestockInventoryLineRequest> lines
+    ) {
+        try {
+            restTemplate.postForObject(
+                    "http://inventory-service/api/inventory/items/restock-batch",
+                    authorizedRequest(new RestockInventoryBatchRequest(warehouseCode, reference, lines)),
+                    Object.class
+            );
+        } catch (RestClientException ex) {
+            throw new InventoryClientException("No fue posible reingresar el lote al inventario", ex);
+        }
+    }
+
     private HttpEntity<Void> internalRequest() {
         HttpHeaders headers = new HttpHeaders();
         headers.setBearerAuth(internalServiceTokenProvider.createInventoryToken());

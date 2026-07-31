@@ -124,6 +124,29 @@ class InventorySecurityTest {
         );
     }
 
+    @Test
+    void onlyOrderServiceCanRestockCustomerReturns() throws Exception {
+        String request = "{\"warehouseCode\":\"WH-SCL-01\",\"reference\":\"PSD-1\",\"lines\":[{\"sku\":\"SKU-100\",\"quantity\":1}]}";
+
+        mockMvc.perform(post("/api/inventory/items/restock-batch")
+                        .header("Authorization", bearerToken("bodega", "ROLE_WAREHOUSE_MANAGER"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(request))
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(post("/api/inventory/items/restock-batch")
+                        .header("Authorization", bearerToken("order-service", "ROLE_ORDER_SERVICE"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(request))
+                .andExpect(status().isOk());
+
+        verify(inventoryService).restockBatch(
+                "WH-SCL-01",
+                "PSD-1",
+                List.of(new com.smartlogix.inventory.dto.RestockInventoryLineRequest("SKU-100", 1))
+        );
+    }
+
     private String bearerToken(String subject, String role) {
         Instant now = Instant.now();
         SecretKey signingKey = Keys.hmacShaKeyFor(SECRET.getBytes(StandardCharsets.UTF_8));

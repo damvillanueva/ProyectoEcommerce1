@@ -1,5 +1,6 @@
 package com.smartlogix.shipment.service;
 
+import com.smartlogix.shipment.client.OrderFulfillmentClient;
 import com.smartlogix.shipment.domain.Shipment;
 import com.smartlogix.shipment.domain.ShipmentStatus;
 import com.smartlogix.shipment.dto.CreateShipmentRequest;
@@ -29,14 +30,17 @@ public class ShipmentService {
 
     private final ShipmentRepository repository;
     private final ShipmentPlanFactoryResolver planFactoryResolver;
+    private final OrderFulfillmentClient orderFulfillmentClient;
     private MeterRegistry meterRegistry;
 
     public ShipmentService(
             ShipmentRepository repository,
-            ShipmentPlanFactoryResolver planFactoryResolver
+            ShipmentPlanFactoryResolver planFactoryResolver,
+            OrderFulfillmentClient orderFulfillmentClient
     ) {
         this.repository = repository;
         this.planFactoryResolver = planFactoryResolver;
+        this.orderFulfillmentClient = orderFulfillmentClient;
     }
 
     @Autowired
@@ -91,6 +95,7 @@ public class ShipmentService {
         Shipment shipment = repository.findByTrackingCode(trackingCode.trim().toUpperCase())
                 .orElseThrow(() -> new ShipmentNotFoundException("No existe el envio " + trackingCode));
         ShipmentStatus previousStatus = shipment.getStatus();
+        syncOrderFulfillment(shipment, previousStatus, status);
         shipment.setStatus(status);
         Shipment savedShipment = repository.save(shipment);
         increment("smartlogix.shipments.status_updates", "status", status.name());
@@ -101,6 +106,22 @@ public class ShipmentService {
                 status
         );
         return toResponse(savedShipment);
+    }
+
+    private void syncOrderFulfillment(
+            Shipment shipment,
+            ShipmentStatus previousStatus,
+            ShipmentStatus nextStatus
+    ) {
+        if (previousStatus == nextStatus) {
+            return;
+        }
+        if (nextStatus == ShipmentStatus.DELIVERED) {
+            orderFulfillmentClient.updateStatus(shipment.getOrderNumber(), "DELIVERED");
+        } else if (nextStatus == ShipmentStatus.PICKED_UP
+                || nextStatus == ShipmentStatus.IN_TRANSIT) {
+            orderFulfillmentClient.updateStatus(shipment.getOrderNumber(), "SHIPPED");
+        }
     }
 
     public ShipmentResponse updateShipment(String trackingCode, UpdateShipmentRequest request) {

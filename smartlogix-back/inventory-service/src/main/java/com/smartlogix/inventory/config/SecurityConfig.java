@@ -50,6 +50,7 @@ public class SecurityConfig {
 
                         .requestMatchers(HttpMethod.POST,
                                 "/api/inventory/items/dispatch-batch",
+                                "/api/inventory/items/restock-batch",
                                 "/api/inventory/items/*/reserve",
                                 "/api/inventory/items/*/release",
                                 "/api/inventory/items/*/dispatch")

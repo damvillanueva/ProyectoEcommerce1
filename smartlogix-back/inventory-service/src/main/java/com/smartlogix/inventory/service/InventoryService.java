@@ -9,6 +9,7 @@ import com.smartlogix.inventory.dto.CreateInventoryItemRequest;
 import com.smartlogix.inventory.dto.InventoryAvailabilityResponse;
 import com.smartlogix.inventory.dto.InventoryBatchLineRequest;
 import com.smartlogix.inventory.dto.InventoryItemResponse;
+import com.smartlogix.inventory.dto.RestockInventoryLineRequest;
 import com.smartlogix.inventory.dto.UpdateInventoryItemRequest;
 import com.smartlogix.inventory.dto.UpsertInventoryStockRequest;
 import com.smartlogix.inventory.exception.InventoryNotFoundException;
@@ -17,6 +18,8 @@ import com.smartlogix.inventory.repository.InventoryItemRepository;
 import io.micrometer.core.instrument.MeterRegistry;
 import java.util.List;
 import java.util.Locale;
+import java.util.HashSet;
+import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -271,6 +274,55 @@ public class InventoryService {
                 .toList();
         increment("smartlogix.inventory.operations", "operation", "dispatch_batch");
         return dispatched;
+    }
+
+    public List<InventoryItemResponse> restockBatch(
+            String warehouseCode,
+            String reference,
+            List<RestockInventoryLineRequest> lines
+    ) {
+        Set<String> uniqueSkus = new HashSet<>();
+        List<InventoryItemResponse> restocked = lines.stream()
+                .map(line -> {
+                    String sku = normalizeSku(line.sku());
+                    if (!uniqueSkus.add(sku)) {
+                        throw new InventoryOperationException("Cada SKU debe aparecer una sola vez en el reingreso.");
+                    }
+                    return restock(sku, warehouseCode, line.quantity(), reference);
+                })
+                .toList();
+        increment("smartlogix.inventory.operations", "operation", "customer_return_batch");
+        return restocked;
+    }
+
+    private InventoryItemResponse restock(
+            String sku,
+            String warehouseCode,
+            int quantity,
+            String reference
+    ) {
+        validatePositiveQuantity(quantity);
+        InventoryItem item = loadBySku(sku);
+        List<InventoryStock> stocks = stockService.findStocksForUpdate(item.getSku());
+        InventoryStock stock = stockService.resolveStock(stocks, warehouseCode);
+        if (!stock.getWarehouse().isActive()) {
+            throw new InventoryOperationException("La bodega de recepcion no esta activa.");
+        }
+
+        int previousStock = stock.getAvailableQuantity();
+        stock.setAvailableQuantity(previousStock + quantity);
+        movementService.recordMovement(
+                item,
+                stock.getWarehouse().getCode(),
+                MovementType.ENTRY,
+                ActionType.CUSTOMER_RETURN,
+                quantity,
+                previousStock,
+                stock.getAvailableQuantity(),
+                "Reingreso por postventa " + reference
+        );
+        stockService.saveAndSynchronize(item, stocks);
+        return toResponse(item);
     }
 
     public InventoryItemResponse updateItem(String sku, UpdateInventoryItemRequest request) {
