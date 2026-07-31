@@ -71,6 +71,18 @@ persistencia, mover/ocultar, atajo de recuperacion, cierre con `Escape`, retorno
 del foco y reflow con texto al 150% en una pantalla de 320 pixeles. Este panel es
 una ayuda de personalizacion y no reemplaza una auditoria integral WCAG 2.2 AA.
 
+## Proveedores y compras
+
+El modulo `/procurement` permite administrar proveedores y sus condiciones
+comerciales, asociar SKU con costos y minimos de compra, crear y aprobar ordenes
+de compra, recibirlas parcial o totalmente y generar movimientos de entrada en
+la bodega seleccionada. Tambien presenta propuestas preventivas de reposicion.
+
+El acceso esta limitado a administradores y encargados de bodega. Los RUT se
+normalizan y validan en backend, los costos de una orden se toman desde la
+relacion comercial vigente y una recepcion no puede superar sus unidades
+pendientes.
+
 ## Rendimiento
 
 Las paginas se cargan por ruta mediante `React.lazy`. La tienda no descarga los

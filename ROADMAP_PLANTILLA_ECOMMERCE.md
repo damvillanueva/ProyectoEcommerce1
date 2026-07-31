@@ -59,12 +59,12 @@ PostgreSQL puede ejecutarse localmente en Docker sin pagar un servicio externo.
 
 ## Fase 4 - Proveedores y compras
 
-- [ ] Crear proveedores, contactos y condiciones comerciales.
-- [ ] Asociar productos, costos y codigos de proveedor.
-- [ ] Crear ordenes de compra y estados de aprobacion.
-- [ ] Recibir mercaderia y aumentar stock mediante movimientos.
-- [ ] Calcular costo, margen y precio sugerido.
-- [ ] Generar alertas y propuestas de reposicion.
+- [x] Crear proveedores, contactos y condiciones comerciales.
+- [x] Asociar productos, costos y codigos de proveedor.
+- [x] Crear ordenes de compra y estados de aprobacion.
+- [x] Recibir mercaderia y aumentar stock mediante movimientos.
+- [x] Calcular costo, margen y precio sugerido por producto asociado.
+- [x] Generar alertas y propuestas de reposicion.
 
 ## Fase 5 - Punto de venta fisico
 

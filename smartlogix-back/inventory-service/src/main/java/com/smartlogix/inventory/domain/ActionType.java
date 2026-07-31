@@ -9,6 +9,7 @@ public enum ActionType {
     MANUAL_ENTRY,
     MANUAL_EXIT,
     MANUAL_ADJUSTMENT,
+    PURCHASE_RECEIPT,
     TRANSFER_OUT,
     TRANSFER_IN
 }
