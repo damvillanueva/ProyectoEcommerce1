@@ -602,11 +602,11 @@ function TrustStrip() {
   ];
   return (
     <section className="border-b border-white/10 bg-slate-900">
-      <div className="mx-auto grid max-w-[1500px] grid-cols-2 px-4 lg:grid-cols-4 lg:px-6">
+      <div className="mx-auto grid max-w-[1500px] grid-cols-1 px-4 sm:grid-cols-2 lg:grid-cols-4 lg:px-6">
         {benefits.map(({ icon: Icon, text, title }) => (
           <div key={title} className="flex min-h-24 items-center gap-3 border-white/10 p-4 lg:border-r lg:last:border-r-0">
             <Icon className="shrink-0 text-sky-300" size={22} />
-            <div><p className="text-sm font-black">{title}</p><p className="mt-1 text-xs font-semibold text-slate-500">{text}</p></div>
+            <div className="min-w-0"><p className="break-words text-sm font-black">{title}</p><p className="mt-1 break-words text-xs font-semibold text-slate-500">{text}</p></div>
           </div>
         ))}
       </div>

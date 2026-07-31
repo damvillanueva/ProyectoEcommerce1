@@ -1,5 +1,6 @@
 import { lazy, Suspense } from "react";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
+import AccessibilityWidget from "./components/AccessibilityWidget";
 import ProtectedRoute from "./components/ProtectedRoute";
 
 const AccountActionPage = lazy(() => import("./pages/AccountActionPage"));
@@ -36,6 +37,7 @@ function RouteLoadingFallback() {
 function App() {
   return (
     <BrowserRouter>
+      <AccessibilityWidget />
       <Suspense fallback={<RouteLoadingFallback />}>
         <Routes>
           <Route path="/" element={<LoginPage />} />

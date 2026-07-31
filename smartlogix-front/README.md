@@ -35,6 +35,7 @@ local predeterminado es `http://localhost:8080`.
 ```powershell
 npm run lint
 npm run build
+npm run audit:accessibility
 ```
 
 La auditoria responsive abre las rutas publicas, de cliente y administrativas
@@ -53,6 +54,18 @@ puede cambiar la URL con `SMARTLOGIX_AUDIT_URL`, el canal del navegador con
 `SMARTLOGIX_BROWSER_EXECUTABLE`. Para revisar solo ciertos anchos se puede usar
 `SMARTLOGIX_AUDIT_WIDTHS="320,390"`; las capturas completas se activan con
 `SMARTLOGIX_AUDIT_FULL_PAGE="true"`.
+
+## Accesibilidad
+
+El boton global de accesibilidad ofrece tamaño de texto, alto contraste, escala
+de grises, enlaces subrayados, fuente legible, reduccion de movimiento, cursor
+grande y foco reforzado. Las preferencias se conservan en `localStorage` y se
+aplican por igual a tienda y panel interno.
+
+La auditoria del widget comprueba su uso por teclado, persistencia, cierre con
+`Escape`, retorno del foco y reflow con texto al 150% en una pantalla de 320
+pixeles. Este panel es una ayuda de personalizacion y no reemplaza una auditoria
+integral WCAG 2.2 AA.
 
 ## Rendimiento
 

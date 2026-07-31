@@ -124,10 +124,10 @@ eliminar codigo que todavia pueda reutilizarse durante su construccion.
 - [ ] Apuntar a WCAG 2.2 nivel AA en todas las variantes responsive.
 - [ ] Corregir semantica HTML, etiquetas, foco y navegacion por teclado.
 - [ ] Validar contraste, textos alternativos y nombres accesibles.
-- [ ] Respetar `prefers-reduced-motion` y configuraciones del sistema.
+- [x] Respetar `prefers-reduced-motion` y permitir reducir animaciones manualmente.
 - [ ] Agregar pruebas automatizadas con `axe-core` y Lighthouse.
 - [ ] Realizar revision manual con teclado y lector de pantalla.
-- [ ] Crear un boton de accesibilidad propio, gratuito y reutilizable.
+- [x] Crear un boton de accesibilidad propio, gratuito y reutilizable.
 - [ ] Conservar evidencia de auditoria WCAG automatizada y manual.
 
 El boton podra incluir:

@@ -16,6 +16,7 @@ Repositorio: [damvillanueva/ProyectoEcommerce1](https://github.com/damvillanueva
 - Pago demostrativo, confirmacion de compra y seguimiento del pedido.
 - Cuenta de cliente con perfil, direcciones, favoritos e historial de compras.
 - Cancelacion con liberacion de stock y reembolso simulado.
+- Preferencias de accesibilidad persistentes en tienda y panel interno.
 
 ### Operacion interna
 
@@ -122,6 +123,7 @@ cd smartlogix-back
 cd ..\smartlogix-front
 npm run lint
 npm run build
+npm run audit:accessibility
 ```
 
 ## Documentacion
