@@ -112,7 +112,9 @@ function Warehouse3DExplorer({
   const [aisleFilter, setAisleFilter] = useState("");
   const [levelFilter, setLevelFilter] = useState("");
   const [selectedSku, setSelectedSku] = useState("");
-  const [showLegend, setShowLegend] = useState(true);
+  const [showLegend, setShowLegend] = useState(() =>
+    typeof window === "undefined" || !window.matchMedia("(max-width: 639px)").matches
+  );
   const [showWalls, setShowWalls] = useState(true);
   const cleanQuery = query.trim();
 
@@ -583,7 +585,7 @@ function Warehouse3DExplorer({
       : "";
 
   return (
-    <section className="mb-8 w-full">
+    <section data-testid="warehouse-3d-explorer" className="mb-8 w-full">
       <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <p className="text-sm font-black uppercase text-sky-300">Vista 3D de Bodega</p>
@@ -593,39 +595,39 @@ function Warehouse3DExplorer({
           </p>
         </div>
 
-        <div className="flex flex-wrap gap-2">
+        <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
           <button
             type="button"
             onClick={() => setShowLegend((current) => !current)}
-            className="rounded-xl border border-indigo-300/30 bg-indigo-500/10 px-4 py-3 text-sm font-black text-indigo-100 transition hover:bg-indigo-500/20"
+            className="min-h-11 min-w-0 rounded-lg border border-indigo-300/30 bg-indigo-500/10 px-3 py-2 text-sm font-black text-indigo-100 transition hover:bg-indigo-500/20 sm:px-4 sm:py-3"
           >
             Leyenda
           </button>
           <button
             type="button"
             onClick={() => setShowWalls((current) => !current)}
-            className="rounded-xl border border-indigo-300/30 bg-indigo-500/10 px-4 py-3 text-sm font-black text-indigo-100 transition hover:bg-indigo-500/20"
+            className="min-h-11 min-w-0 rounded-lg border border-indigo-300/30 bg-indigo-500/10 px-3 py-2 text-sm font-black text-indigo-100 transition hover:bg-indigo-500/20 sm:px-4 sm:py-3"
           >
             {showWalls ? "Ocultar paredes" : "Mostrar paredes"}
           </button>
           <button
             type="button"
             onClick={topView}
-            className="rounded-xl border border-indigo-300/30 bg-indigo-500/10 px-4 py-3 text-sm font-black text-indigo-100 transition hover:bg-indigo-500/20"
+            className="min-h-11 min-w-0 rounded-lg border border-indigo-300/30 bg-indigo-500/10 px-3 py-2 text-sm font-black text-indigo-100 transition hover:bg-indigo-500/20 sm:px-4 sm:py-3"
           >
             Plano superior
           </button>
           <button
             type="button"
             onClick={resetCamera}
-            className="rounded-xl bg-white/10 px-4 py-3 text-sm font-black text-white transition hover:bg-white/20"
+            className="min-h-11 min-w-0 rounded-lg bg-white/10 px-3 py-2 text-sm font-black text-white transition hover:bg-white/20 sm:px-4 sm:py-3"
           >
             Reset camara
           </button>
         </div>
       </div>
 
-      <div className="mb-5 grid gap-3 lg:grid-cols-[1.4fr_0.8fr_0.8fr_0.8fr_0.8fr]">
+      <div className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-[1.4fr_0.8fr_0.8fr_0.8fr_0.8fr]">
         <input
           value={query}
           onChange={(event) => handleQueryChange(event.target.value)}
@@ -694,19 +696,19 @@ function Warehouse3DExplorer({
         </div>
       )}
 
-      <div className="flex flex-col xl:flex-row gap-4 w-full">
+      <div className="flex w-full flex-col gap-4 xl:flex-row">
         {/* Contenedor 3D - ocupa todo el espacio disponible */}
-        <div className="min-h-[500px] min-w-0 flex-1">
-          <div className="relative w-full h-[calc(100vh-480px)] min-h-[500px] rounded-2xl border border-white/10 bg-slate-950 overflow-hidden">
+        <div className="min-h-[420px] min-w-0 flex-1 sm:min-h-[500px]">
+          <div className="relative h-[420px] min-h-[420px] w-full overflow-hidden rounded-lg border border-white/10 bg-slate-950 sm:h-[500px] sm:min-h-[500px] lg:h-[calc(100vh-480px)]">
             <div ref={mountRef} className="w-full h-full" />
-            <div className="pointer-events-none absolute left-4 top-4 rounded-2xl border border-white/10 bg-slate-950/70 p-3 backdrop-blur">
+            <div className="pointer-events-none absolute left-3 right-3 top-3 rounded-lg border border-white/10 bg-slate-950/75 p-3 backdrop-blur sm:left-4 sm:right-auto sm:top-4 sm:max-w-sm">
               <p className="text-xs font-black uppercase text-slate-400">Controles</p>
               <p className="mt-1 text-xs font-semibold text-slate-300">
                 Arrastra para rotar, rueda para zoom, clic para seleccionar.
               </p>
             </div>
             {showLegend && (
-              <div className="absolute bottom-4 left-4 right-4 rounded-2xl border border-white/10 bg-slate-950/75 p-4 backdrop-blur">
+              <div className="absolute bottom-3 left-3 right-3 rounded-lg border border-white/10 bg-slate-950/80 p-3 backdrop-blur sm:bottom-4 sm:left-4 sm:right-4 sm:p-4">
                 <div className="flex flex-wrap items-center gap-4 text-sm font-bold text-slate-300">
                   <LegendDot className="bg-emerald-400" label="En stock" />
                   <LegendDot className="bg-amber-400" label="Stock bajo" />
@@ -720,11 +722,11 @@ function Warehouse3DExplorer({
         </div>
 
         {/* Panel lateral - ancho fijo */}
-        <aside className="h-[calc(100vh-480px)] min-h-[500px] w-full shrink-0 overflow-y-auto rounded-2xl border border-white/10 bg-slate-900/90 p-5 text-white xl:w-[340px]">
+        <aside className="h-auto min-h-0 w-full shrink-0 overflow-y-auto rounded-lg border border-white/10 bg-slate-900/90 p-4 text-white sm:p-5 xl:h-[calc(100vh-480px)] xl:min-h-[500px] xl:w-[340px]">
           <div className="mb-5 flex items-start justify-between gap-3">
             <div>
               <p className="text-sm font-black text-slate-300">Detalle de ubicacion</p>
-              <h3 className="mt-2 text-3xl font-black text-emerald-300">
+              <h3 className="mt-2 break-words text-2xl font-black text-emerald-300 sm:text-3xl">
                 {selectedItem?.location.code || "Sin seleccion"}
               </h3>
             </div>
@@ -809,7 +811,7 @@ function WarehouseCapacityMetric({ detail, label, tone = "default", value }) {
     <div className="min-w-0 rounded-xl border border-white/10 bg-slate-900/80 p-4">
       <p className="text-xs font-black uppercase text-slate-500">{label}</p>
       <p className={`mt-2 break-words text-xl font-black ${valueClass}`}>{value}</p>
-      {detail && <p className="mt-1 truncate text-xs font-semibold text-slate-400">{detail}</p>}
+      {detail && <p className="mt-1 break-words text-xs font-semibold text-slate-400">{detail}</p>}
     </div>
   );
 }
@@ -818,7 +820,7 @@ function DetailLine({ label, value }) {
   return (
     <div>
       <p className="text-xs font-black uppercase text-slate-500">{label}</p>
-      <p className="mt-1 font-black text-slate-100">{value}</p>
+      <p className="mt-1 break-words font-black text-slate-100">{value}</p>
     </div>
   );
 }

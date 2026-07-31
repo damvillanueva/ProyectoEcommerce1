@@ -564,6 +564,8 @@ function AccountSidebar({ activeView, favoriteCount, onChange, orderCount, profi
             type="button"
             onClick={() => onChange(id)}
             className={`flex min-h-11 items-center gap-2 rounded-md px-2 text-left text-xs font-black transition sm:gap-3 sm:px-3 sm:text-sm ${
+              id === "profile" ? "col-span-2 sm:col-span-1 " : ""
+            }${
               activeView === id
                 ? "bg-sky-500 text-white"
                 : "text-slate-400 hover:bg-white/5 hover:text-white"
@@ -602,7 +604,7 @@ function SummaryView({ activeOrders, addresses, completedOrders, favoriteCount, 
             <h2 className="text-xl font-black">Compras recientes</h2>
             <p className="mt-1 text-sm font-semibold text-slate-500">Tus ultimos movimientos en la tienda.</p>
           </div>
-          <button type="button" onClick={onOpenOrders} className="text-sm font-black text-sky-300 hover:text-sky-200">
+          <button type="button" onClick={onOpenOrders} className="min-h-10 shrink-0 rounded-md px-3 text-sm font-black text-sky-300 hover:bg-sky-500/10 hover:text-sky-200">
             Ver todas
           </button>
         </div>
@@ -693,7 +695,7 @@ function FavoritesView({ onRemove, products, saving }) {
                       <p className="text-[10px] font-black uppercase text-sky-300">{product.brand || "SmartLogix"}</p>
                       <Link to={`/shop/product/${encodeURIComponent(product.sku)}`} className="mt-2 block line-clamp-2 min-h-12 font-black leading-6 hover:text-sky-300">{product.productName}</Link>
                     </div>
-                    <button type="button" disabled={saving} onClick={() => onRemove(product.sku)} title="Quitar de favoritos" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-red-400/25 text-red-300 hover:bg-red-500/10 disabled:opacity-50"><FiTrash2 /></button>
+                    <button type="button" disabled={saving} onClick={() => onRemove(product.sku)} title="Quitar de favoritos" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-red-400/25 text-red-300 hover:bg-red-500/10 disabled:opacity-50"><FiTrash2 /></button>
                   </div>
                   <p className="mt-2 line-clamp-2 min-h-10 text-xs font-semibold leading-5 text-slate-500">{product.shortDescription}</p>
                   <div className="mt-4 flex items-end justify-between gap-3">
@@ -985,7 +987,7 @@ function AddressesView({ addressForm, addresses, confirmDeleteId, editingAddress
                       <p className="text-sm font-semibold text-slate-500">{address.commune}, {address.region}</p>
                       {address.phone && <p className="mt-2 text-xs font-bold text-slate-500">{address.phone}</p>}
                     </div>
-                    <button type="button" onClick={() => onEdit(address)} title="Editar direccion" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-white/10 text-slate-400 hover:text-white">
+                    <button type="button" onClick={() => onEdit(address)} title="Editar direccion" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-white/10 text-slate-400 hover:text-white">
                       <FiEdit2 />
                     </button>
                   </div>
@@ -994,8 +996,8 @@ function AddressesView({ addressForm, addresses, confirmDeleteId, editingAddress
                     <div className="mt-4 flex items-center justify-between gap-3 border-t border-red-400/20 pt-4">
                       <p className="text-xs font-bold text-red-200">Eliminar esta direccion?</p>
                       <div className="flex gap-2">
-                        <button type="button" onClick={() => onDelete(null)} title="Cancelar" className="flex h-8 w-8 items-center justify-center rounded-md border border-white/10"><FiX /></button>
-                        <button type="button" disabled={saving} onClick={() => onConfirmDelete(address.id)} title="Confirmar eliminacion" className="flex h-8 w-8 items-center justify-center rounded-md bg-red-500 text-white"><FiTrash2 /></button>
+                        <button type="button" onClick={() => onDelete(null)} title="Cancelar" className="flex h-10 w-10 items-center justify-center rounded-md border border-white/10"><FiX /></button>
+                        <button type="button" disabled={saving} onClick={() => onConfirmDelete(address.id)} title="Confirmar eliminacion" className="flex h-10 w-10 items-center justify-center rounded-md bg-red-500 text-white"><FiTrash2 /></button>
                       </div>
                     </div>
                   ) : (
@@ -1016,7 +1018,7 @@ function AddressesView({ addressForm, addresses, confirmDeleteId, editingAddress
               <h2 className="text-xl font-black">Direccion de entrega</h2>
             </div>
             {editingAddressId && (
-              <button type="button" onClick={onCancel} title="Cancelar edicion" className="flex h-9 w-9 items-center justify-center rounded-md border border-white/10 text-slate-400"><FiX /></button>
+              <button type="button" onClick={onCancel} title="Cancelar edicion" className="flex h-10 w-10 items-center justify-center rounded-md border border-white/10 text-slate-400"><FiX /></button>
             )}
           </div>
 

@@ -381,7 +381,7 @@ function ProductDetailPage() {
       />
 
       {message && (
-        <div className="fixed right-4 top-24 z-50 max-w-sm rounded-md border border-emerald-400/30 bg-slate-900 px-4 py-3 text-sm font-black text-emerald-200 shadow-2xl">
+        <div className="fixed left-4 right-4 top-24 z-50 rounded-md border border-emerald-400/30 bg-slate-900 px-4 py-3 text-sm font-black text-emerald-200 shadow-2xl sm:left-auto sm:max-w-sm">
           {message}
         </div>
       )}
@@ -401,7 +401,7 @@ function ProductDetailPage() {
 
         <section className="bg-slate-950 py-8 lg:py-12">
           <div className="mx-auto grid max-w-[1500px] items-start gap-8 px-4 lg:grid-cols-[minmax(0,1.05fr)_minmax(430px,0.95fr)] lg:px-6">
-            <div className="relative aspect-[4/3] min-h-[320px] overflow-hidden rounded-md bg-white">
+            <div className="relative min-h-0 min-w-0 aspect-[4/3] overflow-hidden rounded-md bg-white sm:min-h-[320px]">
               {product.imageUrl ? (
                 <img src={product.imageUrl} alt={product.productName} className="h-full w-full object-contain p-6 sm:p-10" />
               ) : (

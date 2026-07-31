@@ -356,7 +356,11 @@ function InventoryMovementsPage() {
   const [lastSavedAt, setLastSavedAt] = useState(getInitialSavedAt);
   const [lastSavedReport, setLastSavedReport] = useState(null);
   const [sortOption, setSortOption] = useState("createdAt,desc");
-  const [viewMode, setViewMode] = useState("table");
+  const [viewMode, setViewMode] = useState(() =>
+    typeof window !== "undefined" && window.matchMedia("(max-width: 767px)").matches
+      ? "timeline"
+      : "table"
+  );
   const { dismissToast, showToast, toasts } = useToasts();
 
   const stats = useMemo(() => {
@@ -747,7 +751,7 @@ function InventoryMovementsPage() {
                 </p>
               </div>
 
-              <div className="flex flex-wrap gap-3">
+              <div className="grid w-full gap-3 sm:flex sm:w-auto sm:flex-wrap">
                 <ActionButton onClick={handleExport} disabled={exporting} icon={FiDownload}>
                   {exporting ? "Exportando" : "Exportar CSV"}
                 </ActionButton>
@@ -764,7 +768,7 @@ function InventoryMovementsPage() {
                 <button
                   type="button"
                   onClick={() => setIsRegisterOpen(true)}
-                  className="inline-flex items-center justify-center gap-2 rounded-md bg-blue-500 px-5 py-3 text-sm font-black text-white shadow-lg shadow-blue-950/30 transition hover:bg-blue-400"
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-blue-500 px-5 py-3 text-sm font-black text-white shadow-lg shadow-blue-950/30 transition hover:bg-blue-400 sm:w-auto"
                 >
                   <FiPlus />
                   Registrar movimiento
@@ -863,7 +867,7 @@ function ActionButton({ children, disabled = false, icon: Icon, onClick }) {
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className="inline-flex items-center justify-center gap-2 rounded-md border border-white/10 bg-white/10 px-5 py-3 text-sm font-black text-white shadow-lg shadow-slate-950/20 transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-60"
+      className="inline-flex w-full items-center justify-center gap-2 rounded-md border border-white/10 bg-white/10 px-5 py-3 text-sm font-black text-white shadow-lg shadow-slate-950/20 transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
     >
       <Icon />
       {children}
@@ -1009,18 +1013,18 @@ function FilterPanel({
           </div>
         </div>
 
-        <div className="flex items-end gap-3 xl:col-span-3 xl:justify-end">
+        <div className="grid gap-3 sm:flex sm:items-end md:col-span-2 xl:col-span-3 xl:justify-end">
           <button
             type="button"
             onClick={onRefresh}
-            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-white/10 bg-white/10 px-4 text-sm font-black text-white transition hover:bg-white/15"
+            className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md border border-white/10 bg-white/10 px-4 text-sm font-black text-white transition hover:bg-white/15 sm:w-auto"
           >
             <FiRefreshCw />
             Actualizar
           </button>
           <button
             type="submit"
-            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-blue-500 px-8 text-sm font-black text-white transition hover:bg-blue-400"
+            className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md bg-blue-500 px-8 text-sm font-black text-white transition hover:bg-blue-400 sm:w-auto"
           >
             <FiSearch />
             Buscar
@@ -1028,7 +1032,7 @@ function FilterPanel({
           <button
             type="button"
             onClick={onClear}
-            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-slate-950/55 px-8 text-sm font-black text-white transition hover:bg-slate-900"
+            className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md bg-slate-950/55 px-8 text-sm font-black text-white transition hover:bg-slate-900 sm:w-auto"
           >
             <FiRefreshCw />
             Limpiar
@@ -1134,7 +1138,7 @@ function SortableHeader({ currentSort, field, label, onSort }) {
       <button
         type="button"
         onClick={() => onSort(field)}
-        className={`inline-flex items-center gap-1 rounded px-1 py-1 text-left transition hover:bg-white/10 ${
+        className={`inline-flex min-h-10 items-center gap-1 rounded px-2 py-1 text-left transition hover:bg-white/10 ${
           active ? "text-sky-200" : ""
         }`}
       >
@@ -1168,7 +1172,7 @@ function MovementPagination({ pageButtons, pagination, rangeEnd, rangeStart, onP
               <button
                 type="button"
                 onClick={() => onPageChange(page)}
-                className={`h-9 min-w-9 rounded-md border px-3 text-sm font-black transition ${
+                className={`h-10 min-w-10 rounded-md border px-3 text-sm font-black transition ${
                   page === pagination.page
                     ? "border-sky-300 bg-sky-400 text-slate-950"
                     : "border-white/10 bg-slate-950/55 text-white hover:bg-white/10"
@@ -1408,7 +1412,7 @@ function PageButton({ children, disabled, onClick }) {
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-white/10 bg-slate-950/55 px-3 text-sm font-black text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-45"
+      className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-white/10 bg-slate-950/55 px-3 text-sm font-black text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-45"
     >
       {children}
     </button>

@@ -70,6 +70,12 @@ function toPayload(form, includeCode) {
   return includeCode ? { code: form.code.trim().toUpperCase(), ...payload } : payload;
 }
 
+function getWarehouseOccupancy(warehouse) {
+  return warehouse.locationCapacity > 0
+    ? Math.round((warehouse.occupiedLocations / warehouse.locationCapacity) * 100)
+    : 0;
+}
+
 function WarehouseManagementPanel({
   canDelete,
   onCreate,
@@ -278,7 +284,82 @@ function WarehouseManagementPanel({
         </form>
       )}
 
-      <div className="overflow-x-auto">
+      <div className="divide-y divide-white/10 md:hidden">
+        {warehouses.map((warehouse) => {
+          const occupancy = getWarehouseOccupancy(warehouse);
+
+          return (
+            <article key={warehouse.code} className="p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="break-words font-black text-white">{warehouse.name}</p>
+                  <p className="mt-1 break-words text-sm font-semibold text-slate-400">
+                    {warehouse.code} | {warehouse.city}
+                  </p>
+                  <p className="mt-1 text-xs text-slate-500">Prioridad {warehouse.dispatchPriority}</p>
+                </div>
+                <span className={`inline-flex shrink-0 rounded-full px-3 py-1 text-xs font-black ${warehouse.active ? "bg-emerald-500/15 text-emerald-300" : "bg-slate-700 text-slate-300"}`}>
+                  {warehouse.active ? "Activa" : "Inactiva"}
+                </span>
+              </div>
+
+              <div className="mt-4 grid grid-cols-2 gap-3">
+                <div className="rounded-lg border border-white/10 bg-slate-950/40 p-3">
+                  <p className="text-[10px] font-black uppercase text-slate-500">Inventario</p>
+                  <p className="mt-1 font-black text-white">{warehouse.productCount} productos</p>
+                  <p className="mt-1 text-xs font-semibold text-slate-400">
+                    {warehouse.availableQuantity} disponibles | {warehouse.reservedQuantity} reservados
+                  </p>
+                </div>
+                <div className="rounded-lg border border-white/10 bg-slate-950/40 p-3">
+                  <p className="text-[10px] font-black uppercase text-slate-500">Plano</p>
+                  <p className="mt-1 font-black text-white">
+                    {(warehouse.zoneCodes || []).length}Z | {warehouse.aisleCount}P | {warehouse.rackCount}R
+                  </p>
+                  <p className="mt-1 break-words text-xs font-semibold text-slate-400">
+                    {(warehouse.zoneCodes || []).join(", ") || "Sin zonas"}
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-4">
+                <div className="flex items-center justify-between gap-3 text-xs font-black text-slate-300">
+                  <span>Ocupacion</span>
+                  <span>{occupancy}% | {warehouse.occupiedLocations}/{warehouse.locationCapacity}</span>
+                </div>
+                <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-950">
+                  <div className="h-full bg-sky-400" style={{ width: `${Math.min(occupancy, 100)}%` }} />
+                </div>
+              </div>
+
+              <div className="mt-4 flex justify-end gap-2 border-t border-white/10 pt-4">
+                <button
+                  type="button"
+                  onClick={() => startEdit(warehouse)}
+                  title={`Editar ${warehouse.name}`}
+                  className="flex h-11 w-11 items-center justify-center rounded-lg bg-white/10 text-sky-200 transition hover:bg-sky-500/20 hover:text-white"
+                >
+                  <FiEdit2 aria-hidden="true" />
+                  <span className="sr-only">Editar {warehouse.name}</span>
+                </button>
+                {canDelete && (
+                  <button
+                    type="button"
+                    onClick={() => setDeleteTarget(warehouse)}
+                    title={`Eliminar ${warehouse.name}`}
+                    className="flex h-11 w-11 items-center justify-center rounded-lg bg-white/10 text-red-300 transition hover:bg-red-500/20 hover:text-white"
+                  >
+                    <FiTrash2 aria-hidden="true" />
+                    <span className="sr-only">Eliminar {warehouse.name}</span>
+                  </button>
+                )}
+              </div>
+            </article>
+          );
+        })}
+      </div>
+
+      <div className="hidden overflow-x-auto md:block">
         <table className="min-w-[980px] w-full text-left text-sm">
           <thead className="bg-slate-950/55 text-xs uppercase text-slate-400">
             <tr>
@@ -292,9 +373,7 @@ function WarehouseManagementPanel({
           </thead>
           <tbody className="divide-y divide-white/10">
             {warehouses.map((warehouse) => {
-              const occupancy = warehouse.locationCapacity > 0
-                ? Math.round((warehouse.occupiedLocations / warehouse.locationCapacity) * 100)
-                : 0;
+              const occupancy = getWarehouseOccupancy(warehouse);
 
               return (
                 <tr key={warehouse.code} className="transition hover:bg-white/[0.03]">
@@ -334,7 +413,7 @@ function WarehouseManagementPanel({
                         type="button"
                         onClick={() => startEdit(warehouse)}
                         title={`Editar ${warehouse.name}`}
-                        className="rounded-lg bg-white/10 p-2.5 text-sky-200 transition hover:bg-sky-500/20 hover:text-white"
+                        className="flex h-10 w-10 items-center justify-center rounded-lg bg-white/10 text-sky-200 transition hover:bg-sky-500/20 hover:text-white"
                       >
                         <FiEdit2 aria-hidden="true" />
                         <span className="sr-only">Editar {warehouse.name}</span>
@@ -344,7 +423,7 @@ function WarehouseManagementPanel({
                           type="button"
                           onClick={() => setDeleteTarget(warehouse)}
                           title={`Eliminar ${warehouse.name}`}
-                          className="rounded-lg bg-white/10 p-2.5 text-red-300 transition hover:bg-red-500/20 hover:text-white"
+                          className="flex h-10 w-10 items-center justify-center rounded-lg bg-white/10 text-red-300 transition hover:bg-red-500/20 hover:text-white"
                         >
                           <FiTrash2 aria-hidden="true" />
                           <span className="sr-only">Eliminar {warehouse.name}</span>

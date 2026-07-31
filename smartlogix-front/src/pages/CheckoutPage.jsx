@@ -691,7 +691,7 @@ function DeliveryOption({ active, disabled, label, note, onClick, price }) {
 }
 
 function PaymentOption({ active, badges, label, note, onClick }) {
-  return <button type="button" onClick={onClick} className={`w-full overflow-hidden rounded-md border text-left ${active ? "border-sky-400 bg-sky-500/10" : "border-white/10 bg-slate-900 hover:border-white/25"}`}><span className="flex min-h-16 items-center gap-3 px-4 py-3"><RadioDot active={active} /><span className="min-w-0 flex-1"><strong className="block text-sm">{label}</strong><span className="mt-1 block text-xs font-bold text-slate-500">{note}</span></span><span className="flex shrink-0 gap-1">{badges.map((badge, index) => <span key={badge} className={`rounded px-1.5 py-1 text-[9px] font-black ${index % 2 === 0 ? "bg-sky-500 text-white" : "bg-amber-400 text-slate-950"}`}>{badge}</span>)}</span></span>{active && <span className="block border-t border-sky-400/20 bg-slate-950/40 px-11 py-3 text-xs font-bold text-slate-400">Se generara una referencia simulada y no se solicitaran credenciales bancarias.</span>}</button>;
+  return <button type="button" onClick={onClick} className={`w-full overflow-hidden rounded-md border text-left ${active ? "border-sky-400 bg-sky-500/10" : "border-white/10 bg-slate-900 hover:border-white/25"}`}><span className="flex min-h-16 flex-wrap items-center gap-3 px-4 py-3 sm:flex-nowrap"><RadioDot active={active} /><span className="min-w-0 flex-1"><strong className="block text-sm">{label}</strong><span className="mt-1 block text-xs font-bold text-slate-500">{note}</span></span><span className="ml-8 flex shrink-0 gap-1 sm:ml-0">{badges.map((badge, index) => <span key={badge} className={`rounded px-1.5 py-1 text-[9px] font-black ${index % 2 === 0 ? "bg-sky-500 text-white" : "bg-amber-400 text-slate-950"}`}>{badge}</span>)}</span></span>{active && <span className="block border-t border-sky-400/20 bg-slate-950/40 px-4 py-3 text-xs font-bold text-slate-400 sm:px-11">Se generara una referencia simulada y no se solicitaran credenciales bancarias.</span>}</button>;
 }
 
 function PaymentSimulationControl({ onChange, value }) {
@@ -723,7 +723,7 @@ function CheckoutSelect({ children, icon: Icon, label, name, onChange, value, wi
 }
 
 function CheckField({ checked, label, onChange }) {
-  return <label className="flex items-start gap-3 sm:col-span-2"><input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} className="mt-0.5 h-4 w-4 accent-sky-500" /><span className="text-xs font-bold text-slate-400">{label}</span></label>;
+  return <label className="flex min-h-11 cursor-pointer items-center gap-3 sm:col-span-2"><input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} className="h-5 w-5 shrink-0 accent-sky-500" /><span className="text-xs font-bold text-slate-400">{label}</span></label>;
 }
 
 function SummaryLine({ label, value }) {

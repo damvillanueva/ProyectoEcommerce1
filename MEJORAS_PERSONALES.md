@@ -47,6 +47,7 @@ Registro de funcionalidades y mejoras incorporadas al proyecto de portafolio.
 - [x] Traslados reales entre bodegas con cantidad parcial y movimientos de origen/destino enlazados.
 - [x] Ubicaciones fisicas seguras: zonas configurables por bodega, sugerencia del primer espacio libre y bloqueo de coordenadas duplicadas en servicio y PostgreSQL.
 - [x] Primer bloque responsive: login interno, navegacion movil por rol, estructura del panel, cabecera de tienda, localizador de inventario, catalogo de pedidos y grillas administrativas.
+- [x] Segundo bloque responsive: detalle de producto, carrito, checkout, cuenta de cliente, historial de movimientos y vista 3D, con timeline y tarjetas de bodegas para telefono.
 - [x] Documentacion tecnica y guion de demostracion del flujo completo.
 - [x] Checkout ecommerce con carrito separado, despacho/retiro, descuentos y pagos simulados.
 - [x] Cuenta de cliente con perfil, direcciones, favoritos, compras y seguimiento privado.
@@ -213,7 +214,8 @@ Registro de funcionalidades y mejoras incorporadas al proyecto de portafolio.
 - API real de ubicaciones: sugerencia libre OK; coordenada duplicada devuelve `400` y usuario de solo lectura recibe `403`. Los datos temporales fueron eliminados.
 - PostgreSQL: migracion Flyway V5 aplicada correctamente sobre la base persistente.
 - Frontend: `npm.cmd run lint` y `npm.cmd run build` OK.
-- Frontend responsivo: login, dashboard, inventario, pedidos, tienda, envios, usuarios y descuentos revisados a 320, 390, 768, 1024 y 1440 px, sin desborde global ni elementos fuera de pantalla.
+- Frontend responsivo: login, dashboard, inventario, pedidos, tienda, detalle de producto, carrito, checkout, cuenta, movimientos, vista 3D, envios, usuarios y descuentos revisados a 320, 390, 768, 1024 y 1440 px, sin desborde global ni elementos fuera de pantalla.
+- Segunda auditoria responsive: 65 combinaciones de ruta, sesion y ancho sin desbordes ni errores de consola; las cinco vistas de cuenta tambien se recorrieron mediante sus controles reales.
 - Navegacion interna: menu movil por rol probado al abrir, cerrar y navegar hacia inventario.
 - Frontend 3D: Playwright con Edge OK en desktop y movil; busqueda `SKU-3001` encontro `WH-VAP-02-MC-R1-N2-P3`; capturas con pixeles no vacios.
 - Flujo pedido-envio: pedido creado desde catalogo con `SKU-3001`, comuna `Providencia`, estado legible y envio generado con tracking.
