@@ -7,6 +7,7 @@ import com.smartlogix.inventory.domain.MovementType;
 import com.smartlogix.inventory.dto.CatalogProductResponse;
 import com.smartlogix.inventory.dto.CreateInventoryItemRequest;
 import com.smartlogix.inventory.dto.InventoryAvailabilityResponse;
+import com.smartlogix.inventory.dto.InventoryBatchLineRequest;
 import com.smartlogix.inventory.dto.InventoryItemResponse;
 import com.smartlogix.inventory.dto.UpdateInventoryItemRequest;
 import com.smartlogix.inventory.dto.UpsertInventoryStockRequest;
@@ -262,6 +263,14 @@ public class InventoryService {
                 item.getReservedQuantity()
         );
         return toResponse(item);
+    }
+
+    public List<InventoryItemResponse> dispatchBatch(List<InventoryBatchLineRequest> lines) {
+        List<InventoryItemResponse> dispatched = lines.stream()
+                .map(line -> dispatch(line.sku(), line.quantity()))
+                .toList();
+        increment("smartlogix.inventory.operations", "operation", "dispatch_batch");
+        return dispatched;
     }
 
     public InventoryItemResponse updateItem(String sku, UpdateInventoryItemRequest request) {

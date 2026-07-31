@@ -68,6 +68,7 @@ function Navbar({
     role !== "ROLE_USER" && { to: "/inventory/movements", label: "Movimientos" },
     role !== "ROLE_WAREHOUSE_MANAGER" && { to: "/shop", label: "Tienda" },
     role !== "ROLE_WAREHOUSE_MANAGER" && { to: "/orders", label: "Pedidos" },
+    role !== "ROLE_WAREHOUSE_MANAGER" && { to: "/pos", label: "POS" },
     role !== "ROLE_USER" && { to: "/shipments", label: "Envios" },
     role !== "ROLE_USER" && { to: "/procurement", label: "Compras" },
     role === "ROLE_ADMIN" && { to: "/users", label: "Usuarios" },

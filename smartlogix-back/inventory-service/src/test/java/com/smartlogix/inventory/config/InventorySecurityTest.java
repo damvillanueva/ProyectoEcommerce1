@@ -10,6 +10,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Date;
 import java.util.List;
+import org.springframework.http.MediaType;
 import javax.crypto.SecretKey;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -25,6 +26,7 @@ import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(InventoryController.class)
@@ -99,6 +101,27 @@ class InventorySecurityTest {
                 .andExpect(status().isOk());
 
         verify(inventoryService).reserve("SKU-100", 2);
+    }
+
+    @Test
+    void onlyOrderServiceCanDispatchPosBatch() throws Exception {
+        String request = "{\"lines\":[{\"sku\":\"SKU-100\",\"quantity\":2}]}";
+
+        mockMvc.perform(post("/api/inventory/items/dispatch-batch")
+                        .header("Authorization", bearerToken("admin", "ROLE_ADMIN"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(request))
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(post("/api/inventory/items/dispatch-batch")
+                        .header("Authorization", bearerToken("order-service", "ROLE_ORDER_SERVICE"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(request))
+                .andExpect(status().isOk());
+
+        verify(inventoryService).dispatchBatch(
+                List.of(new com.smartlogix.inventory.dto.InventoryBatchLineRequest("SKU-100", 2))
+        );
     }
 
     private String bearerToken(String subject, String role) {

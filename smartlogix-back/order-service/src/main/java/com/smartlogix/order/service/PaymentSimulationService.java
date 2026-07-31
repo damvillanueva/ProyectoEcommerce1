@@ -70,7 +70,13 @@ public class PaymentSimulationService {
     }
 
     private String transactionPrefix(PaymentMethod paymentMethod) {
-        return paymentMethod == PaymentMethod.BANK_TRANSFER_SIMULATED ? "TRF" : "WBP";
+        return switch (paymentMethod) {
+            case BANK_TRANSFER_SIMULATED, POS_TRANSFER -> "TRF";
+            case POS_CASH -> "EFE";
+            case POS_DEBIT -> "DEB";
+            case POS_CREDIT -> "CRE";
+            default -> "WBP";
+        };
     }
 
     private String randomToken(int length) {

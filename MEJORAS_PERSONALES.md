@@ -76,6 +76,7 @@ Registro de funcionalidades y mejoras incorporadas al proyecto de portafolio.
 - [x] Metricas Prometheus de HTTP, JVM, pedidos, pagos, inventario y envios.
 - [x] Tablero Grafana local aprovisionado automaticamente y limitado a solo lectura.
 - [x] Logs operativos con servicio, traza, span y correlacion, sin datos personales del cliente.
+- [x] POS presencial completo con caja por usuario, carrito, lector de SKU/QR, cuatro pagos simulados, descuento de stock, arqueo y comprobante imprimible.
 
 ## Siguientes mejoras recomendadas
 
@@ -205,21 +206,35 @@ Registro de funcionalidades y mejoras incorporadas al proyecto de portafolio.
     - La vista 3D muestra zonas configuradas, espacios ocupados, libres y capacidad total.
     - Estado: implementado y validado con migracion Flyway V5, API real y pruebas unitarias.
 
+21. Punto de venta presencial
+    - Modulo interno separado del ecommerce y protegido para administrador o vendedor.
+    - Apertura unica de caja por usuario y terminal, fondo inicial, ventas acumuladas, efectivo esperado, cierre y diferencia de arqueo.
+    - Catalogo visual con busqueda por nombre o SKU y entrada compatible con los QR existentes, que contienen el SKU.
+    - Carrito con control de cantidad, cliente opcional, descuentos vigentes y cobro en efectivo, debito, credito o transferencia simulada.
+    - Cada venta queda como canal `STORE`, estado `COMPLETED`, pago `PAID`, sin envio y con despacho inmediato de las reservas de inventario.
+    - Los carritos de varios productos se despachan como un lote transaccional para evitar descuentos parciales.
+    - Comprobante no tributario persistente, consultable e imprimible, asociado a la caja y al cajero autenticado.
+    - Seguridad: un cliente recibe `403` y ningun usuario puede vender o cerrar una caja abierta por otra cuenta.
+    - Estado: implementado con Flyway V2 de pedidos, ocho pruebas POS y validacion real por Gateway/PostgreSQL.
+
 ## Validacion actual
 
-- Backend completo: `mvn test` OK en los 7 modulos, con 51 pruebas sin fallos.
-- Inventario: 21 pruebas, incluidas 4 de traslados y 3 de ubicaciones seguras.
+- Order service: 28 pruebas sin fallos; ocho cubren caja, venta, stock, medios de pago, propiedad de sesion y permisos HTTP del POS.
+- Inventario: 35 pruebas sin fallos, incluidas seguridad del despacho batch, traslados, ubicaciones seguras y compras.
 - Seguridad de traslados: usuario comun recibe `403`; administrador y bodeguero conservan el permiso operativo.
 - API real: traslado parcial y reversion OK, con dos movimientos enlazados por la misma referencia `TRF-...` y datos de demostracion restaurados.
 - API real de ubicaciones: sugerencia libre OK; coordenada duplicada devuelve `400` y usuario de solo lectura recibe `403`. Los datos temporales fueron eliminados.
 - PostgreSQL: migracion Flyway V5 aplicada correctamente sobre la base persistente.
+- PostgreSQL de pedidos: migracion Flyway V2 aplicada para cajas y comprobantes POS.
 - Frontend: `npm.cmd run lint` y `npm.cmd run build` OK.
 - Frontend responsivo: login, dashboard, inventario, pedidos, tienda, detalle de producto, carrito, checkout, cuenta, movimientos, vista 3D, envios, usuarios y descuentos revisados a 320, 390, 768, 1024 y 1440 px, sin desborde global ni elementos fuera de pantalla.
 - Segunda auditoria responsive: 65 combinaciones de ruta, sesion y ancho sin desbordes ni errores de consola; las cinco vistas de cuenta tambien se recorrieron mediante sus controles reales.
+- POS responsive: caja abierta y cerrada revisadas sin desbordes, elementos fuera de pantalla, errores de consola ni controles menores a 40 px.
 - Navegacion interna: menu movil por rol probado al abrir, cerrar y navegar hacia inventario.
 - Frontend 3D: Playwright con Edge OK en desktop y movil; busqueda `SKU-3001` encontro `WH-VAP-02-MC-R1-N2-P3`; capturas con pixeles no vacios.
 - Flujo pedido-envio: pedido creado desde catalogo con `SKU-3001`, comuna `Providencia`, estado legible y envio generado con tracking.
 - Flujo borrar pedido: `ORD-5D401FAB` creo reserva/envio temporal, al eliminarlo el monitor volvio de disponible 44/reservado 1 a disponible 45/reservado 0 y el tracking desaparecio.
+- Flujo POS real: venta por Gateway con `SKU-1003`, stock de 34 a 33, comprobante persistido, estado `COMPLETED/PAID` y cierre de caja con diferencia $0.
 - Nota: Vite mantiene advertencia de bundle mayor a 500 KB; no bloquea.
 
 ## Roadmap vigente

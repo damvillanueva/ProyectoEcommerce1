@@ -49,6 +49,7 @@ public class SecurityConfig {
                         .hasAnyAuthority("ROLE_ADMIN", "ROLE_USER", "ROLE_WAREHOUSE_MANAGER")
 
                         .requestMatchers(HttpMethod.POST,
+                                "/api/inventory/items/dispatch-batch",
                                 "/api/inventory/items/*/reserve",
                                 "/api/inventory/items/*/release",
                                 "/api/inventory/items/*/dispatch")

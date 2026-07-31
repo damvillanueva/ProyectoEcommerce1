@@ -6,6 +6,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
+import java.util.List;
 
 @Component
 public class InventoryClient {
@@ -70,9 +71,41 @@ public class InventoryClient {
         }
     }
 
+    public void dispatch(String sku, int quantity) {
+        try {
+            restTemplate.postForObject(
+                    "http://inventory-service/api/inventory/items/{sku}/dispatch?quantity={quantity}",
+                    internalRequest(),
+                    Object.class,
+                    sku,
+                    quantity
+            );
+        } catch (RestClientException ex) {
+            throw new InventoryClientException("No fue posible descontar stock para " + sku, ex);
+        }
+    }
+
+    public void dispatchBatch(List<InventoryBatchLineRequest> lines) {
+        try {
+            restTemplate.postForObject(
+                    "http://inventory-service/api/inventory/items/dispatch-batch",
+                    authorizedRequest(new DispatchInventoryBatchRequest(lines)),
+                    Object.class
+            );
+        } catch (RestClientException ex) {
+            throw new InventoryClientException("No fue posible descontar el lote de inventario", ex);
+        }
+    }
+
     private HttpEntity<Void> internalRequest() {
         HttpHeaders headers = new HttpHeaders();
         headers.setBearerAuth(internalServiceTokenProvider.createInventoryToken());
         return new HttpEntity<>(headers);
+    }
+
+    private <T> HttpEntity<T> authorizedRequest(T body) {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(internalServiceTokenProvider.createInventoryToken());
+        return new HttpEntity<>(body, headers);
     }
 }

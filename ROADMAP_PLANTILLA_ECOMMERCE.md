@@ -68,13 +68,13 @@ PostgreSQL puede ejecutarse localmente en Docker sin pagar un servicio externo.
 
 ## Fase 5 - Punto de venta fisico
 
-- [ ] Crear modulo POS separado del ecommerce.
-- [ ] Buscar o escanear productos por SKU o QR.
-- [ ] Crear carrito de venta presencial.
-- [ ] Aceptar efectivo, tarjeta o transferencia simulada.
-- [ ] Descontar stock sin generar envio.
-- [ ] Administrar apertura, cierre y arqueo de caja.
-- [ ] Emitir comprobante de venta presencial.
+- [x] Crear modulo POS separado del ecommerce.
+- [x] Buscar o escanear productos por SKU o QR.
+- [x] Crear carrito de venta presencial.
+- [x] Aceptar efectivo, tarjeta o transferencia simulada.
+- [x] Descontar stock sin generar envio.
+- [x] Administrar apertura, cierre y arqueo de caja.
+- [x] Emitir comprobante de venta presencial.
 
 ## Fase 6 - Ecommerce avanzado
 
@@ -109,10 +109,10 @@ eliminar codigo que todavia pueda reutilizarse durante su construccion.
 
 - [x] Auditar login, tienda, dashboard, inventario, pedidos, envios, usuarios y descuentos.
 - [x] Auditar detalle de producto, carrito, checkout, cuenta, movimientos y vista 3D.
-- [ ] Auditar POS cuando el modulo este implementado.
+- [x] Auditar POS cuando el modulo este implementado.
 - [x] Definir navegacion movil por rol para el panel interno.
 - [x] Completar navegacion movil especializada de tienda y cuenta.
-- [ ] Completar navegacion movil especializada de POS cuando exista el modulo.
+- [x] Completar navegacion movil especializada de POS cuando exista el modulo.
 - [x] Adaptar las tablas restantes a listas o vistas resumidas en pantallas pequenas.
 - [x] Completar la revision responsive de tablas y modales criticos.
 - [x] Probar el primer bloque en anchos de 320, 390, 768, 1024 y 1440 pixeles.

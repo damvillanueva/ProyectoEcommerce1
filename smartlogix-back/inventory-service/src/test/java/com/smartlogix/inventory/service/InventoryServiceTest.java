@@ -13,6 +13,7 @@ import com.smartlogix.inventory.domain.InventoryStock;
 import com.smartlogix.inventory.domain.Warehouse;
 import com.smartlogix.inventory.dto.CreateInventoryItemRequest;
 import com.smartlogix.inventory.dto.InventoryAvailabilityResponse;
+import com.smartlogix.inventory.dto.InventoryBatchLineRequest;
 import com.smartlogix.inventory.dto.InventoryItemResponse;
 import com.smartlogix.inventory.exception.InventoryOperationException;
 import com.smartlogix.inventory.repository.InventoryItemRepository;
@@ -69,6 +70,32 @@ class InventoryServiceTest {
         assertThat(response.availableQuantity()).isEqualTo(2);
         assertThat(response.reservedQuantity()).isEqualTo(7);
         verify(stockService).saveAndSynchronize(item, stocks);
+    }
+
+    @Test
+    void dispatchBatchConsumesAllRequestedReservations() {
+        InventoryItem item = item("SKU-POS-1");
+        InventoryStock stock = stock(item, warehouse("WH-SCL-01", true, 10), 5, 2);
+        List<InventoryStock> stocks = List.of(stock);
+
+        when(repository.findBySku("SKU-POS-1")).thenReturn(Optional.of(item));
+        when(stockService.findStocksForUpdate("SKU-POS-1")).thenReturn(stocks);
+        when(stockService.findStocks(item)).thenReturn(stocks);
+        when(stockService.toResponses(stocks)).thenReturn(List.of());
+        doAnswer(invocation -> {
+            item.setAvailableQuantity(stock.getAvailableQuantity());
+            item.setReservedQuantity(stock.getReservedQuantity());
+            return null;
+        }).when(stockService).saveAndSynchronize(item, stocks);
+
+        List<InventoryItemResponse> response = inventoryService.dispatchBatch(
+                List.of(new InventoryBatchLineRequest("sku-pos-1", 2))
+        );
+
+        assertThat(stock.getAvailableQuantity()).isEqualTo(5);
+        assertThat(stock.getReservedQuantity()).isZero();
+        assertThat(response).singleElement()
+                .satisfies(value -> assertThat(value.reservedQuantity()).isZero());
     }
 
     @Test

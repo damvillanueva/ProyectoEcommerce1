@@ -34,6 +34,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/discounts/validate")
                         .hasAnyAuthority("ROLE_ADMIN", "ROLE_USER", "ROLE_CUSTOMER")
                         .requestMatchers("/api/discounts/**").hasAuthority("ROLE_ADMIN")
+                        .requestMatchers("/api/pos/**").hasAnyAuthority("ROLE_ADMIN", "ROLE_USER")
                         .requestMatchers(HttpMethod.POST, "/api/orders")
                         .hasAnyAuthority("ROLE_ADMIN", "ROLE_USER", "ROLE_CUSTOMER")
                         .requestMatchers(HttpMethod.POST, "/api/orders/shipping-quote")

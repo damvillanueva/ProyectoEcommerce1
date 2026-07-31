@@ -1,0 +1,30 @@
+.pos-scrollbar {
+  scrollbar-color: #334155 #0f172a;
+  scrollbar-width: thin;
+}
+
+@media print {
+  body * {
+    visibility: hidden !important;
+  }
+
+  .pos-receipt-print,
+  .pos-receipt-print * {
+    visibility: visible !important;
+  }
+
+  .pos-receipt-print {
+    position: absolute !important;
+    inset: 0 auto auto 0 !important;
+    width: 80mm !important;
+    min-height: 0 !important;
+    border: 0 !important;
+    background: #fff !important;
+    color: #111827 !important;
+    box-shadow: none !important;
+  }
+
+  .pos-receipt-actions {
+    display: none !important;
+  }
+}

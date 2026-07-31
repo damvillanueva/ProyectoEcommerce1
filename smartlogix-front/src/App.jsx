@@ -15,6 +15,7 @@ const LoginPage = lazy(() => import("./pages/LoginPage"));
 const OrderSuccessPage = lazy(() => import("./pages/OrderSuccessPage"));
 const OrdersPage = lazy(() => import("./pages/OrderPage"));
 const ProductDetailPage = lazy(() => import("./pages/ProductDetailPage"));
+const PosPage = lazy(() => import("./pages/PosPage"));
 const ProcurementPage = lazy(() => import("./pages/ProcurementPage"));
 const ShipmentPage = lazy(() => import("./pages/ShipmentsPage"));
 const ShopPage = lazy(() => import("./pages/ShopPage"));
@@ -50,6 +51,7 @@ function App() {
           <Route path="/users" element={<ProtectedRoute allowedRoles={["ROLE_ADMIN"]}><UsersPage /></ProtectedRoute>} />
           <Route path="/discounts" element={<ProtectedRoute allowedRoles={["ROLE_ADMIN"]}><DiscountsPage /></ProtectedRoute>} />
           <Route path="/procurement" element={<ProtectedRoute allowedRoles={["ROLE_ADMIN", "ROLE_WAREHOUSE_MANAGER"]}><ProcurementPage /></ProtectedRoute>} />
+          <Route path="/pos" element={<ProtectedRoute allowedRoles={["ROLE_ADMIN", "ROLE_USER"]}><PosPage /></ProtectedRoute>} />
 
           <Route path="/shop" element={<ShopPage />} />
           <Route path="/shop/product/:sku" element={<ProductDetailPage />} />

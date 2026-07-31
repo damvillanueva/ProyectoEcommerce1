@@ -209,6 +209,7 @@ public class OrderService {
     @Transactional(readOnly = true)
     public List<OrderResponse> getOrders() {
         return repository.findAll().stream()
+                .filter(order -> order.getCashRegisterSession() == null)
                 .map(this::toResponse)
                 .toList();
     }
@@ -558,6 +559,8 @@ public class OrderService {
         PurchaseOrder order = repository.findByOrderNumber(orderNumber)
                 .orElseThrow(() -> new OrderNotFoundException("No existe la orden " + orderNumber));
 
+        rejectCompletedPosMutation(order);
+
         order.setCustomerName(request.customerName().trim());
         order.setCustomerEmail(request.customerEmail().trim().toLowerCase());
         validateCheckoutDetails(
@@ -618,6 +621,8 @@ public class OrderService {
                 .orElseThrow(() ->
                         new OrderNotFoundException("No existe la orden " + orderNumber));
 
+        rejectCompletedPosMutation(order);
+
         if (hasReservedInventory(order)) {
             releaseReservedLinesOrThrow(order.getLines());
         }
@@ -635,6 +640,14 @@ public class OrderService {
         return order.getStatus() == OrderStatus.APPROVED
                 || order.getStatus() == OrderStatus.SHIPMENT_REQUESTED
                 || order.getStatus() == OrderStatus.FAILED;
+    }
+
+    private void rejectCompletedPosMutation(PurchaseOrder order) {
+        if (order.getCashRegisterSession() != null || order.getStatus() == OrderStatus.COMPLETED) {
+            throw new IllegalArgumentException(
+                    "Las ventas POS completadas solo pueden consultarse desde el punto de venta."
+            );
+        }
     }
 
     private OrderResponse cancelOrder(PurchaseOrder order, String cancelledBy, String reason) {

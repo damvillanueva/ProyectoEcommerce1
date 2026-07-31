@@ -15,4 +15,6 @@ public interface PurchaseOrderRepository extends JpaRepository<PurchaseOrder, Lo
             String orderNumber,
             String customerUsername
     );
+
+    List<PurchaseOrder> findAllByCashRegisterSession_IdOrderByCreatedAtDesc(Long sessionId);
 }

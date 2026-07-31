@@ -1,6 +1,7 @@
 package com.smartlogix.inventory.controller;
 
 import com.smartlogix.inventory.dto.CreateInventoryItemRequest;
+import com.smartlogix.inventory.dto.DispatchInventoryBatchRequest;
 import com.smartlogix.inventory.dto.UpdateInventoryItemRequest;
 import com.smartlogix.inventory.dto.InventoryAvailabilityResponse;
 import com.smartlogix.inventory.dto.InventoryItemResponse;
@@ -94,6 +95,13 @@ public class InventoryController {
             @PathVariable String sku,
             @RequestParam @Min(1) int quantity) {
         return inventoryService.dispatch(sku, quantity);
+    }
+
+    @PostMapping("/items/dispatch-batch")
+    public List<InventoryItemResponse> dispatchBatch(
+            @Valid @RequestBody DispatchInventoryBatchRequest request
+    ) {
+        return inventoryService.dispatchBatch(request.lines());
     }
 
     @PutMapping("/items/{sku}")
