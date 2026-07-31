@@ -1,6 +1,5 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import Navbar from "../components/Navbar";
-import ShipmentTrackingMap from "../components/ShipmentTrackingMap";
 import PageContainer from "../layout/PageContainer";
 import { geocodeAddress } from "../services/geocodingService";
 import {
@@ -20,6 +19,8 @@ import {
   getShipmentStatusMeta,
   isShipmentDelayed,
 } from "../utils/shipmentTrackingUtils";
+
+const ShipmentTrackingMap = lazy(() => import("../components/ShipmentTrackingMap"));
 
 const DEFAULT_ORDER_NUMBER = "ORD-DEMO-001";
 const DEFAULT_DESTINATION_STREET = "Musa 2099";
@@ -709,11 +710,13 @@ function ShipmentPage() {
                       {trackingMapState.loading ? (
                         <div className="h-[360px] rounded-3xl border border-white/10 bg-slate-950/60 animate-pulse" />
                       ) : (
-                        <ShipmentTrackingMap
-                          origin={trackingOrigin}
-                          destination={trackingMapState.destination}
-                          routeCoordinates={routeCoordinates}
-                        />
+                        <Suspense fallback={<div className="h-[360px] animate-pulse rounded-3xl border border-white/10 bg-slate-950/60" />}>
+                          <ShipmentTrackingMap
+                            origin={trackingOrigin}
+                            destination={trackingMapState.destination}
+                            routeCoordinates={routeCoordinates}
+                          />
+                        </Suspense>
                       )}
 
                       <div className="mt-5 flex flex-wrap gap-3">

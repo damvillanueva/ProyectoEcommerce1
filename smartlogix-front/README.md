@@ -54,5 +54,12 @@ puede cambiar la URL con `SMARTLOGIX_AUDIT_URL`, el canal del navegador con
 `SMARTLOGIX_AUDIT_WIDTHS="320,390"`; las capturas completas se activan con
 `SMARTLOGIX_AUDIT_FULL_PAGE="true"`.
 
+## Rendimiento
+
+Las paginas se cargan por ruta mediante `React.lazy`. La tienda no descarga los
+modulos administrativos al iniciar y los motores de mapas, QR y bodega 3D se
+distribuyen en chunks independientes. Three.js se carga solo al abrir la vista
+3D y Leaflet solo cuando se muestra el seguimiento de un envio.
+
 Las rutas del navegador mejoran la experiencia, pero la autorizacion definitiva
 se aplica en el backend para cada operacion protegida.
