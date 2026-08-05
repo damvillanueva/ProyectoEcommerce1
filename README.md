@@ -16,6 +16,7 @@ Repositorio: [damvillanueva/ProyectoEcommerce1](https://github.com/damvillanueva
 - Pago demostrativo, confirmacion de compra y seguimiento del pedido.
 - Cuenta de cliente con perfil, direcciones, favoritos e historial de compras.
 - Cancelacion con liberacion de stock y reembolso simulado.
+- Notificaciones persistentes de compra, pago, despacho y cancelacion con correo local.
 - Preferencias de accesibilidad persistentes en tienda y panel interno.
 
 ### Operacion interna
@@ -26,6 +27,7 @@ Repositorio: [damvillanueva/ProyectoEcommerce1](https://github.com/damvillanueva
 - Historial, auditoria, exportacion CSV/Excel y movimientos manuales.
 - Bodegas visuales, ubicaciones fisicas, traslados y explorador 3D con Three.js.
 - Gestion de pedidos, envios, usuarios y descuentos.
+- Bandeja operacional de notificaciones con filtros y reintento administrativo.
 - Codigos QR por SKU y localizacion por nombre, codigo o ubicacion.
 
 ## Arquitectura
@@ -39,6 +41,7 @@ flowchart LR
     GW --> SHIP["Shipment Service"]
     ORD --> INV
     ORD --> SHIP
+    ORD --> MAIL["SMTP / Mailpit"]
     AUTH --> DBA[("PostgreSQL auth")]
     INV --> DBI[("PostgreSQL inventory")]
     ORD --> DBO[("PostgreSQL orders")]
@@ -95,6 +98,7 @@ npm run dev
 - Grafana: `http://127.0.0.1:3000`
 - Prometheus: `http://127.0.0.1:9090`
 - Zipkin: `http://127.0.0.1:9411`
+- Mailpit: `http://127.0.0.1:8025`
 
 Los usuarios semilla son `admin`, `usuario`, `bodeguero` y `cliente`. Sus
 contrasenas se configuran localmente en `.env`; el repositorio no contiene
@@ -108,6 +112,7 @@ credenciales funcionales.
 - Los servicios internos no publican sus puertos al host y usan privilegio minimo.
 - PostgreSQL se enlaza a `127.0.0.1` y cada servicio usa credenciales separadas.
 - Los respaldos incluyen manifiesto, tamano y hash SHA-256 antes de restaurar.
+- El fallo de correo no revierte compras; queda auditado y solo admin puede reintentarlo.
 - Los paneles de monitoreo se enlazan solo a `127.0.0.1` y Grafana es de solo lectura.
 
 La matriz de controles y referencias chilenas/internacionales esta en
@@ -140,7 +145,7 @@ npm run audit:accessibility
 SmartLogix es una demostracion funcional de arquitectura y producto. Los pagos
 son simulados, las imagenes subidas se almacenan como data URL y el comprobante
 de compra no es un documento tributario del SII. Antes de operar con clientes
-reales faltan integraciones de pago, facturacion, correo, almacenamiento de
+reales faltan integraciones de pago, facturacion, proveedor de correo, almacenamiento de
 archivos, alertas operativas, despliegue productivo y una auditoria de seguridad formal.
 
 ## Autor

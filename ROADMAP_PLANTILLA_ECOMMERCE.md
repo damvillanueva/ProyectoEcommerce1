@@ -15,12 +15,13 @@ secretos y un commit con push al repositorio personal.
 
 ## Orden actual de prioridades
 
-1. Responsive completo de tienda, administracion, POS y vista 3D.
-2. Panel de accesibilidad y auditoria WCAG 2.2 AA.
-3. Optimizacion del bundle y carga diferida de modulos pesados.
-4. Pruebas end-to-end y CI para impedir regresiones.
-5. Proveedores, reposicion y punto de venta fisico conectado al inventario.
-6. Limpieza final y arquitectura reutilizable, una vez cerrados los modulos.
+1. Boleta o factura e integracion tributaria real.
+2. Pasarelas de pago y transportistas reales mediante adaptadores configurables.
+3. Privacidad, terminos, cookies y consentimientos versionados.
+4. Busqueda/paginacion de catalogo desde backend y almacenamiento real de imagenes.
+5. Pruebas end-to-end y CI para impedir regresiones.
+6. Fidelizacion, carritos abandonados y automatizaciones comerciales.
+7. Limpieza final y arquitectura reutilizable, una vez cerrados los modulos.
 
 El orden prioriza la integridad de los datos antes de agregar nuevos canales de
 venta. Cada punto se cerrara en bloques pequenos con su propio commit y push.
@@ -79,7 +80,7 @@ PostgreSQL puede ejecutarse localmente en Docker sin pagar un servicio externo.
 ## Fase 6 - Ecommerce avanzado
 
 - [x] Agregar cambios, devoluciones y garantias posteriores al despacho.
-- [ ] Enviar notificaciones de compra, pago, envio y cancelacion.
+- [x] Enviar notificaciones de compra, pago, envio y cancelacion.
 - [ ] Agregar boleta o factura; el comprobante actual no es tributario.
 - [ ] Integrar opcionalmente Webpay, Mercado Pago y transportistas reales.
 - [ ] Agregar carritos abandonados, puntos y fidelizacion.

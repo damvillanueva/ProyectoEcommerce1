@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   FiArrowLeft,
+  FiBell,
   FiBox,
   FiCamera,
   FiCheck,
@@ -41,6 +42,11 @@ import {
 } from "../services/customerAccountService";
 import { getPublicCatalogProducts } from "../services/inventoryService";
 import { cancelCustomerOrder, loadMyOrders, loadMyOrderTracking } from "../services/orderService";
+import {
+  loadMyNotifications,
+  readAllMyNotifications,
+  readMyNotification,
+} from "../services/notificationService";
 import { cancelCustomerPostSale, loadMyPostSales, saveMyPostSale } from "../services/postSaleService";
 import { canCancelOrder } from "../utils/orderCancellationUtils";
 
@@ -65,6 +71,14 @@ const STATUS_META = {
   REJECTED: { label: "Pedido rechazado", tone: "red", step: -1 },
   FAILED: { label: "Requiere revision", tone: "red", step: -1 },
   CANCELLED: { label: "Pedido cancelado", tone: "slate", step: -1 },
+};
+
+const NOTIFICATION_META = {
+  ORDER_CONFIRMED: { icon: FiShoppingBag, label: "Pedido", classes: "bg-sky-500/15 text-sky-300" },
+  PAYMENT_CONFIRMED: { icon: FiCreditCard, label: "Pago aprobado", classes: "bg-emerald-500/15 text-emerald-300" },
+  PAYMENT_REJECTED: { icon: FiXCircle, label: "Pago rechazado", classes: "bg-red-500/15 text-red-300" },
+  SHIPMENT_UPDATED: { icon: FiTruck, label: "Despacho", classes: "bg-violet-500/15 text-violet-300" },
+  ORDER_CANCELLED: { icon: FiXCircle, label: "Cancelacion", classes: "bg-slate-500/15 text-slate-300" },
 };
 
 const TRACKING_STEPS = [
@@ -159,18 +173,21 @@ function CustomerAccountPage() {
   const [postSaleTarget, setPostSaleTarget] = useState(null);
   const [postSaleSaving, setPostSaleSaving] = useState(false);
   const [postSaleError, setPostSaleError] = useState("");
+  const [notifications, setNotifications] = useState([]);
+  const [notificationSaving, setNotificationSaving] = useState(false);
 
   useEffect(() => {
     let active = true;
 
     async function fetchAccount() {
       try {
-        const [profileData, orderData, catalogData, favoriteData, postSaleData] = await Promise.all([
+        const [profileData, orderData, catalogData, favoriteData, postSaleData, notificationData] = await Promise.all([
           loadCustomerProfile(),
           loadMyOrders(),
           getPublicCatalogProducts(),
           loadCustomerFavorites(),
           loadMyPostSales(),
+          loadMyNotifications(),
         ]);
         const trackingEntries = await Promise.all((orderData || []).map(async (order) => {
           try {
@@ -193,6 +210,7 @@ function CustomerAccountPage() {
         setCatalog(Array.isArray(catalogData) ? catalogData : []);
         setFavoriteSkus((favoriteData || []).map((favorite) => favorite.sku));
         setPostSales(Array.isArray(postSaleData) ? postSaleData : []);
+        setNotifications(Array.isArray(notificationData) ? notificationData : []);
         setSelectedOrderNumber(orderData?.[0]?.orderNumber || null);
         setError("");
       } catch (loadError) {
@@ -374,6 +392,7 @@ function CustomerAccountPage() {
       setCancelError("");
       const updatedOrder = await cancelCustomerOrder(cancelTarget.orderNumber, reason);
       const updatedTracking = await loadMyOrderTracking(cancelTarget.orderNumber);
+      const updatedNotifications = await loadMyNotifications();
       setOrders((current) => current.map((order) => (
         order.orderNumber === updatedOrder.orderNumber ? updatedOrder : order
       )));
@@ -381,6 +400,7 @@ function CustomerAccountPage() {
         ...current,
         [updatedOrder.orderNumber]: updatedTracking,
       }));
+      setNotifications(Array.isArray(updatedNotifications) ? updatedNotifications : []);
       setCancelTarget(null);
       showMessage("Pedido cancelado y reembolso registrado.");
     } catch (cancelRequestError) {
@@ -425,6 +445,41 @@ function CustomerAccountPage() {
     }
   }
 
+  async function handleReadNotification(notificationId) {
+    const target = notifications.find((notification) => notification.id === notificationId);
+    if (!target || target.readAt) return;
+    try {
+      setNotificationSaving(true);
+      const updated = await readMyNotification(notificationId);
+      setNotifications((current) => current.map((notification) => (
+        notification.id === updated.id ? updated : notification
+      )));
+    } catch (readError) {
+      console.error(readError);
+      setError("No se pudo marcar la notificacion como leida.");
+    } finally {
+      setNotificationSaving(false);
+    }
+  }
+
+  async function handleReadAllNotifications() {
+    try {
+      setNotificationSaving(true);
+      await readAllMyNotifications();
+      const readAt = new Date().toISOString();
+      setNotifications((current) => current.map((notification) => ({
+        ...notification,
+        readAt: notification.readAt || readAt,
+      })));
+      showMessage("Todas las notificaciones quedaron marcadas como leidas.");
+    } catch (readError) {
+      console.error(readError);
+      setError("No se pudieron actualizar las notificaciones.");
+    } finally {
+      setNotificationSaving(false);
+    }
+  }
+
   function reorder(order) {
     const nextCart = order.lines
       .map((line) => {
@@ -465,6 +520,7 @@ function CustomerAccountPage() {
           onChange={setActiveView}
           favoriteCount={favoriteSkus.length}
           orderCount={orders.length}
+          unreadNotificationCount={notifications.filter((notification) => !notification.readAt).length}
           postSaleCount={postSales.filter((request) => !["REJECTED", "RESOLVED", "CANCELLED"].includes(request.status)).length}
           profile={profile}
         />
@@ -518,6 +574,19 @@ function CustomerAccountPage() {
               cancelling={postSaleSaving}
               onCancel={handleCancelPostSale}
               requests={postSales}
+            />
+          )}
+
+          {activeView === "notifications" && (
+            <CustomerNotificationsView
+              notifications={notifications}
+              onOpenOrder={(orderNumber) => {
+                setSelectedOrderNumber(orderNumber);
+                setActiveView("orders");
+              }}
+              onRead={handleReadNotification}
+              onReadAll={handleReadAllNotifications}
+              saving={notificationSaving}
             />
           )}
 
@@ -597,11 +666,12 @@ function AccountHeader({ onLogout, profile }) {
   );
 }
 
-function AccountSidebar({ activeView, favoriteCount, onChange, orderCount, postSaleCount, profile }) {
+function AccountSidebar({ activeView, favoriteCount, onChange, orderCount, postSaleCount, profile, unreadNotificationCount }) {
   const items = [
     { id: "summary", icon: FiHome, label: "Resumen" },
     { id: "orders", icon: FiShoppingBag, label: "Mis compras", count: orderCount },
     { id: "returns", icon: FiRotateCcw, label: "Mi postventa", count: postSaleCount },
+    { id: "notifications", icon: FiBell, label: "Notificaciones", count: unreadNotificationCount },
     { id: "favorites", icon: FiHeart, label: "Favoritos", count: favoriteCount },
     { id: "addresses", icon: FiMapPin, label: "Direcciones" },
     { id: "profile", icon: FiUser, label: "Mi perfil" },
@@ -715,6 +785,61 @@ function CompactOrder({ order, productsBySku, tracking }) {
         <p className="mt-2 text-sm font-black text-sky-200">{formatCurrency(order.totalAmount)}</p>
       </div>
     </article>
+  );
+}
+
+function CustomerNotificationsView({ notifications, onOpenOrder, onRead, onReadAll, saving }) {
+  const unreadCount = notifications.filter((notification) => !notification.readAt).length;
+  return (
+    <div>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="text-sm font-black uppercase text-sky-300">Actividad de tus compras</p>
+          <h1 className="mt-1 text-3xl font-black">Notificaciones</h1>
+          <p className="mt-2 font-semibold text-slate-400">Confirmaciones de pedido, pago, despacho y cancelacion.</p>
+        </div>
+        <button type="button" disabled={saving || unreadCount === 0} onClick={onReadAll} className="flex h-11 items-center justify-center gap-2 rounded-md border border-sky-400/30 px-4 text-sm font-black text-sky-200 hover:bg-sky-500/10 disabled:opacity-40"><FiCheck /> Marcar todas leidas</button>
+      </div>
+
+      <div className="mt-6 flex items-center gap-3 border-b border-white/10 pb-4">
+        <span className="flex h-10 w-10 items-center justify-center rounded-md bg-sky-500/15 text-sky-300"><FiBell /></span>
+        <div><p className="font-black">{unreadCount} sin leer</p><p className="text-xs font-bold text-slate-500">{notifications.length} notificaciones en tu historial</p></div>
+      </div>
+
+      {notifications.length === 0 ? (
+        <div className="mt-5 rounded-md border border-dashed border-white/15 p-10 text-center text-slate-500">
+          <FiBell className="mx-auto" size={30} />
+          <p className="mt-3 font-black">Aun no tienes notificaciones.</p>
+        </div>
+      ) : (
+        <div className="mt-4 space-y-3">
+          {notifications.map((notification) => {
+            const meta = NOTIFICATION_META[notification.type]
+              || { icon: FiBell, label: notification.type, classes: "bg-slate-500/15 text-slate-300" };
+            const Icon = meta.icon;
+            const unread = !notification.readAt;
+            return (
+              <article key={notification.id} className={`grid gap-4 rounded-md border p-4 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center ${unread ? "border-sky-400/35 bg-sky-500/5" : "border-white/10 bg-slate-900"}`}>
+                <span className={`flex h-11 w-11 items-center justify-center rounded-md ${meta.classes}`}><Icon /></span>
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h2 className="font-black">{notification.title}</h2>
+                    {unread && <span className="rounded-full bg-sky-500 px-2 py-1 text-[10px] font-black uppercase text-white">Nueva</span>}
+                  </div>
+                  <p className="mt-1 text-sm font-semibold leading-5 text-slate-400">{notification.message}</p>
+                  <p className="mt-2 text-xs font-bold text-slate-500">{meta.label} | {formatDate(notification.createdAt)}</p>
+                  <p className={`mt-1 text-xs font-black ${notification.deliveryStatus === "SENT" ? "text-emerald-300" : "text-slate-500"}`}>{notification.deliveryStatus === "SENT" ? "Correo enviado" : "Disponible en tu cuenta"}</p>
+                </div>
+                <div className="flex gap-2 sm:flex-col">
+                  <button type="button" onClick={() => onOpenOrder(notification.orderNumber)} className="flex h-10 flex-1 items-center justify-center gap-2 rounded-md border border-white/10 px-3 text-xs font-black text-slate-300 hover:bg-white/5"><FiShoppingBag /> Ver pedido</button>
+                  {unread && <button type="button" disabled={saving} onClick={() => onRead(notification.id)} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-sky-400/30 text-sky-200 hover:bg-sky-500/10 disabled:opacity-40" title="Marcar como leida"><FiCheck /></button>}
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      )}
+    </div>
   );
 }
 

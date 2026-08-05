@@ -40,6 +40,7 @@ const adminRoutes = [
   { label: "inventory", path: "/inventory" },
   { label: "movements", path: "/inventory/movements" },
   { label: "orders", path: "/orders" },
+  { label: "notifications", path: "/notifications" },
   { label: "shipments", path: "/shipments" },
   { label: "users", path: "/users" },
   { label: "discounts", path: "/discounts" },
@@ -219,6 +220,7 @@ try {
     await inspect(customerPage, "account", viewport);
     for (const accountView of [
       "Mis compras",
+      "Notificaciones",
       "Favoritos",
       "Direcciones",
       "Mi perfil",

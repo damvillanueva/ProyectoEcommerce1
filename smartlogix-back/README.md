@@ -25,6 +25,7 @@ Y componentes de infraestructura:
 - `Factory Method`: en `shipment-service` para crear planes de envio por zona.
 - `Circuit Breaker`: en `order-service` para llamadas a `shipment-service`.
 - `Synchronous orchestration`: `order-service` coordina inventario + envio.
+- `Transactional outbox`: los avisos se persisten con el pedido y se entregan despues del commit.
 
 ## Estructura del repositorio
 
@@ -139,6 +140,7 @@ Iniciar en este orden (cada comando en terminal distinta):
 
 - Eureka Dashboard: `http://localhost:8761`
 - API Gateway: `http://localhost:8080`
+- Mailpit: `http://127.0.0.1:8025`
 
 En Docker Compose solo quedan publicados `8761` y `8080`. Los microservicios internos no se exponen al host; deben consumirse por el gateway.
 
@@ -263,6 +265,11 @@ Invoke-RestMethod `
 - `POST /api/orders`
 - `GET /api/orders`
 - `GET /api/orders/{orderNumber}`
+- `GET /api/notifications/mine`
+- `PATCH /api/notifications/mine/{id}/read`
+- `PATCH /api/notifications/mine/read-all`
+- `GET /api/notifications`
+- `POST /api/notifications/{id}/retry`
 
 ### Shipment Service
 
@@ -278,6 +285,11 @@ Invoke-RestMethod `
 3. Si hay stock, reserva unidades en inventario.
 4. Solicita planificacion de envio en `shipment-service`.
 5. Devuelve orden con `trackingCode` y estado final.
+6. Persiste avisos transaccionales y envia el correo despues de confirmar la transaccion.
+
+Si SMTP no responde, el pedido conserva su estado y la notificacion queda
+`FAILED` para supervision y reintento. El motivo tecnico no se entrega al
+cliente y el reintento esta reservado a `ROLE_ADMIN`.
 
 ## Evolucion prevista
 

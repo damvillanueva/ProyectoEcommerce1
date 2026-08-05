@@ -12,6 +12,7 @@ const DiscountsPage = lazy(() => import("./pages/DiscountsPage"));
 const InventoryMovementsPage = lazy(() => import("./pages/InventoryMovementsPage"));
 const InventoryPage = lazy(() => import("./pages/InventoryPage"));
 const LoginPage = lazy(() => import("./pages/LoginPage"));
+const NotificationsPage = lazy(() => import("./pages/NotificationsPage"));
 const OrderSuccessPage = lazy(() => import("./pages/OrderSuccessPage"));
 const OrdersPage = lazy(() => import("./pages/OrderPage"));
 const ProductDetailPage = lazy(() => import("./pages/ProductDetailPage"));
@@ -48,6 +49,7 @@ function App() {
           <Route path="/inventory" element={<ProtectedRoute allowedRoles={["ROLE_ADMIN", "ROLE_WAREHOUSE_MANAGER", "ROLE_USER"]}><InventoryPage /></ProtectedRoute>} />
           <Route path="/inventory/movements" element={<ProtectedRoute allowedRoles={["ROLE_ADMIN", "ROLE_WAREHOUSE_MANAGER"]}><InventoryMovementsPage /></ProtectedRoute>} />
           <Route path="/orders" element={<ProtectedRoute allowedRoles={["ROLE_ADMIN", "ROLE_USER"]}><OrdersPage /></ProtectedRoute>} />
+          <Route path="/notifications" element={<ProtectedRoute allowedRoles={["ROLE_ADMIN", "ROLE_USER"]}><NotificationsPage /></ProtectedRoute>} />
           <Route path="/shipments" element={<ProtectedRoute allowedRoles={["ROLE_ADMIN", "ROLE_WAREHOUSE_MANAGER"]}><ShipmentPage /></ProtectedRoute>} />
           <Route path="/users" element={<ProtectedRoute allowedRoles={["ROLE_ADMIN"]}><UsersPage /></ProtectedRoute>} />
           <Route path="/discounts" element={<ProtectedRoute allowedRoles={["ROLE_ADMIN"]}><DiscountsPage /></ProtectedRoute>} />

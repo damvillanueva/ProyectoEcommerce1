@@ -229,18 +229,28 @@ Registro de funcionalidades y mejoras incorporadas al proyecto de portafolio.
     - El cliente HTTP interno usa Apache HttpClient 5 para soportar `PATCH`; una prueba de regresion conserva esta configuracion.
     - Estado: implementado con Flyway V3 de pedidos, permisos HTTP, pruebas automatizadas y validacion real por Gateway/PostgreSQL.
 
+23. Notificaciones transaccionales
+    - Compra recibida, pago aprobado o rechazado, pedido en camino/entregado y cancelacion generan eventos persistentes.
+    - El registro se confirma junto con el pedido y el correo se entrega despues del commit, evitando que una falla SMTP revierta la compra.
+    - Cada aviso conserva estado `PENDING`, `SENT` o `FAILED`, fecha de envio, lectura y motivo tecnico visible solo para operacion.
+    - El cliente dispone de una bandeja privada con contador, lectura individual/masiva y acceso al pedido asociado.
+    - Administrador y vendedor pueden supervisar filtros y estados; solo administrador puede reintentar entregas fallidas.
+    - Mailpit recibe los correos localmente y los timeouts SMTP impiden bloqueos prolongados.
+    - Estado: implementado con Flyway V4 de pedidos, permisos por rol, pruebas de privacidad/entrega y validacion real por Gateway/Mailpit.
+
 ## Validacion actual
 
 - Autenticacion: 13 pruebas sin fallos; seguridad HTTP, JWT, recuperacion, verificacion, perfil y proteccion de login.
-- Order service: 36 pruebas sin fallos; cubren POS, postventa, permisos, reembolso, reemplazo, reparacion y despacho idempotente.
+- Order service: 44 pruebas sin fallos; cubren POS, postventa, notificaciones, permisos, privacidad, reembolso, reemplazo, reparacion y despacho idempotente.
 - Inventario: 37 pruebas sin fallos, incluidas seguridad de despacho/reposicion batch, traslados, ubicaciones seguras y compras.
 - Envios: 8 pruebas sin fallos, incluida sincronizacion del pedido y transporte HTTP compatible con `PATCH`.
-- Total backend: 94 pruebas sin fallos.
+- Total backend: 102 pruebas sin fallos.
 - Seguridad de traslados: usuario comun recibe `403`; administrador y bodeguero conservan el permiso operativo.
 - API real: traslado parcial y reversion OK, con dos movimientos enlazados por la misma referencia `TRF-...` y datos de demostracion restaurados.
 - API real de ubicaciones: sugerencia libre OK; coordenada duplicada devuelve `400` y usuario de solo lectura recibe `403`. Los datos temporales fueron eliminados.
 - PostgreSQL: migracion Flyway V5 aplicada correctamente sobre la base persistente.
 - PostgreSQL de pedidos: migracion Flyway V2 aplicada para cajas y comprobantes POS.
+- PostgreSQL de pedidos: migraciones Flyway V3 y V4 aplicadas para postventa y notificaciones.
 - Frontend: `npm.cmd run lint` y `npm.cmd run build` OK.
 - Frontend responsivo: login, dashboard, inventario, pedidos, tienda, detalle de producto, carrito, checkout, cuenta, movimientos, vista 3D, envios, usuarios y descuentos revisados a 320, 390, 768, 1024 y 1440 px, sin desborde global ni elementos fuera de pantalla.
 - Segunda auditoria responsive: 65 combinaciones de ruta, sesion y ancho sin desbordes ni errores de consola; las cinco vistas de cuenta tambien se recorrieron mediante sus controles reales.
@@ -252,6 +262,8 @@ Registro de funcionalidades y mejoras incorporadas al proyecto de portafolio.
 - Flujo POS real: venta por Gateway con `SKU-1003`, stock de 34 a 33, comprobante persistido, estado `COMPLETED/PAID` y cierre de caja con diferencia $0.
 - Flujo postventa real: `ORD-DEF399D6` paso a `DELIVERED`; la garantia `PSD-C3BFFF9A` termino `RESOLVED/REPAIR`; `SKU-2001` paso de 45 a 44 disponibles y regreso a 0 reservados.
 - Postventa responsive: panel interno y cuenta de cliente revisados con datos reales en escritorio, 390 y 320 px, sin desborde horizontal ni errores de consola.
+- Flujo de notificaciones real: `ORD-60B299DE` genero compra y pago, luego cancelacion con stock restaurado; los tres avisos quedaron `SENT` y Mailpit recibio tres correos.
+- Notificaciones responsive: bandeja del cliente y panel interno revisados en escritorio y 390 px, sin desborde horizontal ni errores de consola.
 - Nota: Vite mantiene advertencia de bundle mayor a 500 KB; no bloquea.
 
 ## Roadmap vigente

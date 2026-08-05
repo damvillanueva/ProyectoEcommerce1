@@ -10,6 +10,7 @@ import com.smartlogix.order.client.ShipmentResponse;
 import com.smartlogix.order.domain.OrderLine;
 import com.smartlogix.order.domain.OrderChannel;
 import com.smartlogix.order.domain.OrderStatus;
+import com.smartlogix.order.domain.NotificationType;
 import com.smartlogix.order.domain.FulfillmentMethod;
 import com.smartlogix.order.domain.PaymentMethod;
 import com.smartlogix.order.domain.PaymentStatus;
@@ -54,6 +55,7 @@ public class OrderService {
     private final ShippingRateService shippingRateService;
     private final PaymentSimulationService paymentSimulationService;
     private final MeterRegistry meterRegistry;
+    private final CustomerNotificationPort notificationPort;
 
     public OrderService(
             PurchaseOrderRepository repository,
@@ -70,7 +72,29 @@ public class OrderService {
                 discountRepository,
                 shippingRateService,
                 paymentSimulationService,
-                new SimpleMeterRegistry()
+                new SimpleMeterRegistry(),
+                CustomerNotificationPort.noop()
+        );
+    }
+
+    public OrderService(
+            PurchaseOrderRepository repository,
+            InventoryClient inventoryClient,
+            ShipmentClient shipmentClient,
+            DiscountRepository discountRepository,
+            ShippingRateService shippingRateService,
+            PaymentSimulationService paymentSimulationService,
+            MeterRegistry meterRegistry
+    ) {
+        this(
+                repository,
+                inventoryClient,
+                shipmentClient,
+                discountRepository,
+                shippingRateService,
+                paymentSimulationService,
+                meterRegistry,
+                CustomerNotificationPort.noop()
         );
     }
 
@@ -82,7 +106,8 @@ public class OrderService {
             DiscountRepository discountRepository,
             ShippingRateService shippingRateService,
             PaymentSimulationService paymentSimulationService,
-            MeterRegistry meterRegistry
+            MeterRegistry meterRegistry,
+            CustomerNotificationPort notificationPort
     ) {
         this.repository = repository;
         this.inventoryClient = inventoryClient;
@@ -91,6 +116,7 @@ public class OrderService {
         this.shippingRateService = shippingRateService;
         this.paymentSimulationService = paymentSimulationService;
         this.meterRegistry = meterRegistry;
+        this.notificationPort = notificationPort;
     }
 
     public OrderResponse createOrder(CreateOrderRequest request) {
@@ -168,6 +194,7 @@ public class OrderService {
             order.setRejectionReason(paymentResult.failureReason());
             repository.save(order);
             recordRejection(order, "payment");
+            notificationPort.queue(order, NotificationType.PAYMENT_REJECTED);
             return toResponse(order);
         }
 
@@ -175,6 +202,7 @@ public class OrderService {
 
         if (order.getFulfillmentMethod() == FulfillmentMethod.PICKUP) {
             repository.save(order);
+            queuePurchaseNotifications(order);
             increment("smartlogix.orders.approved", "fulfillment", "pickup");
             log.info("order_approved orderNumber={} fulfillment=pickup", order.getOrderNumber());
             return toResponse(order);
@@ -188,6 +216,7 @@ public class OrderService {
             order.setStatus(OrderStatus.FAILED);
             order.setRejectionReason("Servicio de envios no disponible. Asignacion manual requerida.");
             repository.save(order);
+            queuePurchaseNotifications(order);
             increment("smartlogix.orders.failed", "reason", "shipment_unavailable");
             log.error("order_shipment_failed orderNumber={} reason=shipment_unavailable", order.getOrderNumber());
             return toResponse(order);
@@ -196,6 +225,7 @@ public class OrderService {
         order.setStatus(OrderStatus.SHIPMENT_REQUESTED);
         order.setTrackingCode(shipmentResponse.trackingCode());
         repository.save(order);
+        queuePurchaseNotifications(order);
         increment("smartlogix.orders.approved", "fulfillment", "delivery");
         increment("smartlogix.shipments.requested", "result", "success");
         log.info(
@@ -302,7 +332,9 @@ public class OrderService {
                     .toList());
         }
         order.setStatus(fulfillmentStatus);
-        return toResponse(repository.save(order));
+        PurchaseOrder savedOrder = repository.save(order);
+        notificationPort.queue(savedOrder, NotificationType.SHIPMENT_UPDATED);
+        return toResponse(savedOrder);
     }
 
     @Transactional(readOnly = true)
@@ -457,6 +489,13 @@ public class OrderService {
         order.setPaymentAuthorizationCode(result.authorizationCode());
         order.setPaymentProcessedAt(result.processedAt());
         order.setPaymentFailureReason(result.failureReason());
+    }
+
+    private void queuePurchaseNotifications(PurchaseOrder order) {
+        notificationPort.queue(order, NotificationType.ORDER_CONFIRMED);
+        if (order.getPaymentStatus() == PaymentStatus.PAID) {
+            notificationPort.queue(order, NotificationType.PAYMENT_CONFIRMED);
+        }
     }
 
     private BigDecimal calculateTotal(List<PricedLine> lines) {
@@ -726,6 +765,7 @@ public class OrderService {
         order.setTrackingCode(null);
         order.setStatus(OrderStatus.CANCELLED);
         PurchaseOrder cancelledOrder = repository.save(order);
+        notificationPort.queue(cancelledOrder, NotificationType.ORDER_CANCELLED);
         increment("smartlogix.orders.cancelled", "channel", cancelledOrder.getSalesChannel().name());
         log.info(
                 "order_cancelled orderNumber={} channel={} refundStatus={}",

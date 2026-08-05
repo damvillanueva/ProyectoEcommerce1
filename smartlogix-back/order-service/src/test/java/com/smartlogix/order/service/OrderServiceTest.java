@@ -13,6 +13,7 @@ import com.smartlogix.order.client.ShipmentResponse;
 import com.smartlogix.order.domain.OrderLine;
 import com.smartlogix.order.domain.OrderChannel;
 import com.smartlogix.order.domain.OrderStatus;
+import com.smartlogix.order.domain.NotificationType;
 import com.smartlogix.order.domain.PurchaseOrder;
 import com.smartlogix.order.domain.FulfillmentMethod;
 import com.smartlogix.order.domain.PaymentMethod;
@@ -32,6 +33,7 @@ import com.smartlogix.order.security.InternalServiceTokenProvider;
 import java.lang.reflect.Proxy;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -39,6 +41,7 @@ import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.web.client.RestTemplate;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 
 class OrderServiceTest {
 
@@ -46,19 +49,23 @@ class OrderServiceTest {
     private FakeInventoryClient inventoryClient;
     private FakeShipmentClient shipmentClient;
     private OrderService orderService;
+    private List<NotificationType> notifications;
 
     @BeforeEach
     void setUp() {
         store = new FakePurchaseOrderStore();
         inventoryClient = new FakeInventoryClient();
         shipmentClient = new FakeShipmentClient();
+        notifications = new ArrayList<>();
         orderService = new OrderService(
                 store.repository(),
                 inventoryClient,
                 shipmentClient,
                 emptyDiscountRepository(),
                 new ShippingRateService(),
-                new PaymentSimulationService()
+                new PaymentSimulationService(),
+                new SimpleMeterRegistry(),
+                (order, type) -> notifications.add(type)
         );
     }
 
@@ -85,6 +92,10 @@ class OrderServiceTest {
         assertThat(inventoryClient.available("SKU-3001")).isEqualTo(44);
         assertThat(inventoryClient.reserved("SKU-3001")).isEqualTo(1);
         assertThat(shipmentClient.createdTrackingCodes()).containsExactly("SLX-TEST-1");
+        assertThat(notifications).containsExactly(
+                NotificationType.ORDER_CONFIRMED,
+                NotificationType.PAYMENT_CONFIRMED
+        );
     }
 
     @Test
@@ -111,6 +122,12 @@ class OrderServiceTest {
         assertThat(delivered.status()).isEqualTo(OrderStatus.DELIVERED);
         assertThat(inventoryClient.available("SKU-3001")).isEqualTo(43);
         assertThat(inventoryClient.reserved("SKU-3001")).isZero();
+        assertThat(notifications).containsExactly(
+                NotificationType.ORDER_CONFIRMED,
+                NotificationType.PAYMENT_CONFIRMED,
+                NotificationType.SHIPMENT_UPDATED,
+                NotificationType.SHIPMENT_UPDATED
+        );
     }
 
     @Test
@@ -146,6 +163,7 @@ class OrderServiceTest {
         assertThat(inventoryClient.available("SKU-3001")).isEqualTo(45);
         assertThat(inventoryClient.reserved("SKU-3001")).isZero();
         assertThat(shipmentClient.createdTrackingCodes()).isEmpty();
+        assertThat(notifications).containsExactly(NotificationType.PAYMENT_REJECTED);
     }
 
     @Test
